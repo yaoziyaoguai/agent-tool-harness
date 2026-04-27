@@ -42,8 +42,23 @@ class MarkdownReport:
         not_runnable = ", ".join(
             audit_evals.get("summary", {}).get("not_runnable", [])
         ) or "none"
+        # Signal quality banner：把 adapter 自报的信号质量等级显式渲染在报告顶部，
+        # 避免真实团队把 mock PASS 当成评估信号。这里只渲染，不评分；等级和说明
+        # 都来自 ``signal_quality`` 模块，由 EvalRunner 写入 metrics。
+        signal_quality = str(metrics.get("signal_quality", "unknown"))
+        signal_quality_note = str(metrics.get("signal_quality_note", ""))
         lines = [
             f"# Agent Tool Harness Report: {project.get('name', 'unknown')}",
+            "",
+            "## Signal Quality",
+            "",
+            f"- Level: `{signal_quality}`",
+            f"- Note: {signal_quality_note}",
+            "",
+            (
+                "> ⚠️  当前 Agent Tool Harness 是 MVP；signal_quality 反映本次 run 的信号边界。"
+                "PASS/FAIL 不能替代真实 LLM agentic loop 的评估，详见 README 与 docs/ROADMAP.md。"
+            ),
             "",
             "## Tool Design Audit",
             "",

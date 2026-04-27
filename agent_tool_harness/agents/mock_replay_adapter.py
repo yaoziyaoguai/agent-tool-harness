@@ -5,6 +5,7 @@ from typing import Any
 from agent_tool_harness.agents.agent_adapter_base import AgentRunResult
 from agent_tool_harness.config.eval_spec import EvalSpec
 from agent_tool_harness.recorder.run_recorder import RunRecorder
+from agent_tool_harness.signal_quality import TAUTOLOGICAL_REPLAY
 from agent_tool_harness.tools.registry import ToolRegistry
 
 
@@ -25,7 +26,16 @@ class MockReplayAdapter:
     - bad path 优先使用 judge 里的 forbidden_first_tool，模拟“第一步就选错工具”。
     - 参数从 ToolSpec.input_schema 和 eval.initial_context 推导，不把 runtime_debug demo 工具名写死
       在核心框架里。
+
+    信号质量披露：
+    - ``SIGNAL_QUALITY = TAUTOLOGICAL_REPLAY``。good path 的“通过”是结构性必然，因为
+      adapter 直接读 eval 的期望并回放给 RuleJudge。任何看到这个标签的真实团队都应该
+      理解：当前 PASS 不能解读为“工具对真实 Agent 好用”。详见 ``signal_quality`` 模块。
     """
+
+    # 显式披露信号质量等级。EvalRunner 读取该字段写入 metrics.json 与 report.md，
+    # 让真实团队不会把 mock PASS 当成评估信号。
+    SIGNAL_QUALITY = TAUTOLOGICAL_REPLAY
 
     def __init__(self, path: str = "good"):
         if path not in {"good", "bad"}:

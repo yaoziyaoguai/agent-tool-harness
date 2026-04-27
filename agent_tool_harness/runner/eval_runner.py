@@ -14,6 +14,7 @@ from agent_tool_harness.diagnose.transcript_analyzer import TranscriptAnalyzer
 from agent_tool_harness.judges.rule_judge import JudgeResult, RuleCheckResult, RuleJudge
 from agent_tool_harness.recorder.run_recorder import RunRecorder
 from agent_tool_harness.reports.markdown_report import MarkdownReport
+from agent_tool_harness.signal_quality import UNKNOWN, describe
 from agent_tool_harness.tools.registry import ToolRegistry
 
 
@@ -84,6 +85,9 @@ class EvalRunner:
         """
 
         recorder = RunRecorder(out_dir)
+        # 把 adapter 自报的信号质量提前抓出来，无论后续 audit/adapter 走哪条分支，metrics
+        # 与 report 都能稳定地告诉用户“这次 run 的 PASS/FAIL 信号是什么级别”。
+        signal_quality = str(getattr(adapter, "SIGNAL_QUALITY", UNKNOWN))
         # 先审计契约，再运行 Agent。这样即使运行失败，也能区分是工具/eval 设计问题
         # 还是 Agent tool-use 路径问题。
         audit_tools = self.tool_auditor.audit(tools)
@@ -131,6 +135,7 @@ class EvalRunner:
                 recorder,
                 skipped=0,
                 errors=errors,
+                signal_quality=signal_quality,
             )
 
         for case in evals:
@@ -208,6 +213,7 @@ class EvalRunner:
             recorder,
             skipped=skipped,
             errors=errors,
+            signal_quality=signal_quality,
         )
 
     def _write_artifacts(
@@ -223,14 +229,25 @@ class EvalRunner:
         *,
         skipped: int,
         errors: int,
+        signal_quality: str = UNKNOWN,
     ) -> dict[str, Any]:
         """统一写最终 artifacts。
 
         所有成功、跳过和异常路径都走这里，避免某条异常路径漏写 report 或 JSON。这里写的是
         派生 artifacts；raw transcript/tool_calls/tool_responses 已经由 recorder 在运行中追加。
+
+        ``signal_quality`` 来自 adapter 的自我披露，它会被同时写入 ``metrics.json`` 和
+        ``report.md`` 的顶部 banner，让真实团队不会把 mock PASS 当成评估信号。
         """
 
-        metrics = self._metrics(evals, run_results, judge_results, skipped=skipped, errors=errors)
+        metrics = self._metrics(
+            evals,
+            run_results,
+            judge_results,
+            skipped=skipped,
+            errors=errors,
+            signal_quality=signal_quality,
+        )
         judge_payload = {"results": judge_results}
         diagnosis_payload = {"results": diagnoses}
         project_payload = {
@@ -272,11 +289,16 @@ class EvalRunner:
         *,
         skipped: int = 0,
         errors: int = 0,
+        signal_quality: str = UNKNOWN,
     ) -> dict[str, Any]:
         """计算运行统计。
 
         `failed` 统计 judge 层面的未通过结果；`error_evals` 额外标出 runner/adapter 异常，
         这样报告能区分“模型路径错误”和“执行链路异常”。
+
+        `signal_quality` / `signal_quality_note` 是与 Anthropic 文章方法论差距的显式标记：
+        当前 adapter 是 MockReplayAdapter 时，它会被写为 ``tautological_replay``，提醒读者
+        PASS 不能被解读为“工具对真实 Agent 好用”。这是 MVP 阶段的诚实披露，不是评分。
         """
 
         passed = sum(1 for result in judge_results if result.get("passed"))
@@ -291,6 +313,8 @@ class EvalRunner:
             "passed": passed,
             "failed": failed,
             "total_tool_calls": tool_calls,
+            "signal_quality": signal_quality,
+            "signal_quality_note": describe(signal_quality),
         }
 
     def _runnable_by_eval(self, audit_evals: dict[str, Any]) -> dict[str, bool]:

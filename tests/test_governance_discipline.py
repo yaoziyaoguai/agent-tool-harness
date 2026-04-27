@@ -55,15 +55,21 @@ def test_docs_preserve_evidence_first_and_testing_discipline():
     assert "第二阶段强化" in roadmap
     assert "本轮和第二阶段均不实现" in roadmap
     assert "xfail 转正条件" in roadmap
-    assert "当前没有 xfail 测试" in roadmap
+    assert "test_tool_design_audit_decoy_xfail" in roadmap
+    assert "signal_quality" in roadmap
+    assert "tautological_replay" in roadmap
 
     assert "改测试前的判断顺序" in testing
     assert "xfail 模板" in testing
     assert "Artifact 完整性门槛" in testing
     assert "不能把失败测试改成" in testing
+    assert "signal_quality 测试纪律" in testing
 
     assert "当前阶段边界" in readme
     assert "不接真实模型" in readme
+    assert "signal_quality" in readme
+    assert "tautological_replay" in readme
+    assert "structural" in readme
 
 
 def test_current_phase_does_not_implement_out_of_scope_components():

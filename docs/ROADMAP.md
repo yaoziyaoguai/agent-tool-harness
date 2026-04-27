@@ -81,6 +81,8 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 ## 已知设计债
 
 - Audit 规则是启发式 deterministic rules，后续需要用真实项目反馈调权重。
+- **`ToolDesignAuditor` 当前只是 structural / completeness 检查**：它只读 `tools.yaml` 字段，不读 Python 源码、不调用工具、不做语义级判断。语义诱饵（与已有工具职责重叠的浅封装）会被判高分，已在 `tests/test_tool_design_audit_decoy_xfail.py` 用 strict xfail 钉住。
+- **`MockReplayAdapter` 直接读 `eval.expected_tool_behavior.required_tools` 反向回放**，导致 RuleJudge 在 good path 上结构性 PASS。这是当前最大的 evaluation 信号缺陷，靠 `signal_quality=tautological_replay` 标签向使用者诚实披露；真正修复要等真实 LLM adapter。
 - `from_tools` 只能生成候选题，缺少真实 fixture 时不可运行。
 - `from_tests` 只做静态扫描，不能自动恢复测试 fixture 和用户上下文。
 - `MockReplayAdapter` 仍只是 deterministic mock，不代表真实模型能力；后续需要 replay transcript adapter 和真实 LLM adapter。
@@ -88,14 +90,36 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 - metrics 只统计基础数量，后续需要 latency、token、tool error、retry 等指标。
 - 当前文档测试只能检查关键短语和范围守卫，不能替代人工架构 review。
 - loader 仍不是完整 schema validator；它只做接入期结构校验，深层质量判断仍依赖 audit。
+- `PythonToolExecutor` 只做 `required` / `type` / `enum` 三类 minimal schema validation，远不及完整 JSON Schema。
+
+## 信号质量（与 Anthropic 文章方法论的差距披露）
+
+Anthropic *Writing effective tools for agents* 主张评估必须由真实 LLM agentic loop
+驱动并观察 trajectory。当前 harness 没有真实 LLM adapter，因此引入 `signal_quality`
+标签作为框架级能力披露：
+
+- 等级在 `agent_tool_harness/signal_quality.py` 里集中定义；
+- `AgentAdapter` 协议要求每个实现必须显式声明 `SIGNAL_QUALITY`；
+- EvalRunner 把它写到 `metrics.json`，MarkdownReport 在报告顶部渲染 banner；
+- `MockReplayAdapter` 永远是 `tautological_replay`——任何看到这个等级的 PASS 都不能
+  被解读为“工具对真实 Agent 好用”。
+
+升级路径（每一步都要伴随 `SIGNAL_QUALITY` 的诚实变更）：
+
+1. `recorded_trajectory`：实现 TranscriptReplayAdapter，从已有 JSONL 重放；
+2. `real_agent`：接入真实 OpenAI/Anthropic adapter；
+3. 任何介于两者之间的规则型 adapter 必须使用 `rule_deterministic` 而非默认值。
+
+不允许的反向修改：把 `MockReplayAdapter.SIGNAL_QUALITY` 改成更高等级以让 banner 消失。
 
 ## P0 后续
 
-- 增加 transcript replay adapter，从已有 JSONL 重放真实事件链路。
+- 增加 transcript replay adapter，从已有 JSONL 重放真实事件链路（同时把 `SIGNAL_QUALITY` 升到 `recorded_trajectory`）。
 - 扩展 `RuleJudge` 支持 evidence id 精确匹配。
 - 给 eval candidate 增加 review 状态和转正命令。
 - 增加 artifact schema 校验测试。
 - 将治理纪律测试扩展为文档章节/schema 的更细粒度检查。
+- **让 `ToolDesignAuditor` 做语义级重叠检测**（例如基于 token Jaccard / description embedding），让 `tests/test_tool_design_audit_decoy_xfail.py` 的语义诱饵能被识别——届时该 xfail 会变 XPASS 强制 CI fail，触发转正。
 
 ## P1 后续
 
@@ -116,7 +140,16 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 
 ## xfail 测试
 
-当前没有 xfail 测试。
+当前存在 1 个 strict xfail 测试：
+
+- `tests/test_tool_design_audit_decoy_xfail.py::test_audit_should_flag_semantic_decoy_tool`
+  钉住 `ToolDesignAuditor` 当前不做语义级重叠检测的能力 gap。它构造一个语义
+  诱饵工具（`runtime_quick_root_cause`，与主工具 `runtime_trace_event_chain` 职责
+  重叠、声称一步到位），断言 audit 应该给出 finding——当前 audit 过不了这条断言，
+  所以保持 xfail (strict=True)。
+  - **转正条件**：`ToolDesignAuditor` 实现语义级重叠/职责冗余检测后，断言会通过，
+    xfail 变 XPASS 触发 CI fail，此时把 `@pytest.mark.xfail` 移除即可。
+  - **绝不允许的反向修改**：把测试改弱以让它 PASS、或把诱饵工具改得不像诱饵。
 
 未来允许 xfail 的条件：
 

@@ -18,8 +18,34 @@ Agent Tool Harness 的核心链路是：
 - 自动修改用户工具代码
 - 复杂 LLM Judge
 - 并发执行或大规模 benchmark
+- from_transcripts / from_docs 等更强 eval 生成
+- held-out vs training 的真实对比与基线 diff
 
 这些能力只能保留在 Roadmap 中，不能以“顺手补齐”的方式进入 MVP 主线。
+
+## 信号质量披露（与 Anthropic 文章方法论的差距）
+
+Anthropic 的 *Writing effective tools for agents* 主张 evaluation 必须由真实 LLM agentic
+loop 驱动，从 trajectory 中观察 Agent 是否能正确选用工具。当前 harness 仍只有
+`MockReplayAdapter`，它直接把 eval 自带的 `expected_tool_behavior.required_tools` 反向
+回放给 RuleJudge，因此 PASS 在结构上是必然的。
+
+为了不让真实团队把这种 PASS 误读为评估信号，框架在 `agent_tool_harness/signal_quality.py`
+里定义了显式的 **信号质量等级**：
+
+- `tautological_replay`：当前 MockReplayAdapter 默认等级；
+- `rule_deterministic`：未来基于规则但不直接照抄 eval 期望的 adapter；
+- `recorded_trajectory`：未来 TranscriptReplayAdapter；
+- `real_agent`：未来真实 OpenAI/Anthropic adapter；
+- `unknown`：兜底等级，提醒读者“adapter 未声明”。
+
+`AgentAdapter` 协议要求每个实现显式声明 `SIGNAL_QUALITY`。EvalRunner 把这个标签写入
+`metrics.json` 的 `signal_quality` / `signal_quality_note`，MarkdownReport 在报告顶部
+渲染为 banner。**任何看到 `tautological_replay` 的 run，PASS/FAIL 都不能作为“工具是否
+对真实 Agent 好用”的依据。**
+
+这是 MVP 阶段的诚实披露，不是评分；它只解决“信号边界要不要被显式告知”这一问题。
+真正缩小与 Anthropic 文章的差距，需要等真实 LLM adapter（计划见 Roadmap）。
 
 ## 证据契约
 
@@ -57,6 +83,12 @@ Agent Tool Harness 的核心链路是：
 - meaningful context
 - token efficiency
 - prompt/spec quality
+
+**当前能力边界（重要）：** 这是 **structural / completeness** 检查，不是语义级质量
+判断。它只读 `tools.yaml` 字段，不读 Python 工具源码、不调用工具看真实输出。**字段
+齐全 ≠ 工具好用**——一个字段写得无懈可击但与已有工具职责重叠的“语义诱饵”工具仍会
+被判 5.0。这一 gap 已被 `tests/test_tool_design_audit_decoy_xfail.py` 钉为 strict xfail，
+转正条件见 `docs/ROADMAP.md`。
 
 `EvalQualityAuditor` 审计 eval 是否真实、多步、可验证、不过拟合唯一策略，并检查 split/fixture/runnable。
 

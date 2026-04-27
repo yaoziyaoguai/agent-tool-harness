@@ -20,7 +20,23 @@
 - 写清楚未来转正条件；
 - 不能覆盖当前 MVP 必须可运行的能力。
 
-当前没有 xfail 测试。
+当前 strict xfail 测试（1 个）：
+
+- `tests/test_tool_design_audit_decoy_xfail.py::test_audit_should_flag_semantic_decoy_tool`
+  钉住 `ToolDesignAuditor` 不能识别语义诱饵工具的能力 gap。详见 `docs/ROADMAP.md`
+  的 “xfail 测试” 章节与转正条件。
+
+## signal_quality 测试纪律
+
+`tests/test_signal_quality.py` 锁定框架级信号质量披露契约：
+
+- `MockReplayAdapter.SIGNAL_QUALITY` 必须是 `tautological_replay`，不允许偷偷升级；
+- EvalRunner 必须把 adapter 的 `SIGNAL_QUALITY` 透传到 `metrics.json`；
+- MarkdownReport 顶部必须出现 “Signal Quality” 段；
+- adapter 没声明时必须兜底 `unknown` 而不是裸崩。
+
+任何修改 `signal_quality` 等级或披露行为的改动都必须同步更新这组测试和
+`docs/ROADMAP.md` 的“信号质量”章节。
 
 ## 改测试前的判断顺序
 
