@@ -182,11 +182,26 @@ class RuleJudge:
                 seen_evidence = True
         return True
 
+    # 短标识假阳阈值（P0 根因治理）：
+    #
+    # 真实坑：工具实现里 evidence id 经常是 ``"1"`` / ``"id"`` / ``"a"`` / ``"01"``
+    # 这种短串。之前的 must_use_evidence 只做 substring 匹配，任何 final answer 几乎
+    # 都会"包含" ``"1"``，导致 judge 必过——这是 RuleJudge 加固后仍残留的根因漏洞。
+    #
+    # 处理策略：长度 < 阈值的 evidence 标识直接忽略，不计入引用集合。这样既不会
+    # 误把 ``ev-17`` / ``ckpt-input-17`` / ``snap-03`` 这类真实标识漏掉（≥ 4 字符），
+    # 也避免单字符标识让 substring 匹配失真。**这不是语义级 grounding**，仍是
+    # deterministic 启发式；语义级仍走未来 LLM Judge，详见 docs/ROADMAP.md。
+    _MIN_EVIDENCE_REF_LEN = 3
+
     def _evidence_references(self, run: AgentRunResult) -> list[str]:
         """抽取可被最终回答引用的 evidence 标识。
 
         当前支持 evidence.id、evidence.label 和 content.technical_id。这样 judge 可以用稳定 ID
         判定“回答确实引用工具证据”，但仍保留未来升级成更完整 evidence matcher 的空间。
+
+        过滤规则：忽略长度 < ``_MIN_EVIDENCE_REF_LEN`` 的标识，避免短串 substring 假阳
+        让任何 final answer 都误 PASS（详见类内注释）。
         """
 
         references: list[str] = []
@@ -203,7 +218,11 @@ class RuleJudge:
                 for key in ("id", "label"):
                     if evidence.get(key):
                         references.append(str(evidence[key]))
-        return [item for item in dict.fromkeys(references) if item]
+        return [
+            item
+            for item in dict.fromkeys(references)
+            if item and len(item) >= self._MIN_EVIDENCE_REF_LEN
+        ]
 
     def _result(self, rule: dict[str, Any], passed: bool, message: str) -> RuleCheckResult:
         return RuleCheckResult(rule=rule, passed=passed, message=message)

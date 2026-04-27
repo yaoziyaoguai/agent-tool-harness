@@ -56,6 +56,16 @@ class EvalQualityAuditor:
 
     def audit(self, evals: list[EvalSpec]) -> dict[str, Any]:
         results = [self.audit_eval(case) for case in evals]
+        # 顶层 warnings 字段（P0 治理，与 ToolDesignAuditor 对齐）：
+        # 空 evals 时 audit_evals.json 不能"看起来通过"——必须把"零评估题"作为
+        # 显式 warning 暴露给下游 CI / dashboard，否则真实团队会误以为 eval suite
+        # 已建立。详见 ToolDesignAuditor 同名字段的注释。
+        warnings: list[str] = []
+        if not evals:
+            warnings.append(
+                "empty_input: evals list is empty; nothing to audit. "
+                "请确认 evals.yaml 至少有一条真实评估题，否则 run/judge 永远无信号。"
+            )
         return {
             "summary": {
                 "eval_count": len(evals),
@@ -64,6 +74,7 @@ class EvalQualityAuditor:
                 "low_score_evals": [
                     result.eval_id for result in results if result.overall_score < 3.5
                 ],
+                "warnings": warnings,
             },
             "evals": [result.to_dict() for result in results],
         }
@@ -157,11 +168,39 @@ class EvalQualityAuditor:
                     "从工单、incident、trace、回归测试中抽取任务。",
                 )
             )
-        if (
-            "please call" in prompt
-            or "请调用" in prompt
-            or ("调用" in prompt and "工具" in prompt)
-        ):
+        # 作弊 prompt 启发式（P1 治理扩展）：
+        #
+        # 之前只钉 "please call" / "请调用" / ("调用" + "工具") 三种模式，真实坑：
+        # 审核者写"使用 xxx 工具"、"use the xxx tool"、"call xxx" 等等价表达时
+        # 仍能绕过，等于把工具名/调用动作泄露给 Agent。这里把判定收口到"动词 +
+        # 工具/tool 名词"的词共现，覆盖中英最常见说法。
+        # **不是 NLU**：仍然是 deterministic substring 启发式，不能替代真实
+        # 语义检测；语义级写入 docs/ROADMAP.md 后续 LLM Reviewer。
+        cheating_signals = (
+            "please call",
+            "please use",
+            "call the ",
+            "use the ",
+            "invoke the ",
+            "请调用",
+            "请使用",
+            "使用工具",
+            ("调用", "工具"),
+            ("使用", "工具"),
+            ("call", "tool"),
+            ("use", "tool"),
+            ("invoke", "tool"),
+        )
+        is_cheating = False
+        for signal in cheating_signals:
+            if isinstance(signal, tuple):
+                if all(token in prompt for token in signal):
+                    is_cheating = True
+                    break
+            elif signal in prompt:
+                is_cheating = True
+                break
+        if is_cheating:
             score -= 2
             findings.append(
                 EvalFinding(
@@ -268,29 +307,51 @@ class EvalQualityAuditor:
                     "使用 root_cause_contains、evidence ids 和 tool call 规则。",
                 )
             )
-        # 反 tautological 规则（P0 根因治理）：
-        # 如果 judge.rules 只有一个 ``must_call_tool``，且这个工具就是 ``required_tools[0]``，
-        # 等价于“调用了被指定的工具就算过”——在 mock replay + 候选自动生成的链路下，
-        # 这条 eval 必然 PASS，无法证伪 Agent 真实能力。审计必须显式提示，避免“看似通过”。
+        # 反 tautological 规则（P0 根因治理，本轮扩展）：
+        #
+        # 历史版本只钉"恰好 1 条 must_call_tool 且指向 required_tools[0]"，
+        # 真实漏洞：审核者把候选 judge 扩成"对每个 required_tool 都加一条
+        # must_call_tool"，例如 required_tools=[A,B,C] + 三条 must_call_tool(A/B/C)；
+        # 在 MockReplayAdapter 反向回放 expected_tool_behavior 的链路下，仍然结构性
+        # 必过，本质上是同一根因换种写法绕过 audit。本轮把判定收口到"是否存在
+        # **任何**真正校验 Agent 行为的语义规则"——即 must_use_evidence /
+        # expected_root_cause_contains / must_not_modify_before_evidence /
+        # forbidden_first_tool / max_tool_calls 任意一条。如果一条都没有，且 judge
+        # 仅由 must_call_tool / must_call_one_of 组成（这两条在 mock replay 下都
+        # 是必过的），就报 tautological。
         rules = case.judge.get("rules") or []
-        if (
-            len(rules) == 1
-            and isinstance(rules[0], dict)
-            and rules[0].get("type") == "must_call_tool"
-            and required
-            and rules[0].get("tool") == required[0]
-        ):
-            score -= 2
-            findings.append(
-                EvalFinding(
-                    "judge.tautological_must_call_tool",
-                    "high",
-                    "judge 只校验“必须调用 expected_tool_behavior.required_tools[0]”，"
-                    "在 mock replay 链路下结构性必过，不能证伪 Agent 真实能力。",
-                    "补充 must_use_evidence、expected_root_cause_contains 等语义规则，"
-                    "或要求多工具组合，避免 tautological eval。",
-                )
+        if rules and required:
+            structural_only_types = {"must_call_tool", "must_call_one_of"}
+            semantic_types = {
+                "must_use_evidence",
+                "expected_root_cause_contains",
+                "must_not_modify_before_evidence",
+                "forbidden_first_tool",
+                "max_tool_calls",
+            }
+            rule_types = [
+                rule.get("type") for rule in rules if isinstance(rule, dict)
+            ]
+            has_semantic = any(t in semantic_types for t in rule_types)
+            only_structural = all(
+                t in structural_only_types for t in rule_types if t is not None
             )
+            # 收口条件：(a) 全部规则都是 must_call_tool / must_call_one_of；
+            # (b) 没有任何一条带 Agent 行为语义校验。这样多 must_call_tool 覆盖
+            # required_tools 的扩展写法也会被钉住。
+            if only_structural and not has_semantic:
+                score -= 2
+                findings.append(
+                    EvalFinding(
+                        "judge.tautological_must_call_tool",
+                        "high",
+                        "judge 只配置了 must_call_tool / must_call_one_of 这类结构规则，"
+                        "缺少 must_use_evidence / expected_root_cause_contains 等行为语义"
+                        "校验；在 mock replay 链路下结构性必过，无法证伪 Agent 真实能力。",
+                        "至少补一条语义规则（must_use_evidence、expected_root_cause_contains、"
+                        "must_not_modify_before_evidence 等），避免 tautological eval。",
+                    )
+                )
         return max(score, 1)
 
     def _score_split_fixture(self, case: EvalSpec, findings: list[EvalFinding]) -> int:

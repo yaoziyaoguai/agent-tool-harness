@@ -73,6 +73,17 @@ class ToolDesignAuditor:
             self.audit_tool(tool, tools, name_counts=name_counts, namespace_counts=namespace_counts)
             for tool in tools
         ]
+        # 顶层 warnings 字段（P0 治理）：
+        # 真实坑——之前空 tools 时 CLI 只在 stderr 打印 "(warning) tools file is
+        # empty"，但 audit_tools.json 完全无 finding、average_score=0，CI/远程消费者
+        # 看不到任何信号；用户接 pipeline 会以为"audit 通过"。这里把"零输入"作为
+        # 显式 warning 写进 artifact，让派生数据真实反映"零输入"这一接入失败。
+        warnings: list[str] = []
+        if not tools:
+            warnings.append(
+                "empty_input: tools list is empty; nothing to audit. "
+                "请确认 tools.yaml 已经声明了真实工具，否则后续 run/judge 都会无效。"
+            )
         return {
             "summary": {
                 "tool_count": len(tools),
@@ -80,6 +91,7 @@ class ToolDesignAuditor:
                 "low_score_tools": [
                     result.qualified_name for result in results if result.overall_score < 3.5
                 ],
+                "warnings": warnings,
             },
             "tools": [result.to_dict() for result in results],
         }

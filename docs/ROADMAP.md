@@ -56,6 +56,26 @@
   MCP tool annotations。**本轮明确不引入这些 SDK / LLM Judge / 新依赖。**
 - 新增 `tests/test_failure_attribution.py` 覆盖至少 5 类 finding。
 
+第七阶段 P0 治理硬化已加入当前工作范围（本轮）：
+
+- **EvalQualityAuditor.judge.tautological_must_call_tool** 收口到根因层：原版只钉
+  "恰好 1 条 must_call_tool 且指向 required_tools[0]"，多条 must_call_tool 全覆盖
+  required_tools 的等价绕过仍能通过 audit；本轮判定改成"全部规则都是 must_call_tool /
+  must_call_one_of 且没有任何一条行为语义规则（must_use_evidence /
+  expected_root_cause_contains / must_not_modify_before_evidence /
+  forbidden_first_tool / max_tool_calls）"，避免同根因换写法绕过。
+- **RuleJudge.must_use_evidence 短串假阳修复**：evidence id 长度 < 3 时直接忽略，
+  避免 ``id="1" / "id" / "a"`` 这类短串让 substring 匹配把任何 final_answer 都
+  误判 PASS。``ev-17`` / ``ckpt-input-17`` / ``snap-03`` 等真实标识不受影响。
+- **audit_tools.json / audit_evals.json 增加 `summary.warnings` 字段**：空输入
+  时显式写 ``empty_input: ...`` 警告，避免 CI / 远程消费者只看 JSON 时把"零输入"
+  当成"通过"。原 stderr 警告保留。
+- **EvalQualityAuditor.realism.cheating_prompt 启发式扩展**：覆盖 `please use /
+  call the X / use the X / invoke the X / 请使用 / 使用工具 / (call|use|invoke,
+  tool) 词共现`，避免审核者用同义词绕过工具名泄露检测。仍是 deterministic 启发式。
+- 新增 `tests/test_p0_governance_hardening.py` 8 条治理测试，每条都同时写正向
+  与反向用例（避免新规则误伤合理 eval）。
+
 每次 run 会生成：
 
 - `transcript.jsonl`
