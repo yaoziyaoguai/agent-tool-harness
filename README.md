@@ -29,18 +29,42 @@ Agent Tool Harness 目前是 **MVP**，与 Anthropic 文章方法论存在已知
 
 > 第一次接入的团队请先看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；
 > 常见坏配置对照表见 [examples/bad_configs/README.md](examples/bad_configs/README.md)。
+>
+> 下面命令统一使用 `python -m`，假设你**已经激活当前项目的虚拟环境**
+> （例如 `source .venv/bin/activate`）。如果没有虚拟环境，请把 `python` 替换为
+> 你自己的解释器路径，例如 `.venv/bin/python`。
 
 ```bash
+# 0) 健康检查
 python -m pytest -q
 
+# 1) 审计工具契约
 python -m agent_tool_harness.cli audit-tools \
   --tools examples/runtime_debug/tools.yaml \
   --out runs/audit-tools
 
+# 2) 从工具生成 eval 候选（候选不是正式 eval，必须 review）
+python -m agent_tool_harness.cli generate-evals \
+  --project examples/runtime_debug/project.yaml \
+  --tools examples/runtime_debug/tools.yaml \
+  --source tools \
+  --out runs/generated/eval_candidates.from_tools.yaml
+
+# 3) 人工 review 候选 → 把合格条目的 review_status 改为 "accepted"
+#    （细节见 docs/ONBOARDING.md "如何把候选转成 accepted"；
+#     不允许用脚本批量改 status 跳过 review）
+
+# 4) 把 accepted 候选机械搬运成正式 eval
+python -m agent_tool_harness.cli promote-evals \
+  --candidates runs/generated/eval_candidates.from_tools.yaml \
+  --out runs/generated/evals.promoted.yaml
+
+# 5) 审计正式 eval
 python -m agent_tool_harness.cli audit-evals \
   --evals examples/runtime_debug/evals.yaml \
   --out runs/audit-evals
 
+# 6) 跑 good 路径——预期 PASS
 python -m agent_tool_harness.cli run \
   --project examples/runtime_debug/project.yaml \
   --tools examples/runtime_debug/tools.yaml \
@@ -48,6 +72,9 @@ python -m agent_tool_harness.cli run \
   --out runs/demo-good \
   --mock-path good
 
+# 7) 跑 bad 路径——预期 FAIL
+#    good 全 PASS、bad 全 FAIL 才能证明 judge 没退化成同义复读；
+#    如果两条命令结果一样，先回头看 docs/ONBOARDING.md 第 6 步排查。
 python -m agent_tool_harness.cli run \
   --project examples/runtime_debug/project.yaml \
   --tools examples/runtime_debug/tools.yaml \
@@ -166,16 +193,28 @@ python -m agent_tool_harness.cli audit-evals \
   --out runs/audit-evals
 ```
 
-运行 good/bad replay：
+运行 good/bad replay（**必须两条都跑**——只跑 good 看不出 judge 是否退化为同义复读）：
 
 ```bash
 python -m agent_tool_harness.cli run \
   --project examples/runtime_debug/project.yaml \
   --tools examples/runtime_debug/tools.yaml \
   --evals examples/runtime_debug/evals.yaml \
-  --out runs/demo \
+  --out runs/demo-good \
   --mock-path good
+
+python -m agent_tool_harness.cli run \
+  --project examples/runtime_debug/project.yaml \
+  --tools examples/runtime_debug/tools.yaml \
+  --evals examples/runtime_debug/evals.yaml \
+  --out runs/demo-bad \
+  --mock-path bad
 ```
+
+> `--mock-path good|bad` 选择的是 `MockReplayAdapter` 的回放分支，**好/坏的差异由
+> eval 自带的 `expected_tool_behavior` 与 fixture 决定**，不是 CLI 自动制造。
+> 在你自家的 eval 上跑 `--mock-path bad` 看到 PASS 通常说明你只写了 good
+> fixture——这是 ONBOARDING 走查里最常见的隐性断点。
 
 ## Artifacts
 
