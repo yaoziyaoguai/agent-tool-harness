@@ -63,6 +63,23 @@ class FromTestsGenerator:
                         "judge": {"rules": []},
                         "runnable": False,
                         "missing_context": ["initial_context", "expected_tool_behavior"],
+                        # difficulty 来自测试静态扫描，永远是 unknown：测试名/docstring 不足以
+                        # 判断真实任务的步骤数；审核者必须人工补全 fixture 后才能定级。
+                        "difficulty": "unknown",
+                        "review_status": "candidate",
+                        "review_notes": [
+                            "需要补 initial_context：测试静态信息不能恢复真实用户上下文。",
+                            "需要补 expected_tool_behavior：从测试名无法可靠推断工具调用路径。",
+                            (
+                                "需要人工核对 user_prompt 是否真的代表用户问题，"
+                                "而非内部测试断言改写。"
+                            ),
+                            *(
+                                ["xfail reason 仅作为审核线索，不能让正式 eval 也保持 xfail。"]
+                                if xfail_reason
+                                else []
+                            ),
+                        ],
                     }
                 )
         return cases

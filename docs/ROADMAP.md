@@ -128,6 +128,16 @@ Anthropic *Writing effective tools for agents* 主张评估必须由真实 LLM a
 - 实现 MCP executor。
 - 增加 tool latency、token estimate、error rate metrics。
 - 支持多 eval 文件合并和 split 过滤。
+- 给候选 eval 增加更细的 review 状态机（`needs_review` / `approved` /
+  `rejected`），并提供非交互式 promote 命令，把已审核条目合入正式 `evals.yaml`。
+  当前 MVP 只提供 `review_status="candidate"` + `review_notes` 字段，转正流程仍由
+  人工执行（详见 README 与 docs/ARCHITECTURE.md “候选 eval 审核流程”）。
+- 在 `report.md` 的 Per-Eval Details 中加入 trajectory 节选块（带行号）和 token
+  估算；当前已展示 status / tool sequence / required tools 状态 / forbidden first
+  tool / max tool calls / runtime/skipped 原因 / next steps，但仍是字段聚合，不带
+  原始片段。
+- 给 artifact schema 加版本号字段（`schema_version`），保证未来字段扩展不破坏
+  下游消费者。当前以 `docs/ARTIFACTS.md` 作为人类可读契约。
 
 ## P2 后续
 

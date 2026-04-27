@@ -111,6 +111,14 @@ python -m ruff check .
 - PythonToolExecutor 校验 required/type 并正确绑定单参数函数；
 - RuleJudge 拒绝空 root cause 和未引用具体 evidence 的答案。
 - loader 支持 tools/evals list root，并对重复 eval id、错误 entry 类型和错误字段类型报 ConfigError。
+- candidate 必须保留 candidate/review 语义：`from_tools` / `from_tests` 输出
+  必须含 `review_status="candidate"` / `review_notes` (list) / `difficulty` /
+  `runnable` / `missing_context` / `source`；不允许生成“请调用某工具”的作弊题。
+- report 必须包含 Per-Eval Details 段，并展示 tool sequence、required tools 状态、
+  forbidden first tool 触发、max tool calls 违规、runtime/skipped 原因、
+  signal_quality 提醒。
+- artifact schema 必须有 `docs/ARTIFACTS.md` 文档，并包含全部 9 个 artifact 名称；
+  README 与 ARCHITECTURE 必须引用该文档。
 
 ## 如何检查 artifacts
 

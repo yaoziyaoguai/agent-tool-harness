@@ -27,3 +27,14 @@ def test_regression_checkpoint_boundary():
         "Needs real trace fixture before becoming runnable"
     )
     assert candidate["user_prompt"] == "User sees stale input after checkpoint restore."
+
+    # 候选审核流程字段：from_tests 也必须落 review_status / review_notes / difficulty。
+    # 此处刻意检查 xfail 提醒被加进 notes，避免审核者把 xfail reason 误读为可放宽判定。
+    assert candidate["review_status"] == "candidate"
+    assert candidate["difficulty"] == "unknown"
+    assert isinstance(candidate["review_notes"], list)
+    assert len(candidate["review_notes"]) >= 3
+    notes_text = " | ".join(candidate["review_notes"])
+    assert "initial_context" in notes_text
+    assert "expected_tool_behavior" in notes_text
+    assert "xfail" in notes_text.lower()

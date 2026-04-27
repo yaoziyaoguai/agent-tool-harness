@@ -221,12 +221,44 @@ python -m agent_tool_harness.cli run \
 
 `from_tests` 会扫描 pytest 测试函数名、docstring、xfail reason 和 regression 命名线索。静态扫描无法构造 initial_context 时，也会标记 `runnable: false`。
 
+每个候选额外携带审核字段（详见 `docs/ARTIFACTS.md` 与下面的“候选审核流程”）：
+
+- `review_status`：当前固定为 `candidate`，需要人工 review 才能转正。
+- `review_notes`：审核 checklist；说明候选为什么仍是候选（缺 fixture / 缺 root cause /
+  prompt 需要核对真实性等）。
+- `difficulty`：把 `complexity` 映射成 `trivial` / `single_step` / `multi_step` /
+  `unknown`，便于审核分流。
+- `runnable` / `missing_context` / `source`：保持原有语义。
+
+## 候选 eval 审核流程
+
+`generate-evals` 输出的是 **候选 (candidate)**，**不是正式 eval**。框架不会自动把它们
+合并进 `evals.yaml`，必须经过下面流程才能转正：
+
+1. **生成**：`agent-tool-harness generate-evals --source tools|tests ...` 写到候选 YAML
+   文件（顶层 key 是 `eval_candidates`，与正式 `evals` 区别明显）。
+2. **审核**：人工逐条对照 `review_notes`，补 `initial_context` / `expected_root_cause` /
+   `judge.rules`，确认 `user_prompt` 真的来自真实用户问题。
+3. **本地验证**：把已审核的条目复制到正式 `evals.yaml`（顶层 `evals:`），对它跑
+   `audit-evals` 确保 `runnable=true` 且 findings 为空。
+4. **入库**：与正式 `evals.yaml` 一起 commit；`review_status=candidate` 字段不应进入
+   正式 eval。
+
+详细字段约定与排查指引见 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)。
+
 ## 如何理解报告
 
-`report.md` 包含五个核心部分：
+`report.md` 现在包含以下结构：
 
-- Tool Design Audit：工具契约是否适合 Agent；
-- Eval Quality Audit：eval 是否真实、多步、可验证；
-- Agent Tool-Use Eval：运行了多少 eval、通过多少；
-- Transcript-derived Diagnosis：从调用链路解释失败；
-- Improvement Suggestions：下一步改工具、eval 或 adapter 的建议。
+- **Signal Quality**：本次 run 的信号质量等级与中文警告 banner。
+- **Methodology Caveats**：RuleJudge 是启发式 / MockReplayAdapter 是 deterministic
+  replay / Tool Design Audit 仅 structural 检查的明确边界声明。
+- **Tool Design Audit / Eval Quality Audit / Agent Tool-Use Eval**：摘要。
+- **Per-Eval Details**：每个 eval 单独成段，展示 status (PASS/FAIL/SKIPPED/ERROR)、
+  tool sequence、required tools 状态、forbidden first tool、max tool calls 违规、
+  runtime/skipped 原因、可行动 next steps。
+- **Transcript-derived Diagnosis** / **Improvement Suggestions**。
+- **Artifacts**：列出 9 个文件并指向 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)。
+
+报告永远是派生视图。失败复盘必须回到 `transcript.jsonl` / `tool_calls.jsonl` /
+`tool_responses.jsonl` 三件套；详细 schema 见 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)。
