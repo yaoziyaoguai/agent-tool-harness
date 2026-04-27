@@ -1,0 +1,154 @@
+tools:
+  - name: runtime_trace_event_chain
+    namespace: runtime.trace
+    version: "0.1"
+    description: >
+      Trace a runtime incident through ordered event ids and boundary transitions.
+      Use this when a user reports a runtime behavior mismatch and the next
+      decision depends on causal evidence rather than a visual snapshot.
+    when_to_use: >
+      Use first for suspected runtime, checkpoint, or input-boundary incidents where
+      the user asks for root cause and the trace_id is available.
+    when_not_to_use: >
+      Do not use for purely visual layout questions, and do not use it to modify
+      state. Pair it with checkpoint inspection when the trace references a boundary.
+    input_schema:
+      type: object
+      required: [trace_id]
+      properties:
+        trace_id:
+          type: string
+          description: Stable trace identifier from the incident fixture.
+        focus:
+          type: string
+          enum: [input_boundary, checkpoint, dispatch, unknown]
+          description: Optional diagnostic focus used to filter event chain details.
+        response_format:
+          type: string
+          enum: [concise, detailed]
+          default: concise
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      response_formats: [concise, detailed]
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: true
+      supports_filtering: true
+      supports_range_selection: true
+      max_output_tokens: 1200
+      default_limit: 20
+      truncation_guidance: Narrow by event_id, focus, or time range.
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: demo_tools.py
+      function: runtime_trace_event_chain
+    eval_generation:
+      id: runtime_input_boundary_candidate
+      user_prompt: >
+        A user reports that the runtime accepted stale TUI input after a checkpoint
+        restore. Please identify the most likely root cause from the available
+        runtime evidence and explain the next action.
+      fixture:
+        trace_id: trace-demo-001
+        checkpoint_id: ckpt-input-17
+        session_id: session-demo-001
+      expected_root_cause: input_boundary
+      evidence: [ev-17, ckpt-input-17]
+      required_tools: [runtime_trace_event_chain, runtime_inspect_checkpoint]
+
+  - name: runtime_inspect_checkpoint
+    namespace: runtime.checkpoint
+    version: "0.1"
+    description: >
+      Inspect checkpoint state referenced by a runtime trace and return high-signal
+      fields that explain restore boundaries, input buffers, and follow-up evidence.
+    when_to_use: >
+      Use after a trace event references a checkpoint id or boundary transition that
+      needs state-level confirmation.
+    when_not_to_use: >
+      Do not use as the first step when no checkpoint id is known, and do not use it
+      for visual-only TUI rendering problems.
+    input_schema:
+      type: object
+      required: [checkpoint_id]
+      properties:
+        checkpoint_id:
+          type: string
+          description: Stable checkpoint identifier returned by trace evidence.
+        response_format:
+          type: string
+          enum: [concise, detailed]
+          default: concise
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      response_formats: [concise, detailed]
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: true
+      supports_filtering: true
+      supports_range_selection: true
+      max_output_tokens: 1000
+      default_limit: 10
+      truncation_guidance: Request a narrower checkpoint section or concise format.
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: demo_tools.py
+      function: runtime_inspect_checkpoint
+
+  - name: tui_inspect_snapshot
+    namespace: runtime.tui
+    version: "0.1"
+    description: >
+      Inspect a terminal UI snapshot for rendering symptoms and visible state labels.
+      This tool is useful for confirming visual symptoms, but it cannot prove runtime
+      event causality or checkpoint boundary correctness by itself.
+    when_to_use: >
+      Use when the user asks about visible terminal output, layout, or a rendering
+      symptom after runtime evidence has narrowed the issue to the UI layer.
+    when_not_to_use: >
+      Do not use as the first tool for root-cause analysis of runtime/checkpoint
+      incidents, because snapshots are symptoms rather than causal evidence.
+    input_schema:
+      type: object
+      required: [session_id]
+      properties:
+        session_id:
+          type: string
+          description: Session identifier for the TUI snapshot.
+        response_format:
+          type: string
+          enum: [concise, detailed]
+          default: concise
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      response_formats: [concise, detailed]
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: true
+      supports_filtering: true
+      supports_range_selection: true
+      max_output_tokens: 900
+      default_limit: 8
+      truncation_guidance: Narrow by session_id, pane, or visible timestamp.
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: demo_tools.py
+      function: tui_inspect_snapshot

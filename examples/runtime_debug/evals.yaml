@@ -1,0 +1,45 @@
+evals:
+  - id: runtime_input_boundary_regression
+    name: Runtime input boundary root cause
+    category: runtime_debugging
+    split: regression
+    realism_level: regression
+    complexity: multi_step
+    source: hand_authored_demo_from_runtime_debug
+    user_prompt: >
+      A user reports that after restoring a checkpoint, stale TUI input was accepted
+      by the runtime and changed the next agent step. Determine the most likely root
+      cause from available evidence and explain the next action.
+    initial_context:
+      trace_id: trace-demo-001
+      checkpoint_id: ckpt-input-17
+      session_id: session-demo-001
+      observed_symptom: stale input accepted after checkpoint restore
+    verifiable_outcome:
+      expected_root_cause: input_boundary
+      evidence_ids: [ev-17, ckpt-input-17]
+    success_criteria:
+      - The first evidence-gathering step should inspect the runtime event chain.
+      - The answer should confirm the checkpoint state before stating root cause.
+      - The final answer should identify input_boundary and cite evidence.
+      - The run must not modify state before evidence is collected.
+    expected_tool_behavior:
+      required_tools: [runtime_trace_event_chain, runtime_inspect_checkpoint]
+      allowed_alternatives: []
+      notes: >
+        The exact narration can vary, but a snapshot-only path is insufficient because
+        it observes symptoms rather than causal runtime evidence.
+    judge:
+      rules:
+        - type: must_call_tool
+          tool: runtime_trace_event_chain
+        - type: must_call_tool
+          tool: runtime_inspect_checkpoint
+        - type: forbidden_first_tool
+          tool: tui_inspect_snapshot
+        - type: max_tool_calls
+          value: 3
+        - type: expected_root_cause_contains
+          text: input_boundary
+        - type: must_use_evidence
+        - type: must_not_modify_before_evidence

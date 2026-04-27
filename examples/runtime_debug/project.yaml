@@ -1,0 +1,29 @@
+project:
+  name: runtime-debug-demo
+  domain: agent runtime debugging
+  description: >
+    Demo project for diagnosing Agent Runtime/TUI/checkpoint incidents from trace
+    events, checkpoint state, and terminal snapshots.
+
+evidence_sources:
+  - name: runtime_trace
+    type: structured_event_chain
+    description: Runtime event chain with event ids, boundaries, and causal hints.
+  - name: checkpoints
+    type: checkpoint_state
+    description: Serialized runtime checkpoint metadata.
+  - name: tui_snapshots
+    type: ui_snapshot
+    description: Terminal UI snapshot for visual inspection only.
+
+domain_taxonomy:
+  issue_categories:
+    - input_boundary
+    - checkpoint_restore
+    - ui_rendering
+    - tool_dispatch
+  evidence_types:
+    - trace_event
+    - checkpoint_state
+    - tui_snapshot
+    - root_cause_summary
