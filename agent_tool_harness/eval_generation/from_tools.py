@@ -104,6 +104,14 @@ class FromToolsGenerator:
         所有候选都至少带一条“人工核对 prompt 是否真实”的提醒；缺 fixture / 缺
         expected_root_cause 时分别追加；prompt 过短时再加一条。审核者拿到候选后
         可按 checklist 逐项判断是否转正。
+
+        反作弊提醒（P1 根因治理）：候选 judge 中的 ``must_call_tool`` 默认指向**生成本
+        候选的那个工具**——这是“候选”阶段为了让 audit-evals 能跑通的最小占位规则。
+        如果审核者不修改就转正，会得到一条“调用了它自己应该调用的工具就算过”的
+        套套逻辑 eval（tautological eval），无法区分真实 Agent 能力与 mock replay。
+        因此每个候选都会强制附一条 review note 提醒审核者：要么把 ``must_call_tool``
+        换成更高层语义规则（如 ``must_use_evidence`` + ``expected_root_cause_contains``），
+        要么把它和别的工具混合，避免“工具自己证明工具好用”。
         """
 
         notes: list[str] = []
@@ -117,6 +125,10 @@ class FromToolsGenerator:
             )
         notes.append(
             "需要人工核对 user_prompt 的真实性，确认它来自真实用户问题而非工具描述改写。"
+        )
+        notes.append(
+            "judge.must_call_tool 默认指向生成本候选的工具，转正前请替换或补充语义规则，"
+            "避免 tautological eval（工具自己证明自己好用）。"
         )
         if len(prompt) < 40:
             notes.append("user_prompt 偏短，可能缺少必要业务背景，请人工补充。")

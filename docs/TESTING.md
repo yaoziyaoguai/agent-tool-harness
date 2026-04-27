@@ -124,6 +124,12 @@ python -m ruff check .
   tool name（runner 须保全成 `tool_registry_initialization_failed` artifact）、
   duplicate eval id、tool 缺 `when_to_use`/`output_contract` 时的 audit finding、
   eval 缺 `verifiable_outcome` 时被标 `not_runnable`。
+- 反补丁回归测试（`tests/test_anti_patch.py`）必须钉住三条根因边界：
+  (1) 核心包不允许出现 demo 业务符号（如 `runtime_trace_event_chain` /
+  `lookup_session_failure`）——防止 demo bleed 反复回潮；
+  (2) `EvalQualityAuditor` 必须给出 `judge.tautological_must_call_tool` finding，
+  当 judge 仅有一条 `must_call_tool` 且指向 `required_tools[0]` 时；
+  (3) `from_tools` 候选 `review_notes` 必须包含 anti-tautology 提醒文本。
 
 ## 如何检查 artifacts
 

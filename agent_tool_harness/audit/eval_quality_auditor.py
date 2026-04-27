@@ -219,6 +219,29 @@ class EvalQualityAuditor:
                     "使用 root_cause_contains、evidence ids 和 tool call 规则。",
                 )
             )
+        # 反 tautological 规则（P0 根因治理）：
+        # 如果 judge.rules 只有一个 ``must_call_tool``，且这个工具就是 ``required_tools[0]``，
+        # 等价于“调用了被指定的工具就算过”——在 mock replay + 候选自动生成的链路下，
+        # 这条 eval 必然 PASS，无法证伪 Agent 真实能力。审计必须显式提示，避免“看似通过”。
+        rules = case.judge.get("rules") or []
+        if (
+            len(rules) == 1
+            and isinstance(rules[0], dict)
+            and rules[0].get("type") == "must_call_tool"
+            and required
+            and rules[0].get("tool") == required[0]
+        ):
+            score -= 2
+            findings.append(
+                EvalFinding(
+                    "judge.tautological_must_call_tool",
+                    "high",
+                    "judge 只校验“必须调用 expected_tool_behavior.required_tools[0]”，"
+                    "在 mock replay 链路下结构性必过，不能证伪 Agent 真实能力。",
+                    "补充 must_use_evidence、expected_root_cause_contains 等语义规则，"
+                    "或要求多工具组合，避免 tautological eval。",
+                )
+            )
         return max(score, 1)
 
     def _score_split_fixture(self, case: EvalSpec, findings: list[EvalFinding]) -> int:

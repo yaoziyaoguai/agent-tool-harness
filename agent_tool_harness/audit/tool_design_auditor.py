@@ -204,7 +204,7 @@ class ToolDesignAuditor:
                     "namespacing.generic_name",
                     "medium",
                     "工具名过于泛化，没有自然表达任务边界。",
-                    "把资源和动作写进名称，例如 runtime_trace_event_chain。",
+                    "把资源和动作写进名称，例如 <domain>_<resource>_<action>。",
                 )
             )
         if tool.namespace and namespace_counts[tool.namespace] == 1 and "." not in tool.namespace:
