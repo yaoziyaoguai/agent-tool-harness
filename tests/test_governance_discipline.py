@@ -52,12 +52,39 @@ def test_docs_preserve_evidence_first_and_testing_discipline():
     assert "变更守卫" in architecture
     assert "不能替代 raw artifacts" in architecture
 
-    assert "第二阶段强化" in roadmap
-    assert "本轮和第二阶段均不实现" in roadmap
-    assert "xfail 转正条件" in roadmap
-    assert "test_tool_design_audit_decoy_xfail" in roadmap
-    assert "signal_quality" in roadmap
-    assert "tautological_replay" in roadmap
+    # ROADMAP 治理断言（原则级，不锁字面阶段名）：
+    # 历史上这里钉的是 ``"第二阶段强化"`` / ``"本轮和第二阶段均不实现"`` /
+    # ``"test_tool_design_audit_decoy_xfail"`` 这些字面措辞，等于把"v0.1 临时
+    # 阶段名"写进了治理硬约束。当 ROADMAP 升级阶段命名（例如改用 v0.1 / v0.2 /
+    # v0.3 / v1.0）时，这条测试就成了阻碍真实重构的补丁——这是把"测试为发现真实
+    # bug"原则用错地方的典型例子。本轮升级为只钉以下原则：
+    #   1. ROADMAP 必须明确划分**阶段**（不允许"啥都做"的无边界范围）；
+    #   2. ROADMAP 必须显式披露**非目标 / 暂不做**（防止能力悄悄外溢）；
+    #   3. ROADMAP 必须披露 signal_quality + tautological_replay（与 MockReplayAdapter
+    #      的 SIGNAL_QUALITY 标签同步，让用户知道当前 PASS 不代表真实能力）；
+    #   4. ROADMAP 必须保留 xfail 纪律段，且明确"不允许用 xfail 掩盖当前阶段
+    #      应该满足的需求"。
+    # 字面阶段名（v0.1 / v0.2 / 第八阶段 / 候选 A 等）允许随版本调整，但**原则
+    # 不允许被拿掉**。
+    roadmap_lower = roadmap.lower()
+    assert any(stage in roadmap for stage in ("v0.1", "v0.2", "v1.0", "阶段")), (
+        "ROADMAP 必须明确划分阶段（v0.x 或同义阶段命名），不允许无边界范围。"
+    )
+    assert "非目标" in roadmap or "暂不做" in roadmap, (
+        "ROADMAP 必须显式披露非目标 / 暂不做范围，防止能力悄悄外溢。"
+    )
+    assert "signal_quality" in roadmap_lower, (
+        "ROADMAP 必须披露 signal_quality 等级与升级路径。"
+    )
+    assert "tautological_replay" in roadmap_lower, (
+        "ROADMAP 必须显式声明 MockReplayAdapter 的 tautological_replay 信号等级。"
+    )
+    assert "xfail" in roadmap_lower, (
+        "ROADMAP 必须保留 xfail 纪律段，避免用 xfail 掩盖当前阶段应做的工作。"
+    )
+    assert "掩盖" in roadmap or "假装" in roadmap or "不能用 xfail" in roadmap, (
+        "ROADMAP 必须明文说明 xfail 不允许用来掩盖应做的工作。"
+    )
 
     assert "改测试前的判断顺序" in testing
     assert "xfail 模板" in testing

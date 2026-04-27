@@ -2,187 +2,281 @@
 
 > 外部接入指南见 [ONBOARDING.md](./ONBOARDING.md)；
 > 常见坏配置对照表见 [`examples/bad_configs/README.md`](../examples/bad_configs/README.md)。
+> 历史版本见 `docs/ROADMAP.md.bak`（保留原文供回溯）。
 
-## 最近一次实现状态
+---
 
-当前 MVP 已完成可运行闭环：
+## 设计原则（高于一切阶段目标）
 
-- YAML loader
-- Tool Design Audit
-- Eval Quality Audit
-- Eval Generator from_tools
-- Eval Generator from_tests
-- PythonToolExecutor
-- ToolRegistry
-- MockReplayAdapter
-- EvalRunner
-- RunRecorder
-- RuleJudge
-- TranscriptAnalyzer
-- MarkdownReport
-- `examples/runtime_debug` demo
-- pytest 测试
-- README / ARCHITECTURE / ROADMAP / TESTING
+1. **小步、根因、可证伪**：每一步只做"让最小闭环更可信"的事。任何工作出现"扩展
+   auditor / judge / generator 细节"的冲动时，先回头问："这件事是当前阶段毕业
+   标准的一部分吗？" 不是就停。
+2. **新增/修改代码必须写中文学习型注释或 docstring**：解释模块/类/函数负责什么、
+   不负责什么、为什么这样设计、用户项目自定义入口在哪里、如何通过 artifacts 查
+   问题、哪些只是 MVP/mock/demo、未来扩展点在哪里。
+3. **测试为发现真实 bug 而存在**：不放宽断言、不删关键断言、不空测试、不无理由
+   xfail；fake/mock/xfail 都要有中文注释说明模拟什么边界或失败场景。
+4. **不允许 hack / 补丁 / demo-only 分支 / 硬编码 runtime_debug 业务符号**。
+5. **所有问题必须先找根因再修**：不吞异常、不靠 substring 假阳掩盖、不让 mock
+   等级偷偷升级、不在 RuleJudge / Auditor 里加"为了让本次 run PASS"的临时支路。
+6. **阶段范围是硬约束**：跨阶段的能力进入工作区前必须先在 ROADMAP 升级阶段，
+   不允许"既然已经在做，就顺手把 v0.2/v0.3 的能力也做了"。
 
-第二阶段强化已加入当前工作范围：
+---
 
-- 补强关键模块中文学习型注释，强调证据流和架构边界；
-- 补强架构文档中的证据契约、失败归因流程和变更守卫；
-- 补强测试纪律文档，明确不允许改弱测试、空测试和无理由 xfail；
-- 增加治理纪律测试，防止文档/范围约束被无意削弱。
+## 阶段总览
 
-第三阶段基础修复已加入当前工作范围：
+| 阶段 | 一句话目标 | 当前状态 |
+|------|-----------|---------|
+| **v0.1** | **最小 harness 跑起来** —— 一次 Agent 运行能记录证据、用基础规则判断工具调用链路是否合理、跑最小 eval、输出可读报告 | **基本达成（剩 3 条 blocking）** |
+| v0.2 | 更强的 deterministic audit / judge / transcript 能力 | 进行中（**建议暂停扩张直到 v0.1 毕业**）|
+| v0.3 | 自动化回归 / 场景库 / 真实 Agent Runtime 集成 | 未启动 |
+| v1.0 | 稳定可扩展的 Agent Harness 平台 | 未启动 |
 
-- EvalRunner 在 adapter/registry 失败时尽量写完整 artifacts；
-- EvalRunner 使用 EvalQualityAuditor 的 runnable 结果作为执行闸门；
-- MockReplayAdapter 从 eval/tool spec 推导 good/bad path，不再硬编码 runtime_debug 工具名；
-- ToolRegistry 不再静默覆盖歧义短名；
-- PythonToolExecutor 增加最小 input_schema 校验和单参数绑定修正；
-- RuleJudge 修复空 root cause 和弱 evidence 引用的明显误判。
-- 配置 loader 支持 tools/evals list root，并拒绝重复 eval id 和明显错误字段类型。
+---
 
-第六阶段 Failure Attribution 强化已加入当前工作范围（本轮）：
+## 当前状态自评（基于真实仓库快照）
 
-- TranscriptAnalyzer 重写：从 raw artifacts + audit findings 派生 11 类 finding，
-  每条带 `type / severity / category / evidence_refs / why_it_matters /
-  suggested_fix / related_tool_or_eval`；新增 `category_summary` /
-  `root_cause_hypothesis` / `suggested_fixes` / `what_to_check_next` / 
-  `diagnosis_kind="deterministic_heuristic"`，旧字段保留向后兼容。
-- MarkdownReport 在 Per-Eval Details 渲染 finding 列表 + root cause hypothesis +
-  what to check next，新增顶层 **Failure Attribution** 段按 category 聚合，
-  并在 Methodology Caveats 显式声明诊断为 deterministic heuristic。
-- 借鉴方法论：LangSmith / LangGraph trace tags、OpenTelemetry span attributes、
-  Anthropic *Writing effective tools for agents* 失败分类、G-Eval rubric 风格、
-  MCP tool annotations。**本轮明确不引入这些 SDK / LLM Judge / 新依赖。**
-- 新增 `tests/test_failure_attribution.py` 覆盖至少 5 类 finding。
+### 已经完成的（远超 v0.1 最低线）
 
-第七阶段 P0 治理硬化已加入当前工作范围（本轮）：
+- 9 个 artifact 完整生成（`transcript.jsonl` / `tool_calls.jsonl` /
+  `tool_responses.jsonl` / `metrics.json` / `audit_tools.json` / `audit_evals.json`
+  / `judge_results.json` / `diagnosis.json` / `report.md`）；
+- `ToolDesignAuditor` 五维 deterministic 打分 + warning 字段；
+- `EvalQualityAuditor` 五维 + runnable 闸门 + tautological judge 检测 +
+  `verifiability.success_criteria_only_required_tools`（**已超 v0.1**）；
+- `from_tools` / `from_tests` 候选生成 + spec gating + 默认语义 judge
+  （`commit d3b6b2a`，**这部分属于 v0.2 但已合入**）；
+- `promote-evals` CLI + 5 类 candidate writer warnings；
+- `RuleJudge` 7 类规则 + evidence id 长度过滤；
+- `TranscriptAnalyzer` 11 类 finding + root_cause_hypothesis；
+- `MarkdownReport` 含 Failure Attribution + Methodology Caveats；
+- `signal_quality` 披露 + `MockReplayAdapter.SIGNAL_QUALITY=tautological_replay`；
+- `schema_version=1.0.0` + `run_metadata` 跨 artifact 共享 run_id；
+- 113 passed + 1 strict xfailed（v0.1 + 候选 B 已合入后的基线）。
 
-- **EvalQualityAuditor.judge.tautological_must_call_tool** 收口到根因层：原版只钉
-  "恰好 1 条 must_call_tool 且指向 required_tools[0]"，多条 must_call_tool 全覆盖
-  required_tools 的等价绕过仍能通过 audit；本轮判定改成"全部规则都是 must_call_tool /
-  must_call_one_of 且没有任何一条行为语义规则（must_use_evidence /
-  expected_root_cause_contains / must_not_modify_before_evidence /
-  forbidden_first_tool / max_tool_calls）"，避免同根因换写法绕过。
-- **RuleJudge.must_use_evidence 短串假阳修复**：evidence id 长度 < 3 时直接忽略，
-  避免 ``id="1" / "id" / "a"`` 这类短串让 substring 匹配把任何 final_answer 都
-  误判 PASS。``ev-17`` / ``ckpt-input-17`` / ``snap-03`` 等真实标识不受影响。
-- **audit_tools.json / audit_evals.json 增加 `summary.warnings` 字段**：空输入
-  时显式写 ``empty_input: ...`` 警告，避免 CI / 远程消费者只看 JSON 时把"零输入"
-  当成"通过"。原 stderr 警告保留。
-- **EvalQualityAuditor.realism.cheating_prompt 启发式扩展**：覆盖 `please use /
-  call the X / use the X / invoke the X / 请使用 / 使用工具 / (call|use|invoke,
-  tool) 词共现`，避免审核者用同义词绕过工具名泄露检测。仍是 deterministic 启发式。
-- 新增 `tests/test_p0_governance_hardening.py` 8 条治理测试，每条都同时写正向
-  与反向用例（避免新规则误伤合理 eval）。
+### v0.2 已启动但**尚未合入**的工作（在工作区，未 commit）
 
-第八阶段 P1B 接入体验三件套已加入当前工作范围（本轮）：
+- 候选 A：`ToolDesignAuditor` 语义信号（`shallow_wrapper` /
+  `semantic_overlap` / `usage_boundary_duplicated` / `shallow_usage_boundary` /
+  `missing_response_format` + 扩 generic name token + signal_quality 披露 +
+  原 strict xfail 转正 + 新隐蔽诱饵 strict xfail）。
+- 工作区状态：`agent_tool_harness/audit/tool_design_auditor.py` +
+  `docs/ARCHITECTURE.md` / `docs/ROADMAP.md`（被本轮重写覆盖）/ `docs/TESTING.md`
+  + `tests/test_tool_design_audit_decoy.py` + `tests/test_tool_design_audit_semantic.py` +
+  `tests/test_tool_design_audit_subtle_decoy_xfail.py`。
+- 测试结果：127 passed / 1 xfailed，ruff clean，demo 端到端正确。
+- **结论**：质量本身没问题，但**它是 v0.2 内容**，不应该在 v0.1 毕业前合入。
+  建议处理方式见下文"v0.1 当前 blocking issue"第 3 条。
 
-- **CLI `promote-evals` 子命令**：把 `eval_candidates.yaml` 中
-  `review_status="accepted"` 且 `runnable=true` 且字段齐全（initial_context /
-  verifiable_outcome.expected_root_cause / judge.rules）的候选机械搬运到指定
-  正式 evals.yaml 片段。**默认禁止覆盖已有文件**，需 `--force`；保留
-  review_status / review_notes / source 等审核痕迹；不做 audit、不改 prompt、
-  不自动 LLM 评审。Skip reason 显式可读，告诉审核者下一步要补什么。
-- **CandidateWriter 顶层 `warnings` 字段**：generate-evals 输出文件直接带
-  empty_input / all_unrunnable / missing_review_notes / high_missing_context /
-  cheating_prompt_suspect 等可行动质量提示，审核者关掉终端也不会丢失；CLI 同时
-  把 warning 镜像到 stderr。warnings 不是失败，CLI 退出码仍为 0。
-- **artifact `schema_version` + `run_metadata`**：新模块
-  `agent_tool_harness/artifact_schema.py` 定义 `ARTIFACT_SCHEMA_VERSION="1.0.0"`
-  与 `make_run_metadata`，给 metrics.json / audit_tools.json / audit_evals.json /
-  judge_results.json / diagnosis.json 以及 generate-evals / promote-evals 输出
-  YAML 都打戳。同一次 run 的 5 份 artifact 共享同一个 `run_id`，下游可由它串
-  起来复盘。**不是 OpenTelemetry**，只是最小解析契约；raw JSONL 不打戳（事件流
-  逐行独立，由 docs/ARTIFACTS.md 与 schema_version 共同表达字段约定）。
-- 新增 `tests/test_p1b_promote_warnings_schema.py` 19 条治理测试：覆盖 promote
-  accepted/needs_review/rejected/runnable=false/缺字段 + 拒覆盖 + 强制覆盖 +
-  promoted 文件可被 load_evals/audit-evals 读 + 各 artifact schema_version 一致
-  + 失败路径 artifact 也带 schema_version + CLI 退出码语义。
+### 当前最大风险
 
-每次 run 会生成：
+不是某个 audit 不够强，而是 **v0.2 已经开始扩张但 v0.1 闭环还没在新用户/新项目
+上验证**。继续把 ToolDesignAuditor / RuleJudge / from_tools 等做强，**不会让一个
+新接入的用户第一次跑 harness 时更顺利**——他可能根本卡在"我不知道怎么写最小
+tools.yaml"。
 
-- `transcript.jsonl`
-- `tool_calls.jsonl`
-- `tool_responses.jsonl`
-- `metrics.json`
-- `audit_tools.json`
-- `audit_evals.json`
-- `judge_results.json`
-- `diagnosis.json`
-- `report.md`
+---
 
-## 当前 MVP 范围
+## v0.1 — 最小 harness 跑起来
 
-MVP 目标是“可运行闭环”，不是大而全 benchmark。
+### 阶段目标（一句话）
 
-当前重点：
+让一个外部用户，拿到本仓库 + ONBOARDING.md，能在 30 分钟内：在他自己的项目里写
+最小 tools.yaml + evals.yaml，跑通 `audit-tools / audit-evals / run`，拿到 9 个
+artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pass/fail"。
 
-- 用 deterministic rules 审计工具和 eval；
-- 用 replay adapter 固定 good/bad 路径；
-- 用 artifacts 证明 Agent 是否真的正确使用工具；
-- 用测试保证 bad path 会失败、good path 会成功。
+**v0.1 不追求很牛**——不追求 audit 信号多丰富、judge 多语义、analyzer 多智能。
+只追求**闭环成立**且**新人能跑通**。
 
-## 暂不做范围
+### 毕业标准（必须全部达成）
 
-本轮和第二阶段均不实现：
+1. ✅ `examples/runtime_debug` good path 全 PASS / bad path 全 FAIL；
+2. ✅ 9 个 artifact 在 good / bad / runner_error 路径下都能完整生成；
+3. ✅ `signal_quality` 在每份 metrics.json 顶部诚实披露；
+4. ❌ **在一个全新的 example 项目上完成同样的闭环**（v0.1 blocking 1）；
+5. ❌ **ONBOARDING.md 的 10 分钟接入路径在一个没看过本项目的同事身上验证**
+   （v0.1 blocking 2）；
+6. ❌ **v0.2 工作区改动妥善归档**，v0.1 基线干净，可作为对外 release 候选
+   （v0.1 blocking 3）。
 
-- 真实 OpenAI API adapter
-- 真实 Anthropic API adapter
-- MCP executor
-- HTTP executor
-- Shell executor
-- Web UI
-- 自动修改用户工具代码
-- 复杂 LLM Judge
-- 并发执行
-- 大规模 benchmark
-- `generate-evals --source transcripts/docs/logs`（当前只支持 `from_tools` / `from_tests`）
-- held-out eval split 自动迁移
-- CI 集成（GitHub Actions / pre-commit）
+### 非目标（v0.1 期间**严禁**做）
 
-任何新增文件如果实现上述能力，都应先进入 Roadmap review，而不是直接进入代码。
+- 真实 LLM API、MCP、HTTP、Shell executor、Web UI、并发、benchmark、自动 patch；
+- 任何 LLM Judge / 语义级 audit / transcript replay adapter；
+- 继续给 ToolDesignAuditor / EvalQualityAuditor / RuleJudge 加 finding；
+- 给 from_tools / from_tests 加新 source（transcripts / docs）；
+- 多 example 项目库（v0.1 只需要 1 个 runtime_debug + 1 个新项目证明通用性，
+  不需要场景库）；
+- 给 report.md 加 trajectory 节选 / token estimate；
+- 任何"反正都在改了顺手"的扩展。
 
-## 已知设计债
+### 停止规则（任一触发必须立刻停手回 v0.1）
 
-- Audit 规则是启发式 deterministic rules，后续需要用真实项目反馈调权重。
-- **`ToolDesignAuditor` 当前只是 structural / completeness 检查**：它只读 `tools.yaml` 字段，不读 Python 源码、不调用工具、不做语义级判断。语义诱饵（与已有工具职责重叠的浅封装）会被判高分，已在 `tests/test_tool_design_audit_decoy_xfail.py` 用 strict xfail 钉住。
-- **`MockReplayAdapter` 直接读 `eval.expected_tool_behavior.required_tools` 反向回放**，导致 RuleJudge 在 good path 上结构性 PASS。这是当前最大的 evaluation 信号缺陷，靠 `signal_quality=tautological_replay` 标签向使用者诚实披露；真正修复要等真实 LLM adapter。
-- `from_tools` 只能生成候选题，缺少真实 fixture 时不可运行。**默认 judge 已升级为
-  `must_call_tool` + `must_use_evidence` + `must_not_modify_before_evidence`（destructive
-  工具自动加），并在 hint 提供 `expected_root_cause` 时再加 `expected_root_cause_contains`**；
-  这关掉了"调用即通过"的根因，使新候选不再被 `EvalQualityAuditor.judge.tautological_must_call_tool`
-  报告。同时：
-  - 工具契约缺关键字段（`when_to_use` / `when_not_to_use` / `output_contract` /
-    `output_contract.required_fields` 含 `evidence` / `input_schema.properties` 含
-    `response_format`）时，候选自动落到 `review_status="needs_review"` + `runnable=false`，
-    审核者必须先回 `tools.yaml` 修工具契约，不能改 eval 绕过。
-  - 默认 `success_criteria` 含 4 条反 tautology 文案；`EvalQualityAuditor` 新增
-    `verifiability.success_criteria_only_required_tools` finding，识别"只把 required_tools
-    复述成准则"的伪装。
-  - `user_prompt` 在去工具名后再做一次"动词+工具/tool"共现兜底替换（`_scrub_cheating_signals`），
-    避免 cheating prompt 回潮。
-  详见 `tests/test_from_tools_judge_quality.py`、`tests/test_anti_patch.py`。
-  仍未做：从 transcripts / 真实工单 / docs 自动生成更真实的 user_prompt——这要等
-  `from_transcripts` / `from_docs` 与 LLM 辅助改写，已记 P2。
-- `EvalQualityAuditor.runnable` 现已穿透字段层只看实际值（`_has_substantive_value`），
-  能识别 `initial_context: {trace_id: ""}` 这种"看似配齐"的伪 fixture，并要求
-  `verifiable_outcome` 至少含一条非空 `expected_root_cause` 或 `evidence_ids`；
-  但**它仍是启发式 deterministic check**，不会判断 fixture 是否真实/语义合理。
-  语义级 fixture 校验需要后续 LLM-assisted reviewer，已记 P2。
-- `RuleJudge.must_use_evidence` 现要求 (a) final answer 含 `evidence`/`证据` 关键词、
-  (b) 至少一次成功 tool_response 返回非空 evidence id/label、(c) 答案文本引用其中
-  至少一个 id——避免"模板化提到 evidence 一词就通过"的 false positive。**仍不是 LLM
-  Judge 的语义 grounding**：它无法判断引用的 id 是否真的支撑结论，也无法识别
-  paraphrased evidence。完整 evidence grounding（连接证据 → 推理链 → 结论）需要
-  LLM Judge 或更强 evidence matcher，已记 P2。
-- `from_tests` 只做静态扫描，不能自动恢复测试 fixture 和用户上下文。
-- `MockReplayAdapter` 仍只是 deterministic mock，不代表真实模型能力；后续需要 replay transcript adapter 和真实 LLM adapter。
-- `RuleJudge.must_use_evidence` 已支持基础 evidence id/label 引用，后续仍需要更完整的 evidence matcher。
-- metrics 只统计基础数量，后续需要 latency、token、tool error、retry 等指标。
-- 当前文档测试只能检查关键短语和范围守卫，不能替代人工架构 review。
-- loader 仍不是完整 schema validator；它只做接入期结构校验，深层质量判断仍依赖 audit。
-- `PythonToolExecutor` 只做 `required` / `type` / `enum` 三类 minimal schema validation，远不及完整 JSON Schema。
+1. 工作了一天还在 ToolDesignAuditor / EvalQualityAuditor / RuleJudge /
+   TranscriptAnalyzer 里加 finding；
+2. 在加任何 LLM-related 路径（哪怕只是"准备工作"）；
+3. 当前任务的终点不是"让闭环在新用户/新项目上跑通"；
+4. 给 strict xfail 文件再添加新的 case；
+5. 对 examples/runtime_debug 之外的真实业务符号做硬编码。
+
+### v0.1 当前 blocking issue（**只允许这 3 个**）
+
+#### 1. 第二个 example 项目尚未存在
+**根因**：所有 demo 都跑在 `examples/runtime_debug` 上。这无法证明 harness 是
+通用的——可能 audit/judge/runner 的某些假设悄悄绑死在 runtime_debug 的工具命名
+风格上。需要新增 `examples/<minimal-second-project>/`，用一个完全不同的领域
+（如 payments / search / docs lookup）跑 audit + run 的闭环。
+
+**约束**：
+- **零新代码逻辑**——只用现有 audit/judge/runner 能力；
+- 工具数量 ≤ 3，eval 数量 ≤ 2；
+- good path 必须 PASS，bad path 必须 FAIL；
+- 不需要复杂业务，只要能证明"换一个领域 harness 仍然成立"。
+
+#### 2. ONBOARDING 10 分钟路径未在新人身上验证
+**根因**：当前 ONBOARDING.md 是作者写的，可能存在"作者觉得显然但用户实际卡壳"的
+步骤。这是 v0.1 用户体验的核心。
+
+**约束**：
+- 找内部一个没看过本项目的同事，按 ONBOARDING 跑一遍；
+- 记录他卡住的所有步骤（包括"看不懂哪句话"）；
+- **不允许通过加 audit/judge 能力解决用户体验问题**——只能改文档与示例；
+- 把高级能力章节（如 `signal_quality` / `verifiability.success_criteria_only_required_tools`）
+  挪到独立"进阶"章节，避免新手第一次接触就被淹没。
+
+#### 3. v0.2 工作区改动妥善归档
+**根因**：当前工作区有候选 A 的 5 文件 + 3 新测试（ToolDesignAuditor 语义信号），
+功能本身正确，但属于 v0.2。如果直接合入会模糊 v0.1 release 的边界，且让"v0.2
+能力先于 v0.1 毕业"的反模式合法化。
+
+**处理方案（任选其一）**：
+- **A**：`git stash push -m "v0.2-candidate-A"` 暂存，等 v0.1 毕业后再 pop；
+- **B**：建一个 `v0.2/candidate-a-tool-design-semantic-signals` 分支，把改动
+  commit 进去，然后 `git checkout main` 把工作区清干净；
+- **C**：保留工作区改动但**不 commit**，且 v0.1 期间不再扩展该方向。
+
+**强约束**：v0.1 毕业前不允许把候选 A 合入 main。
+
+### v0.1 期间下一步只允许做什么
+
+按优先级（同时只允许 1 件）：
+1. 处理 v0.2 工作区改动（blocking 3，最快）；
+2. 写 `examples/<second-project>/`（blocking 1）；
+3. 找同事跑 ONBOARDING 并修订（blocking 2）。
+
+---
+
+## v0.2 — 更强的 deterministic audit / judge / transcript
+
+> ⚠️ **v0.1 毕业前严禁动**。本节只描述"v0.1 毕业后第一波要做什么"，作为方向锚。
+
+### 阶段目标
+
+deterministic 启发式做到合理上限，让 audit / judge / analyzer 信号能识别"字段层
+伪装"和"语法 PASS 但语义不通"的常见反模式。
+
+### 毕业标准
+
+1. ToolDesignAuditor 能识别浅封装捷径话术 + 跨工具语义重叠（候选 A 已实现，
+   v0.1 毕业后从工作区/分支合入即可）；
+2. EvalQualityAuditor 含 `success_criteria_only_required_tools` finding（已合入）；
+3. `from_tools` 默认 judge 含语义/防御性规则（已合入 commit `d3b6b2a`）；
+4. `RuleJudge.must_use_evidence` 升级为不只 substring 启发式（**未做**）；
+5. `TranscriptReplayAdapter` 上线，`signal_quality` 升到 `recorded_trajectory`
+   （**未做**）；
+6. `TranscriptAnalyzer` 在 report.md 中加 trajectory 节选（**未做**）。
+
+### 非目标
+
+- 真实 LLM API；
+- LLM Judge；
+- 大规模 benchmark；
+- 多场景库（留给 v0.3）。
+
+### 停止规则
+
+任一超出"deterministic 启发式 + 已有 transcript JSONL"的能力都不做。
+
+### 已合入的 v0.2 工作
+
+- `commit d3b6b2a feat: harden from-tools generated eval judging`（候选 B）。
+
+### 工作区 / 分支中的 v0.2 候选（v0.1 毕业后再合入）
+
+- 候选 A：ToolDesignAuditor semantic signals（处理方案见 v0.1 blocking 3）。
+
+### v0.2 backlog（不排序，毕业后再排）
+
+- 候选 A 合入；
+- `RuleJudge.must_use_evidence` 加更强的 evidence matcher（仍是 deterministic）；
+- `TranscriptReplayAdapter` —— 从已有 JSONL 重放，把 signal_quality 升到
+  `recorded_trajectory`；
+- `TranscriptAnalyzer` 在 report.md 加 trajectory 节选块；
+- `ToolDesignAuditor` 隐蔽诱饵（词汇不重合的语义重叠）—— 仍是 strict xfail，
+  转正条件需 transcript 真实样本或 LLM judge（这条可能要拖到 v0.3）；
+- `from_tools` `_difficulty` 启发式细化；
+- `PythonToolExecutor` 完整 JSON Schema 校验（取代当前 `required/type/enum`
+  最小子集）。
+
+---
+
+## v0.3 — 自动化回归 / 场景库 / 真实 Agent Runtime
+
+### 阶段目标
+
+让 harness 不只是"能跑"而是"能持续监控真实 Agent 在多场景下的行为退化"。
+
+### 毕业标准
+
+1. 多场景库（`examples/scenarios/{payments, search, docs, runtime, ...}`）每个场景
+   有独立 tools/evals + baseline 报告；
+2. 自动化回归：CI 跑所有场景，与 baseline diff（包括 metrics / artifact /
+   report.md）；
+3. 真实 Agent Runtime adapter 至少接入 1 个（OpenAI / Anthropic / MCP）；
+4. LLM Judge 作为**辅助 reviewer**（与 deterministic findings 并列输出，不替换）；
+5. 质量评分体系：每个工具 / eval 有跨 run 的 quality_score 趋势线。
+
+### 非目标
+
+- Web UI、并发执行、自动 patch（留给 v1.0）。
+
+### 停止规则
+
+不引入"平台化"特性（多用户 / Web UI / 复杂权限）。
+
+---
+
+## v1.0 — 稳定可扩展的 Agent Harness 平台
+
+### 阶段目标
+
+让多个团队 / 多个项目能共享同一套 harness，作为长期质量基础设施。
+
+### 毕业标准
+
+1. Web UI 查看 transcript / tool calls / diagnosis；
+2. CI 集成模板（GitHub Actions / pre-commit）；
+3. 完整 schema validator（取代 audit 的 deterministic 启发式作为入口校验）；
+4. 自动 patch 建议（默认不直接修改用户工具代码，输出 diff 让用户审核）；
+5. 大规模 benchmark + 并发执行；
+6. 多用户 / 多项目支持（含权限、quota、隔离）。
+
+### 非目标
+
+- 替代真实 Agent Runtime（永远只是评估框架，不是 Agent 框架）。
+
+---
+
+## 暂不做范围（永久或长期）
+
+- **替代真实 Agent Runtime / SDK**：本项目永远是评估框架，不会变成 LangChain /
+  AutoGPT / Anthropic SDK 的替代；
+- **自动改用户工具代码**：v1.0 之后才考虑，且永远默认 dry-run；
+- **跨语言工具支持**：Python 工具是 MVP；其他语言通过 MCP / HTTP / Shell
+  executor（v0.3+）覆盖。
+
+---
 
 ## 信号质量（与 Anthropic 文章方法论的差距披露）
 
@@ -194,92 +288,45 @@ Anthropic *Writing effective tools for agents* 主张评估必须由真实 LLM a
 - `AgentAdapter` 协议要求每个实现必须显式声明 `SIGNAL_QUALITY`；
 - EvalRunner 把它写到 `metrics.json`，MarkdownReport 在报告顶部渲染 banner；
 - `MockReplayAdapter` 永远是 `tautological_replay`——任何看到这个等级的 PASS 都不能
-  被解读为“工具对真实 Agent 好用”。
+  被解读为"工具对真实 Agent 好用"。
 
 升级路径（每一步都要伴随 `SIGNAL_QUALITY` 的诚实变更）：
 
-1. `recorded_trajectory`：实现 TranscriptReplayAdapter，从已有 JSONL 重放；
-2. `real_agent`：接入真实 OpenAI/Anthropic adapter；
+1. v0.2：`recorded_trajectory` —— 实现 `TranscriptReplayAdapter`，从已有 JSONL 重放；
+2. v0.3：`real_agent` —— 接入真实 OpenAI/Anthropic adapter；
 3. 任何介于两者之间的规则型 adapter 必须使用 `rule_deterministic` 而非默认值。
 
-不允许的反向修改：把 `MockReplayAdapter.SIGNAL_QUALITY` 改成更高等级以让 banner 消失。
+**不允许的反向修改**：把 `MockReplayAdapter.SIGNAL_QUALITY` 改成更高等级以让 banner 消失。
 
-## P0 后续
-
-- 增加 transcript replay adapter，从已有 JSONL 重放真实事件链路（同时把 `SIGNAL_QUALITY` 升到 `recorded_trajectory`）。
-- 扩展 `RuleJudge` 支持 evidence id 精确匹配。
-- 给 eval candidate 增加 review 状态和转正命令。
-- 增加 artifact schema 校验测试。
-- 将治理纪律测试扩展为文档章节/schema 的更细粒度检查。
-- **让 `ToolDesignAuditor` 做语义级重叠检测**（例如基于 token Jaccard / description embedding），让 `tests/test_tool_design_audit_decoy_xfail.py` 的语义诱饵能被识别——届时该 xfail 会变 XPASS 强制 CI fail，触发转正。
-
-## P1 后续
-
-- 实现 OpenAI adapter。
-- 实现 Anthropic adapter。
-- 实现 MCP executor。
-- 增加 tool latency、token estimate、error rate metrics。
-- 支持多 eval 文件合并和 split 过滤。
-- 给候选 eval 增加更细的 review 状态机（`needs_review` / `approved` /
-  `rejected`），并提供非交互式 promote 命令，把已审核条目合入正式 `evals.yaml`。
-  **本轮（第八阶段）已落地最小版本**：`promote-evals` 子命令支持把
-  `review_status="accepted"` + `runnable=true` + 字段齐全的候选机械搬运到指定
-  evals.yaml 片段；默认禁止覆盖；保留 review_notes。仍未做的：完整状态机（
-  needs_review/approved/rejected 多态流转）、PR/issue tracker 双向同步。
-- 在 `report.md` 的 Per-Eval Details 中加入 trajectory 节选块（带行号）和 token
-  估算；本轮已渲染 failure attribution finding 列表 / category breakdown /
-  root cause hypothesis / what to check next，但仍是字段聚合，**没有原始
-  transcript 片段**。trajectory 节选属于 P1 后续（需要先稳定 transcript schema
-  版本号）。
-- 给 artifact schema 加版本号字段（`schema_version`）：**本轮（第八阶段）已落地
-  最小版本**——`agent_tool_harness/artifact_schema.py` 定义
-  `ARTIFACT_SCHEMA_VERSION="1.0.0"`，所有派生 JSON / generate-evals / promote-evals
-  输出 YAML 均带戳；同一 run 共享 `run_metadata.run_id`。仍未做的：raw JSONL
-  自描述（事件流逐行独立）、SemVer 升级流程自动化、跨版本兼容性测试。
-
-## P2 后续
-
-- HTTP executor。
-- Shell executor。
-- LLM Judge 作为辅助 reviewer（与 deterministic findings 并列输出，不替换）。
-- Web UI 查看 transcript、tool calls、diagnosis。
-- 自动 patch 建议，但默认不直接修改用户工具代码。
-- 大规模 benchmark 和并发执行。
+---
 
 ## xfail 测试
 
-当前存在 1 个 strict xfail 测试：
+当前存在 1 个 strict xfail（v0.1 基线）：
 
-- `tests/test_tool_design_audit_decoy_xfail.py::test_audit_should_flag_semantic_decoy_tool`
-  钉住 `ToolDesignAuditor` 当前不做语义级重叠检测的能力 gap。它构造一个语义
-  诱饵工具（`runtime_quick_root_cause`，与主工具 `runtime_trace_event_chain` 职责
-  重叠、声称一步到位），断言 audit 应该给出 finding——当前 audit 过不了这条断言，
-  所以保持 xfail (strict=True)。
-  - **转正条件**：`ToolDesignAuditor` 实现语义级重叠/职责冗余检测后，断言会通过，
-    xfail 变 XPASS 触发 CI fail，此时把 `@pytest.mark.xfail` 移除即可。
-  - **绝不允许的反向修改**：把测试改弱以让它 PASS、或把诱饵工具改得不像诱饵。
+- `tests/test_tool_design_audit_subtle_decoy_xfail.py::test_audit_should_flag_subtle_semantic_decoy_with_disjoint_vocabulary`
+  —— 仅当候选 A 合入后存在；当前 v0.1 基线（`HEAD=d3b6b2a`）无该 xfail。
+- 历史 strict xfail `tests/test_tool_design_audit_decoy_xfail.py` 在候选 A 中
+  被转正，文件改名为 `tests/test_tool_design_audit_decoy.py`（同样仅在候选 A
+  合入后生效）。
 
 未来允许 xfail 的条件：
 
-- 测试覆盖的是明确的未来能力，例如真实 adapter、MCP executor 或 evidence id 精确引用；
-- 必须写清楚 reason；
-- 必须写清楚转正条件；
-- 不能用 xfail 掩盖当前 MVP 应该满足的需求。
+- 测试覆盖的是明确的下一阶段能力（v0.1 期间不允许新增 xfail）；
+- 必须写清楚 reason 与中文学习型注释；
+- 必须写清楚转正条件（写明属于哪个阶段）；
+- **不能用 xfail 掩盖当前阶段应该满足的需求**。
 
-xfail 转正条件必须满足：
+---
 
-- 对应能力进入当前阶段范围；
-- 有真实 fixture 或 replay 证据；
-- bad path 仍能被判失败；
-- 相关文档和 Roadmap 已同步更新。
+## 全局停止规则总结
 
-## Mock/Replay 替换计划
+任何 PR / commit 在以下情况必须停手回 ROADMAP review：
 
-当前 `MockReplayAdapter` 是 MVP 的可复现 adapter。
-
-后续替换方向：
-
-- `TranscriptReplayAdapter`：读取历史 transcript/tool_calls/tool_responses；
-- `OpenAIAdapter`：直接调用 OpenAI API；
-- `AnthropicAdapter`：直接调用 Anthropic API；
-- `MCPExecutor`：连接用户 MCP server 执行工具。
+1. 它实现的能力不在当前阶段毕业标准里；
+2. 它扩展了 deterministic auditor / judge 但当前阶段已经足够；
+3. 它引入了新依赖；
+4. 它引入了 LLM 调用 / 真实 API；
+5. 它新增了 strict xfail 但当前阶段不允许；
+6. 它修改了已有断言变弱或删除关键断言；
+7. 它给 examples/runtime_debug 之外的真实业务符号做硬编码。
