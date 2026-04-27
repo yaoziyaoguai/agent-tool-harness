@@ -133,17 +133,28 @@ class RuleJudge:
     def _uses_evidence(self, run: AgentRunResult) -> bool:
         """检查最终回答是否真的把工具 evidence 纳入结论。
 
-        MVP 现在要求回答里出现 evidence，并且引用至少一个工具返回的 evidence id/label。它仍然
-        不是完整语义判定，但能避免“随便写 evidence 一词”就通过的明显误判。
+        加固版本（P1 根因治理）——必须满足全部条件，缺一不可：
+        1. 最终回答提及 evidence/证据相关词（中英）：``evidence`` / ``证据``。
+        2. 至少有一次 ``tool_responses`` 返回了非空 evidence id/label。
+        3. 最终回答包含其中至少一个 evidence id/label/technical_id。
+
+        为什么不再放行"只写 evidence/based on/shows 这类词"的答案：那等于让任何
+        模板化回答都通过 judge，无法证伪。本方法仍然是 deterministic 启发式，
+        **不是 LLM Judge**——它只能验证"回答确实引用了工具返回的具体标识"，
+        不能保证语义正确。语义级 grounding 需要后续 LLM Judge 或 evidence matcher，
+        已写入 ``docs/ROADMAP.md``。
+
+        排错提示：如果 good path 莫名 FAIL，先检查 ``tool_responses.jsonl`` 是否真的
+        有 evidence id；再检查 ``transcript.jsonl`` 中 final answer 是否引用了那个 id。
         """
 
-        final_answer = run.final_answer.lower()
-        if "evidence" not in final_answer:
+        final_answer_lower = run.final_answer.lower()
+        if "evidence" not in final_answer_lower and "证据" not in run.final_answer:
             return False
         references = self._evidence_references(run)
         if not references:
             return False
-        return any(reference.lower() in final_answer for reference in references)
+        return any(reference.lower() in final_answer_lower for reference in references)
 
     def _no_modify_before_evidence(self, run: AgentRunResult) -> bool:
         """防止 Agent 在拿到证据前调用疑似修改类工具。

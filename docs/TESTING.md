@@ -130,6 +130,14 @@ python -m ruff check .
   (2) `EvalQualityAuditor` 必须给出 `judge.tautological_must_call_tool` finding，
   当 judge 仅有一条 `must_call_tool` 且指向 `required_tools[0]` 时；
   (3) `from_tools` 候选 `review_notes` 必须包含 anti-tautology 提醒文本。
+- `tests/test_runnable_and_evidence_grounding.py` 钉住两组根因边界：
+  (a) `EvalQualityAuditor.runnable` 必须穿透字段层只看实际值——
+  `initial_context: {trace_id: ""}` / `verifiable_outcome: {expected_root_cause: ""}` /
+  `expected_tool_behavior: {required_tools: []}` 都必须给针对性 high finding 并标
+  not_runnable；`evidence_ids` 可作为 `expected_root_cause` 的合法替代（反补丁对照）；
+  (b) `RuleJudge.must_use_evidence` 必须三条同时满足才放行——final answer 含
+  `evidence`/`证据`、至少一次成功 tool_response 含非空 evidence id、答案引用其中
+  至少一个 id；中文证据路径正常识别；失败工具返回的 evidence 不计入。
 
 ## 如何检查 artifacts
 

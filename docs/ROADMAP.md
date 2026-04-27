@@ -94,6 +94,17 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
   通过 `EvalQualityAuditor.judge.tautological_must_call_tool` finding 与 candidate
   `review_notes` 提醒钉死，但根因修复要等支持非 tautological 自动规则生成（如
   `must_use_evidence` 默认 + 反向工具组合）。详见 `tests/test_anti_patch.py`。
+- `EvalQualityAuditor.runnable` 现已穿透字段层只看实际值（`_has_substantive_value`），
+  能识别 `initial_context: {trace_id: ""}` 这种"看似配齐"的伪 fixture，并要求
+  `verifiable_outcome` 至少含一条非空 `expected_root_cause` 或 `evidence_ids`；
+  但**它仍是启发式 deterministic check**，不会判断 fixture 是否真实/语义合理。
+  语义级 fixture 校验需要后续 LLM-assisted reviewer，已记 P2。
+- `RuleJudge.must_use_evidence` 现要求 (a) final answer 含 `evidence`/`证据` 关键词、
+  (b) 至少一次成功 tool_response 返回非空 evidence id/label、(c) 答案文本引用其中
+  至少一个 id——避免"模板化提到 evidence 一词就通过"的 false positive。**仍不是 LLM
+  Judge 的语义 grounding**：它无法判断引用的 id 是否真的支撑结论，也无法识别
+  paraphrased evidence。完整 evidence grounding（连接证据 → 推理链 → 结论）需要
+  LLM Judge 或更强 evidence matcher，已记 P2。
 - `from_tests` 只做静态扫描，不能自动恢复测试 fixture 和用户上下文。
 - `MockReplayAdapter` 仍只是 deterministic mock，不代表真实模型能力；后续需要 replay transcript adapter 和真实 LLM adapter。
 - `RuleJudge.must_use_evidence` 已支持基础 evidence id/label 引用，后续仍需要更完整的 evidence matcher。

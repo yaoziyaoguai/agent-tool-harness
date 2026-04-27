@@ -77,7 +77,56 @@ class EvalQualityAuditor:
             "judge_flexibility": self._score_judge_flexibility(case, findings),
             "split_and_fixture": self._score_split_fixture(case, findings),
         }
-        runnable = case.runnable and bool(case.initial_context) and bool(case.verifiable_outcome)
+        # runnable 不能只看字段是否存在（``bool({"x": ""})`` 是 True），否则用户写
+        # ``initial_context: {trace_id: ""}`` 就能蒙混过关。这里要求 initial_context
+        # 与 verifiable_outcome 至少有一个 substantive 值（非空字符串/非空容器），
+        # 并且 verifiable_outcome 必须含可被 judge 校验的 expected_root_cause 或 evidence_ids。
+        # 任意一项不满足都给出对应 high finding，让真实接入者按建议修而不是误以为可运行。
+        runnable = case.runnable
+        if not _has_substantive_value(case.initial_context):
+            runnable = False
+            findings.append(
+                EvalFinding(
+                    "fixture.empty_initial_context_values",
+                    "high",
+                    "initial_context 字段存在但所有值都为空，无法复盘真实场景。",
+                    "至少给出 trace_id / session_id / checkpoint_id 等真实 fixture 值。",
+                )
+            )
+        if not _has_substantive_value(case.verifiable_outcome):
+            runnable = False
+            findings.append(
+                EvalFinding(
+                    "verifiability.empty_verifiable_outcome_values",
+                    "high",
+                    "verifiable_outcome 字段存在但所有值都为空，judge 无从校验。",
+                    "声明 expected_root_cause、evidence_ids 等可机器检查字段。",
+                )
+            )
+        elif not _is_truthy(case.verifiable_outcome.get("expected_root_cause")) and not (
+            case.verifiable_outcome.get("evidence_ids")
+            or case.verifiable_outcome.get("evidence")
+        ):
+            runnable = False
+            findings.append(
+                EvalFinding(
+                    "verifiability.missing_expected_root_cause",
+                    "high",
+                    "verifiable_outcome 缺少 expected_root_cause / evidence_ids，"
+                    "judge 没有可校验目标。",
+                    "至少补一条 expected_root_cause（非空）或 evidence_ids 列表。",
+                )
+            )
+        if not _has_substantive_value(case.expected_tool_behavior):
+            runnable = False
+            findings.append(
+                EvalFinding(
+                    "multi_step.missing_expected_tool_behavior",
+                    "high",
+                    "expected_tool_behavior 字段存在但所有值都为空，无法描述工具调用预期。",
+                    "至少声明 required_tools 或 tool_options，让 RuleJudge 能校验调用链。",
+                )
+            )
         if not runnable:
             findings.append(
                 EvalFinding(
@@ -283,3 +332,35 @@ class EvalQualityAuditor:
         if not values:
             return 0.0
         return round(sum(values) / len(values), 2)
+
+
+def _is_truthy(value: Any) -> bool:
+    """判断单个 YAML 值是否“真有内容”。
+
+    与 ``bool(value)`` 的区别：会把 ``"   "``（仅空白）也视为空，避免用户用空格
+    伪造非空字符串。其它容器（dict/list）只要长度 > 0 就算 truthy；具体子项是否空
+    交给 ``_has_substantive_value`` 递归检查。
+    """
+
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict | list | tuple | set):
+        return len(value) > 0
+    return bool(value)
+
+
+def _has_substantive_value(container: Any) -> bool:
+    """判断 mapping/list 是否至少包含一个 substantive 值。
+
+    为什么需要：``bool({"trace_id": ""})`` 是 True，但语义上等同于空。runnable 检查
+    必须穿透字段层只看实际值，否则用户写一个全空字典就能让 eval 显示"可运行"，
+    跑出来的 artifact 会全是占位符——这是真实用户最容易踩的"看似配齐"的坑。
+    """
+
+    if isinstance(container, dict):
+        return any(_has_substantive_value(v) for v in container.values())
+    if isinstance(container, list | tuple | set):
+        return any(_has_substantive_value(v) for v in container)
+    return _is_truthy(container)
