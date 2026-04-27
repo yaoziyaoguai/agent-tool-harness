@@ -21,6 +21,22 @@
 - pytest 测试
 - README / ARCHITECTURE / ROADMAP / TESTING
 
+第二阶段强化已加入当前工作范围：
+
+- 补强关键模块中文学习型注释，强调证据流和架构边界；
+- 补强架构文档中的证据契约、失败归因流程和变更守卫；
+- 补强测试纪律文档，明确不允许改弱测试、空测试和无理由 xfail；
+- 增加治理纪律测试，防止文档/范围约束被无意削弱。
+
+第三阶段基础修复已加入当前工作范围：
+
+- EvalRunner 在 adapter/registry 失败时尽量写完整 artifacts；
+- EvalRunner 使用 EvalQualityAuditor 的 runnable 结果作为执行闸门；
+- MockReplayAdapter 从 eval/tool spec 推导 good/bad path，不再硬编码 runtime_debug 工具名；
+- ToolRegistry 不再静默覆盖歧义短名；
+- PythonToolExecutor 增加最小 input_schema 校验和单参数绑定修正；
+- RuleJudge 修复空 root cause 和弱 evidence 引用的明显误判。
+
 每次 run 会生成：
 
 - `transcript.jsonl`
@@ -46,7 +62,7 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 
 ## 暂不做范围
 
-本轮不实现：
+本轮和第二阶段均不实现：
 
 - 真实 OpenAI API adapter
 - 真实 Anthropic API adapter
@@ -59,14 +75,17 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 - 并发执行
 - 大规模 benchmark
 
+任何新增文件如果实现上述能力，都应先进入 Roadmap review，而不是直接进入代码。
+
 ## 已知设计债
 
 - Audit 规则是启发式 deterministic rules，后续需要用真实项目反馈调权重。
 - `from_tools` 只能生成候选题，缺少真实 fixture 时不可运行。
 - `from_tests` 只做静态扫描，不能自动恢复测试 fixture 和用户上下文。
-- `MockReplayAdapter` 只覆盖 demo good/bad path，后续需要 replay transcript adapter 和真实 LLM adapter。
-- `RuleJudge.must_use_evidence` 当前检查 evidence 关键词和工具 evidence，后续可支持 evidence id 精确引用。
+- `MockReplayAdapter` 仍只是 deterministic mock，不代表真实模型能力；后续需要 replay transcript adapter 和真实 LLM adapter。
+- `RuleJudge.must_use_evidence` 已支持基础 evidence id/label 引用，后续仍需要更完整的 evidence matcher。
 - metrics 只统计基础数量，后续需要 latency、token、tool error、retry 等指标。
+- 当前文档测试只能检查关键短语和范围守卫，不能替代人工架构 review。
 
 ## P0 后续
 
@@ -74,6 +93,7 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 - 扩展 `RuleJudge` 支持 evidence id 精确匹配。
 - 给 eval candidate 增加 review 状态和转正命令。
 - 增加 artifact schema 校验测试。
+- 将治理纪律测试扩展为文档章节/schema 的更细粒度检查。
 
 ## P1 后续
 
@@ -102,6 +122,13 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 - 必须写清楚 reason；
 - 必须写清楚转正条件；
 - 不能用 xfail 掩盖当前 MVP 应该满足的需求。
+
+xfail 转正条件必须满足：
+
+- 对应能力进入当前阶段范围；
+- 有真实 fixture 或 replay 证据；
+- bad path 仍能被判失败；
+- 相关文档和 Roadmap 已同步更新。
 
 ## Mock/Replay 替换计划
 

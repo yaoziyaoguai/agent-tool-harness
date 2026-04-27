@@ -17,6 +17,11 @@ class TranscriptAnalyzer:
 
     扩展点：
     - 后续可加入更细的调用图、latency/token 分析和 transcript 片段定位。
+
+    诊断原则：
+    - diagnosis 是“为什么失败”的解释，不是新的判分来源。
+    - 它应该引用调用顺序、缺失工具和 evidence 状态，避免泛泛地说 Agent 答错了。
+    - 如果 diagnosis 和 judge 不一致，应优先检查 judge 规则和 raw artifacts。
     """
 
     def analyze(self, case: EvalSpec, run: AgentRunResult, judge: JudgeResult) -> dict[str, Any]:

@@ -30,6 +30,12 @@ class MarkdownReport:
         judge_results: dict[str, Any],
         diagnosis: dict[str, Any],
     ) -> str:
+        """渲染一次 run 的 Markdown 摘要。
+
+        report 是派生视图，不负责重新判定成败。这里会展示 skipped/error 指标，是为了让用户
+        一眼区分“Agent 判断失败”和“runner/adapter 执行链路异常”，但最终复盘仍应回到 JSONL。
+        """
+
         low_score_tools = ", ".join(
             audit_tools.get("summary", {}).get("low_score_tools", [])
         ) or "none"
@@ -56,6 +62,8 @@ class MarkdownReport:
             f"- Total evals: {metrics.get('total_evals', 0)}",
             f"- Passed: {metrics.get('passed', 0)}",
             f"- Failed: {metrics.get('failed', 0)}",
+            f"- Skipped: {metrics.get('skipped_evals', 0)}",
+            f"- Errors: {metrics.get('error_evals', 0)}",
             f"- Total tool calls: {metrics.get('total_tool_calls', 0)}",
             "",
         ]
@@ -87,6 +95,7 @@ class MarkdownReport:
                 "- audit_evals.json",
                 "- judge_results.json",
                 "- diagnosis.json",
+                "- report.md",
             ]
         )
         return "\n".join(lines) + "\n"

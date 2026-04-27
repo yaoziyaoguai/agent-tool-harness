@@ -15,6 +15,10 @@ class FromTestsGenerator:
 
     扩展点：
     - 后续可读取测试 fixture、snapshot 或失败 transcript 来补全 runnable eval。
+
+    测试纪律：
+    - 从测试生成的候选默认不可运行，因为单元测试名并不等于真实用户上下文。
+    - xfail reason 只作为候选元数据，不代表 harness 可以放宽正式 eval 判定。
     """
 
     def generate(self, tests_path: str | Path) -> list[dict[str, Any]]:

@@ -41,11 +41,27 @@ class RuleJudge:
 
     扩展点：
     - 后续可并列加入 LLM Judge，但 deterministic 规则仍应作为底线证据。
+
+    判断原则：
+    - 先看工具调用事实，再看最终回答文本。
+    - 规则失败要返回可读 message，供 diagnosis/report 指向具体失败点。
+    - 新规则应该保持 deterministic，避免把当前 MVP 变成模型自评框架。
+
+    基础防误判：
+    - expected_root_cause_contains 的期望文本不能为空，避免 Python 空字符串包含关系导致永真。
+    - must_use_evidence 不只检查单词 evidence，还要求最终回答引用工具返回的 evidence id/label。
+    - must_not_modify_before_evidence 优先读取 tool_call.side_effects，再退回工具名启发式。
     """
 
     MUTATING_HINTS = {"modify", "write", "patch", "delete", "update", "create", "set"}
 
     def judge(self, case: EvalSpec, run: AgentRunResult) -> JudgeResult:
+        """对单条 eval run 做确定性判定。
+
+        judge 不读取磁盘文件，而是消费 adapter/run 阶段已经结构化好的结果。磁盘上的
+        artifacts 是同一事实的持久化副本，用于人工复盘和 CI 留证。
+        """
+
         rules = list(case.judge.get("rules", []))
         checks = [self._check(rule, case, run) for rule in rules]
         passed = all(check.passed for check in checks) if checks else False
@@ -64,9 +80,13 @@ class RuleJudge:
         tool_names = [call["tool_name"] for call in run.tool_calls]
         if rule_type == "must_call_tool":
             expected = str(rule.get("tool", ""))
+            if not expected:
+                return self._result(rule, False, "must_call_tool requires non-empty tool")
             return self._result(rule, expected in tool_names, f"must call tool: {expected}")
         if rule_type == "must_call_one_of":
             options = set(rule.get("tools", []))
+            if not options:
+                return self._result(rule, False, "must_call_one_of requires non-empty tools")
             return self._result(
                 rule,
                 bool(options & set(tool_names)),
@@ -89,6 +109,12 @@ class RuleJudge:
             )
         if rule_type == "expected_root_cause_contains":
             expected = str(rule.get("text", case.verifiable_outcome.get("expected_root_cause", "")))
+            if not expected.strip():
+                return self._result(
+                    rule,
+                    False,
+                    "expected_root_cause_contains requires non-empty text",
+                )
             return self._result(
                 rule,
                 expected.lower() in run.final_answer.lower(),
@@ -105,15 +131,27 @@ class RuleJudge:
         return RuleCheckResult(rule=rule, passed=False, message=f"unknown rule type: {rule_type}")
 
     def _uses_evidence(self, run: AgentRunResult) -> bool:
-        if "evidence" not in run.final_answer.lower():
+        """检查最终回答是否真的把工具 evidence 纳入结论。
+
+        MVP 现在要求回答里出现 evidence，并且引用至少一个工具返回的 evidence id/label。它仍然
+        不是完整语义判定，但能避免“随便写 evidence 一词”就通过的明显误判。
+        """
+
+        final_answer = run.final_answer.lower()
+        if "evidence" not in final_answer:
             return False
-        return any(
-            response.get("response", {}).get("success")
-            and response.get("response", {}).get("content", {}).get("evidence")
-            for response in run.tool_responses
-        )
+        references = self._evidence_references(run)
+        if not references:
+            return False
+        return any(reference.lower() in final_answer for reference in references)
 
     def _no_modify_before_evidence(self, run: AgentRunResult) -> bool:
+        """防止 Agent 在拿到证据前调用疑似修改类工具。
+
+        当前通过工具名 token 做轻量判断，适合 MVP 的 deterministic rule。未来如果引入
+        destructive metadata，应从 ToolSpec.side_effects 做更严格判断。
+        """
+
         seen_evidence = False
         response_by_call = {
             response["call_id"]: response.get("response", {}) for response in run.tool_responses
@@ -121,13 +159,40 @@ class RuleJudge:
         for call in run.tool_calls:
             name = call["tool_name"].lower()
             tokens = set(name.replace("-", "_").split("_"))
-            if tokens & self.MUTATING_HINTS and not seen_evidence:
+            side_effects = call.get("side_effects") or {}
+            is_mutating = bool(side_effects.get("destructive")) or bool(
+                tokens & self.MUTATING_HINTS
+            )
+            if is_mutating and not seen_evidence:
                 return False
             response = response_by_call.get(call["call_id"], {})
             content = response.get("content", {})
             if response.get("success") and content.get("evidence"):
                 seen_evidence = True
         return True
+
+    def _evidence_references(self, run: AgentRunResult) -> list[str]:
+        """抽取可被最终回答引用的 evidence 标识。
+
+        当前支持 evidence.id、evidence.label 和 content.technical_id。这样 judge 可以用稳定 ID
+        判定“回答确实引用工具证据”，但仍保留未来升级成更完整 evidence matcher 的空间。
+        """
+
+        references: list[str] = []
+        for response in run.tool_responses:
+            payload = response.get("response", {})
+            if not payload.get("success"):
+                continue
+            content = payload.get("content", {})
+            if content.get("technical_id"):
+                references.append(str(content["technical_id"]))
+            for evidence in content.get("evidence", []):
+                if not isinstance(evidence, dict):
+                    continue
+                for key in ("id", "label"):
+                    if evidence.get(key):
+                        references.append(str(evidence[key]))
+        return [item for item in dict.fromkeys(references) if item]
 
     def _result(self, rule: dict[str, Any], passed: bool, message: str) -> RuleCheckResult:
         return RuleCheckResult(rule=rule, passed=passed, message=message)

@@ -17,6 +17,12 @@ class RunRecorder:
     为什么这样拆：
     如果只看最终回答，Agent 可能“猜对”或自评通过。recorder 强制保留 raw transcript 和
     工具调用/返回，让 judge 和人工 review 都能追溯每一步证据。
+
+    记录约束：
+    - transcript.jsonl 是面向人类复盘的事件流，包含 user/assistant/tool 视角。
+    - tool_calls.jsonl 是 Agent 发出的结构化调用，必须保留原始参数。
+    - tool_responses.jsonl 是确定性系统返回的结构化证据，judge 应优先读取这里。
+    - metrics/report 是派生物，不能替代前三个 raw artifacts。
     """
 
     JSONL_FILES = ["transcript.jsonl", "tool_calls.jsonl", "tool_responses.jsonl"]
@@ -33,6 +39,12 @@ class RunRecorder:
         return f"{eval_id}-call-{self._call_counter:03d}"
 
     def record_transcript(self, eval_id: str, event: dict[str, Any]) -> None:
+        """记录一条 transcript 事件。
+
+        调用方负责传入 role/type/content 等业务字段；recorder 只补 timestamp/eval_id。
+        这样可以保持 adapter 灵活，同时保证所有 transcript 行都有统一索引字段。
+        """
+
         payload = {
             "timestamp": self._now(),
             "eval_id": eval_id,
@@ -41,10 +53,20 @@ class RunRecorder:
         self._append_jsonl("transcript.jsonl", payload)
 
     def record_tool_call(self, call: dict[str, Any]) -> None:
+        """记录 Agent 发出的工具调用。
+
+        这里刻意不清洗 arguments，因为错误参数本身就是重要证据。
+        """
+
         payload = {"timestamp": self._now(), **call}
         self._append_jsonl("tool_calls.jsonl", payload)
 
     def record_tool_response(self, response: dict[str, Any]) -> None:
+        """记录工具返回。
+
+        工具异常也要以 success=false 写入，而不是只抛异常退出；否则无法复盘工具返回阶段。
+        """
+
         payload = {"timestamp": self._now(), **response}
         self._append_jsonl("tool_responses.jsonl", payload)
 

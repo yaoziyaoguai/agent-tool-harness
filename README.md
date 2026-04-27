@@ -54,6 +54,15 @@ python -m agent_tool_harness.cli run \
 
 因此每次 run 都生成 raw artifacts，而不是只看最终回答。
 
+## 当前阶段边界
+
+当前代码库仍处于 MVP/治理强化阶段。它只提供可复现的 mock replay 闭环，不接真实模型。
+
+当前不实现真实 OpenAI/Anthropic adapter、MCP/HTTP/Shell executor、Web UI、自动 patch、复杂 LLM Judge、并发执行或大规模 benchmark。这些方向记录在 Roadmap 中，进入实现前需要单独 review。
+
+当前 mock replay 已从 `evals.yaml` 和 `tools.yaml` 推导工具路径，不要求用户项目复用
+`examples/runtime_debug` 的工具名；但它仍然只是 deterministic replay，不代表真实模型能力。
+
 ## 配置文件
 
 `project.yaml` 描述用户项目：
