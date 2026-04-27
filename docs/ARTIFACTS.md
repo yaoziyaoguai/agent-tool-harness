@@ -164,34 +164,68 @@ RuleJudge 对每个 eval 的逐规则结果。
 
 ## diagnosis.json
 
-`TranscriptAnalyzer` 派生的失败现场摘要。
+`TranscriptAnalyzer` 派生的失败归因（deterministic heuristic，**不是 LLM Judge**）。
 
-字段：
+字段（向后兼容字段保留）：
 
 - `results[*].eval_id`、`passed`。
 - `first_tool`、`tool_sequence`：实际调用顺序。
 - `missing_required_tools`：required 但未调用的工具列表。
 - `issues`：list of `{type, message}`，例如 `wrong_first_tool` / `missing_required_tool`
-  / `missing_evidence`。
+  / `missing_evidence`（**legacy**，新代码请改读 `findings`）。
 - `failed_rules`：从 judge 失败 check 中抽出的 message 列表。
 - `summary`：拼接后的中文一句话总结。
 
+字段（本轮新增，借鉴 LangSmith trace tags / OpenTelemetry span attributes / Anthropic
+*Writing effective tools for agents* 的失败分类，但 **不引入任何依赖**）：
+
+- `findings`：list of failure attribution，每条包含：
+  - `type`：finding 类型，当前共 11 类：
+    `runtime_error` / `skipped_non_runnable` / `tool_error` / `weak_eval_definition` /
+    `audit_signal_low` / `candidate_not_reviewed` / `forbidden_first_tool` /
+    `redundant_tool_calls` / `no_evidence_grounding` / `missing_required_tool` /
+    `wrong_first_tool`。
+  - `severity`：`high` / `medium` / `info`。
+  - `category`：`tool_design` / `eval_definition` / `agent_tool_choice` / `runtime`，
+    四类对齐 Anthropic 文章的失败来源分类，方便读者一眼看出"该改工具、改 eval、
+    改 Agent prompt，还是修运行时"。
+  - `evidence_refs`：指向 raw artifact 的可读引用（`<file>#<filter>` 形式），鼓励
+    读者**回到一手证据验证**而不是相信 finding 文字。
+  - `why_it_matters`：为什么这是真问题；不是单纯重复规则名。
+  - `suggested_fix`：可执行的修复方向；不是空话。
+  - `related_tool_or_eval`：finding 关联的工具或 eval id（可空）。
+- `category_summary`：`{category: count}` 聚合，便于 CI grep。
+- `root_cause_hypothesis`：一句话方向性结论（**hypothesis，不是真根因**）。
+- `suggested_fixes`：去重后的全部 suggested_fix 列表。
+- `what_to_check_next`：建议优先看的 raw artifact 路径列表。
+- `diagnosis_kind`：固定为 `"deterministic_heuristic"`，明确告知下游不是 LLM。
+
 排查指引：
 
-- 这是“为什么失败”的解释，不是新的判定来源。如果 diagnosis 与 judge 不一致，
+- 这是"为什么失败"的方向性提示，不是新的判定来源。如果 diagnosis 与 judge 不一致，
   优先检查 judge 规则与 raw artifacts。
+- **不允许把 `root_cause_hypothesis` 当成最终根因**——一定要按 `evidence_refs`
+  打开对应 raw artifact 验证。
+- 未来真实 LLM Judge / trace 接入时，将与 deterministic findings 并列输出，
+  而不是替换它们；保留启发式的"可解释、可 grep、零依赖"特性。
 
 ## report.md
 
 汇总视图，给人看。包含：
 
 - Signal Quality banner（带 ⚠️）。
-- Methodology Caveats（RuleJudge / MockReplayAdapter / Tool Design Audit 的边界）。
+- Methodology Caveats（RuleJudge / MockReplayAdapter / Tool Design Audit / 
+  TranscriptAnalyzer 的能力边界，**显式声明 diagnosis 是 deterministic heuristic 不是
+  LLM Judge**）。
 - Tool Design Audit / Eval Quality Audit / Agent Tool-Use Eval 摘要。
 - Per-Eval Details：每个 eval 的 status / tool sequence / required tools 状态 /
-  forbidden first tool / max tool calls / runtime error / next steps。
-- Transcript-derived Diagnosis 与 Improvement Suggestions。
-- Artifacts 列表（指向本文档）。
+  forbidden first tool / max tool calls / runtime error / **failure attribution
+  (heuristic) / category breakdown / root cause hypothesis / what to check next** /
+  next steps。
+- Transcript-derived Diagnosis 摘要。
+- **Failure Attribution**：跨 eval 按 category 聚合 finding，便于团队会议或 PR
+  review 一眼找到主要痛点。
+- Improvement Suggestions / Artifacts 列表。
 
 > 任何 `report.md` 中的判定都可以追溯到上述 raw artifacts；遇到不一致以 raw 为准。
 

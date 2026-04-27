@@ -41,6 +41,21 @@
 - RuleJudge 修复空 root cause 和弱 evidence 引用的明显误判。
 - 配置 loader 支持 tools/evals list root，并拒绝重复 eval id 和明显错误字段类型。
 
+第六阶段 Failure Attribution 强化已加入当前工作范围（本轮）：
+
+- TranscriptAnalyzer 重写：从 raw artifacts + audit findings 派生 11 类 finding，
+  每条带 `type / severity / category / evidence_refs / why_it_matters /
+  suggested_fix / related_tool_or_eval`；新增 `category_summary` /
+  `root_cause_hypothesis` / `suggested_fixes` / `what_to_check_next` / 
+  `diagnosis_kind="deterministic_heuristic"`，旧字段保留向后兼容。
+- MarkdownReport 在 Per-Eval Details 渲染 finding 列表 + root cause hypothesis +
+  what to check next，新增顶层 **Failure Attribution** 段按 category 聚合，
+  并在 Methodology Caveats 显式声明诊断为 deterministic heuristic。
+- 借鉴方法论：LangSmith / LangGraph trace tags、OpenTelemetry span attributes、
+  Anthropic *Writing effective tools for agents* 失败分类、G-Eval rubric 风格、
+  MCP tool annotations。**本轮明确不引入这些 SDK / LLM Judge / 新依赖。**
+- 新增 `tests/test_failure_attribution.py` 覆盖至少 5 类 finding。
+
 每次 run 会生成：
 
 - `transcript.jsonl`
@@ -154,9 +169,10 @@ Anthropic *Writing effective tools for agents* 主张评估必须由真实 LLM a
   当前 MVP 只提供 `review_status="candidate"` + `review_notes` 字段，转正流程仍由
   人工执行（详见 README 与 docs/ARCHITECTURE.md “候选 eval 审核流程”）。
 - 在 `report.md` 的 Per-Eval Details 中加入 trajectory 节选块（带行号）和 token
-  估算；当前已展示 status / tool sequence / required tools 状态 / forbidden first
-  tool / max tool calls / runtime/skipped 原因 / next steps，但仍是字段聚合，不带
-  原始片段。
+  估算；本轮已渲染 failure attribution finding 列表 / category breakdown /
+  root cause hypothesis / what to check next，但仍是字段聚合，**没有原始
+  transcript 片段**。trajectory 节选属于 P1 后续（需要先稳定 transcript schema
+  版本号）。
 - 给 artifact schema 加版本号字段（`schema_version`），保证未来字段扩展不破坏
   下游消费者。当前以 `docs/ARTIFACTS.md` 作为人类可读契约。
 
@@ -164,7 +180,7 @@ Anthropic *Writing effective tools for agents* 主张评估必须由真实 LLM a
 
 - HTTP executor。
 - Shell executor。
-- LLM Judge 作为辅助 reviewer。
+- LLM Judge 作为辅助 reviewer（与 deterministic findings 并列输出，不替换）。
 - Web UI 查看 transcript、tool calls、diagnosis。
 - 自动 patch 建议，但默认不直接修改用户工具代码。
 - 大规模 benchmark 和并发执行。

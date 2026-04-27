@@ -93,6 +93,25 @@ class EvalRunner:
         audit_tools = self.tool_auditor.audit(tools)
         audit_evals = self.eval_auditor.audit(evals)
         runnable_by_eval = self._runnable_by_eval(audit_evals)
+        # 把 audit 结果索引成 analyzer 直接消费的形态：
+        # - audit_eval_findings_by_id：{eval_id: [finding, ...]}，让 analyzer 能识别
+        #   weak_eval_definition；
+        # - audit_tool_findings_by_name：{tool_name: [finding, ...]}（同时按 namespace.name
+        #   注册），让 analyzer 能识别 audit_signal_low。
+        # 索引在这里集中做一次，避免 analyzer 反复 O(n*m) 扫整份 audit 输出。
+        audit_eval_findings_by_id = {
+            str(item.get("eval_id")): list(item.get("findings", []) or [])
+            for item in audit_evals.get("evals", [])
+        }
+        audit_tool_findings_by_name: dict[str, list[dict[str, Any]]] = {}
+        for item in audit_tools.get("tools", []):
+            findings = list(item.get("findings", []) or [])
+            short = str(item.get("tool_name", ""))
+            qualified = str(item.get("qualified_name", ""))
+            if short:
+                audit_tool_findings_by_name.setdefault(short, []).extend(findings)
+            if qualified and qualified != short:
+                audit_tool_findings_by_name.setdefault(qualified, []).extend(findings)
 
         judge_results = []
         diagnoses = []
@@ -123,7 +142,15 @@ class EvalRunner:
                     str(exc),
                 )
                 judge_results.append(judge_result.to_dict())
-                diagnoses.append(self.analyzer.analyze(case, run_result, judge_result))
+                diagnoses.append(
+                    self.analyzer.analyze(
+                        case,
+                        run_result,
+                        judge_result,
+                        audit_eval_findings=audit_eval_findings_by_id.get(case.id),
+                        audit_tool_findings=audit_tool_findings_by_name,
+                    )
+                )
             return self._write_artifacts(
                 project,
                 evals,
@@ -161,7 +188,15 @@ class EvalRunner:
                     "EvalQualityAuditor marked this eval as not runnable.",
                 )
                 judge_results.append(judge_result.to_dict())
-                diagnoses.append(self.analyzer.analyze(case, run_result, judge_result))
+                diagnoses.append(
+                    self.analyzer.analyze(
+                        case,
+                        run_result,
+                        judge_result,
+                        audit_eval_findings=audit_eval_findings_by_id.get(case.id),
+                        audit_tool_findings=audit_tool_findings_by_name,
+                    )
+                )
                 continue
             try:
                 recorder.record_transcript(
@@ -195,12 +230,28 @@ class EvalRunner:
                     str(exc),
                 )
                 judge_results.append(judge_result.to_dict())
-                diagnoses.append(self.analyzer.analyze(case, run_result, judge_result))
+                diagnoses.append(
+                    self.analyzer.analyze(
+                        case,
+                        run_result,
+                        judge_result,
+                        audit_eval_findings=audit_eval_findings_by_id.get(case.id),
+                        audit_tool_findings=audit_tool_findings_by_name,
+                    )
+                )
                 continue
             run_results.append(run_result)
             judge_result = self.judge.judge(case, run_result)
             judge_results.append(judge_result.to_dict())
-            diagnoses.append(self.analyzer.analyze(case, run_result, judge_result))
+            diagnoses.append(
+                self.analyzer.analyze(
+                    case,
+                    run_result,
+                    judge_result,
+                    audit_eval_findings=audit_eval_findings_by_id.get(case.id),
+                    audit_tool_findings=audit_tool_findings_by_name,
+                )
+            )
 
         return self._write_artifacts(
             project,

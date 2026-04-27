@@ -138,6 +138,19 @@ python -m ruff check .
   (b) `RuleJudge.must_use_evidence` 必须三条同时满足才放行——final answer 含
   `evidence`/`证据`、至少一次成功 tool_response 含非空 evidence id、答案引用其中
   至少一个 id；中文证据路径正常识别；失败工具返回的 evidence 不计入。
+- `tests/test_failure_attribution.py` 钉住 6 类 failure attribution 根因边界：
+  (1) `forbidden_first_tool`——bad path 第一步命中禁用工具时必须出现 high
+  severity / `agent_tool_choice` category finding，且 report 渲染出 Suggested fix；
+  (2) `missing_required_tool`——必须把缺失的具体工具名 bind 到 finding 与 report；
+  (3) `no_evidence_grounding`——final_answer 含 evidence 关键字但 tool_responses
+  为空时必须归因；防止 Agent "嘴上说有证据" 反模式被漏掉；
+  (4) `runtime_error`——adapter 抛错必须归到 `runtime` category，并且 analyzer
+  **不再**生成 `agent_tool_choice` 类 finding，避免对没机会真实选工具的 eval 误导；
+  (5) `skipped_non_runnable`——audit 判 not_runnable 时归到 `eval_definition`
+  category 而非 agent 行为；
+  (6) 报告必须包含顶层 **Failure Attribution** 段、`Root cause hypothesis`、
+  `What to check next`、以及"deterministic heuristic"措辞——防止 diagnosis 被
+  误传成"真实根因"或"LLM Judge 输出"。
 
 ## 如何检查 artifacts
 

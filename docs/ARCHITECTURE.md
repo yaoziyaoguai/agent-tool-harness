@@ -183,15 +183,43 @@ runner 事件，并继续生成派生 artifacts。这样失败原因不会只停
 
 ### diagnose
 
-`TranscriptAnalyzer` 从真实调用链路解释失败，比如第一步工具错误、缺少关键工具、没有 evidence。
+`TranscriptAnalyzer` 把 raw artifacts（transcript / tool_calls / tool_responses /
+judge_results / audit_tools / audit_evals）交叉关联，派生 **failure attribution**：
+每条 finding 含 `type / severity / category / evidence_refs / why_it_matters /
+suggested_fix / related_tool_or_eval`。当前共 11 类 finding，落到四个 category：
 
-它不替代 judge，只生成可读诊断。
+- `tool_design`：工具描述/契约/audit 信号弱（`audit_signal_low` 等）。
+- `eval_definition`：eval 写得不完整或 audit 判 not_runnable
+  （`weak_eval_definition`、`skipped_non_runnable`、`candidate_not_reviewed`）。
+- `agent_tool_choice`：Agent 选错入口、缺关键工具、无 evidence grounding、
+  冗余调用（`forbidden_first_tool`、`missing_required_tool`、`wrong_first_tool`、
+  `no_evidence_grounding`、`redundant_tool_calls`）。
+- `runtime`：链路异常（`runtime_error`、`tool_error`）。
+
+attribution 的设计参考了 LangSmith / LangGraph 的 trace tags、OpenTelemetry 的
+span attributes、Anthropic *Writing effective tools for agents* 的失败分类、以及
+G-Eval 风格 rubric——但 **本轮明确不引入 LangSmith / OTel SDK / LLM Judge / 
+tracing 新依赖**，所有 finding 都是 deterministic 启发式。
+
+边界声明：
+
+- analyzer **不替代 RuleJudge**：PASS/FAIL 仍以 judge 为准，attribution 只解释方向。
+- analyzer **不是 LLM Judge**：`root_cause_hypothesis` 是 hypothesis，不是真根因；
+  必须按 `evidence_refs` 回到 raw artifact 验证。
+- runtime 类 finding 出现时，analyzer 会主动跳过 `agent_tool_choice` 类 finding，
+  避免对没机会真实选工具的 eval 错误归因。
 
 ### reports
 
 `MarkdownReport` 聚合 audit、metrics、judge 和 diagnosis，输出 `report.md`。
 
-报告不隐藏 raw artifacts，review 时仍应回看 JSONL。
+报告不隐藏 raw artifacts，review 时仍应回看 JSONL。本轮新增：
+
+- 每个 eval 的 Per-Eval Details 中渲染完整 finding 列表（含 severity、category、
+  evidence_refs、suggested_fix）+ root cause hypothesis + what to check next。
+- 顶层 **Failure Attribution** 段按 category 聚合所有 eval 的 finding，便于 PR
+  review / 周会一眼看到本次 run 的主要痛点类别。
+- Methodology Caveats 显式声明"diagnosis 是 deterministic heuristic 不是 LLM Judge"。
 
 ## 扩展边界
 

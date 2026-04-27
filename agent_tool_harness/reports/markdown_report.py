@@ -32,6 +32,7 @@ class MarkdownReport:
         "Agent Tool-Use Eval",
         "Transcript-derived Diagnosis",
         "Improvement Suggestions",
+        "Failure Attribution",
     ]
 
     def render(
@@ -92,6 +93,12 @@ class MarkdownReport:
                 "高分 ≠ 工具语义上好用，详见 docs/ROADMAP.md。"
             ),
             (
+                "- **Failure attribution 是 deterministic heuristic，不是 LLM Judge**："
+                "下面 Per-Eval Details 中的 finding / category / root_cause_hypothesis"
+                "都是 TranscriptAnalyzer 按规则派生的方向性结论，**不能替代真实根因**；"
+                "请按 evidence_refs 回到 raw artifacts 验证。"
+            ),
+            (
                 "- **Artifact schema 详见 [docs/ARTIFACTS.md](../docs/ARTIFACTS.md)**；"
                 "复盘失败时优先读 transcript.jsonl / tool_calls.jsonl / tool_responses.jsonl。"
             ),
@@ -137,6 +144,14 @@ class MarkdownReport:
             lines.append(f"- {item.get('eval_id')}: {item.get('summary')}")
             if item.get("tool_sequence"):
                 lines.append(f"  Tool sequence: {', '.join(item['tool_sequence'])}")
+
+        # 顶层 Failure Attribution：把所有 eval 的 finding 按 category 聚合，让 review 者
+        # 一眼看到“本次 run 主要是工具设计 / eval 定义 / Agent 工具选择 / runtime 哪类
+        # 问题”。CI 也可以基于这块文本做 grep。诊断为 deterministic heuristic，详见上
+        # 方 Methodology Caveats。
+        lines.extend(["", "## Failure Attribution", ""])
+        lines.extend(self._render_failure_attribution(diagnosis))
+
         lines.extend(
             [
                 "",
@@ -146,6 +161,7 @@ class MarkdownReport:
                 "- Keep generated evals as candidates until context and outcomes are complete.",
                 "- Inspect transcript/tool call artifacts before changing tests.",
                 "- Fix tool descriptions, eval criteria, or adapter behavior from evidence.",
+                "- 优先修 root_cause_hypothesis 指向的 category，再回到 raw artifacts 验证。",
                 "",
                 "## Artifacts",
                 "",
@@ -231,11 +247,120 @@ class MarkdownReport:
             "- Signal note: 该结果同样受顶部 signal_quality 限制；如为 tautological_replay，"
             "PASS/FAIL 不可作为真实 Agent 工具能力评估。"
         )
+
+        # Failure attribution（本轮新增，借鉴 LangSmith failure tags / OTel span attributes /
+        # Anthropic 工具评估方法论）：把 deterministic heuristic 派生的 finding 列表以
+        # 可读方式展开。每条 finding 必须给出 severity / category / why_it_matters /
+        # suggested_fix / evidence_refs，让用户能直接判断"是工具设计、eval 定义、Agent
+        # 工具选择，还是 runtime/工具执行"问题。报告中刻意不省略 evidence_refs，
+        # 鼓励读者跳回 raw artifact 验证。
+        diag = diag or {}
+        findings = list(diag.get("findings", []) or [])
+        category_summary = dict(diag.get("category_summary", {}) or {})
+        root_cause = str(diag.get("root_cause_hypothesis", "") or "")
+        what_to_check = list(diag.get("what_to_check_next", []) or [])
+
+        if findings:
+            block.append("- Failure attribution (heuristic, not root cause):")
+            for finding in findings:
+                ftype = finding.get("type", "<unknown>")
+                severity = finding.get("severity", "?")
+                category = finding.get("category", "?")
+                why = finding.get("why_it_matters", "")
+                fix = finding.get("suggested_fix", "")
+                refs = finding.get("evidence_refs", []) or []
+                related = finding.get("related_tool_or_eval") or ""
+                related_text = f" (related: `{related}`)" if related else ""
+                block.append(
+                    f"    - [{severity}/{category}] **{ftype}**{related_text} — {why}"
+                )
+                if fix:
+                    block.append(f"        - Suggested fix: {fix}")
+                if refs:
+                    block.append(f"        - Evidence: {', '.join(refs)}")
+        if category_summary and any(v for v in category_summary.values()):
+            counts = ", ".join(
+                f"{cat}={count}" for cat, count in category_summary.items() if count
+            )
+            block.append(f"- Category breakdown: {counts}")
+        if root_cause:
+            block.append(f"- Root cause hypothesis: {root_cause}")
+        if what_to_check:
+            block.append("- What to check next:")
+            for ref in what_to_check:
+                block.append(f"    - {ref}")
+
         block.append("- Next steps:")
         for hint in self._next_steps(status, missing, forbidden_hit, max_calls_hit, runtime_reason):
             block.append(f"    - {hint}")
         block.append("")
         return block
+
+    def _render_failure_attribution(self, diagnosis: dict[str, Any]) -> list[str]:
+        """聚合所有 eval 的 finding，按 category 输出汇总。
+
+        负责什么：把 deterministic heuristic 派生的 finding 集中展示，方便 review
+        者快速判断本次 run 主要踩的是哪一类问题（工具设计 / eval 定义 / Agent
+        工具选择 / runtime）。
+
+        不负责什么：不做语义级根因，不做去重打分，不做 LLM 解释。所有结论必须
+        回到对应 eval 的 evidence_refs 才能确认。
+
+        为什么这样设计：CI / PR review / 团队周会都希望先看一段“本次 run 主要痛
+        点”概览，而不是逐个 eval 翻 detail。这里只做最基础的 category 聚合 +
+        高 severity finding 列表，避免把 heuristic 包装成精准结论。
+
+        未来扩展点：等真的接入 LLM Judge / trace 后，可在此输出 attribution 置
+        信度、跨 eval 同类问题的合并、修复优先级排序。
+        """
+        results = list(diagnosis.get("results", []) or [])
+        if not results:
+            return ["- 当前没有可归因的 eval 结果。"]
+
+        # category -> list[(eval_id, finding)]，方便分桶展示。
+        buckets: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+        any_finding = False
+        for item in results:
+            eval_id = str(item.get("eval_id", ""))
+            for finding in item.get("findings", []) or []:
+                any_finding = True
+                category = str(finding.get("category", "uncategorized"))
+                buckets.setdefault(category, []).append((eval_id, finding))
+
+        lines: list[str] = [
+            "Diagnosis is a deterministic heuristic — review evidence_refs before acting.",
+            "",
+        ]
+        if not any_finding:
+            lines.append("- 本次 run 未触发任何 failure attribution finding。")
+            return lines
+
+        order = [
+            "tool_design",
+            "eval_definition",
+            "agent_tool_choice",
+            "runtime",
+        ]
+        seen = set()
+        for category in order + sorted(buckets.keys()):
+            if category in seen or category not in buckets:
+                continue
+            seen.add(category)
+            entries = buckets[category]
+            lines.append(f"### Category: {category} ({len(entries)})")
+            for eval_id, finding in entries:
+                ftype = finding.get("type", "<unknown>")
+                severity = finding.get("severity", "?")
+                related = finding.get("related_tool_or_eval") or ""
+                related_text = f" related=`{related}`" if related else ""
+                lines.append(
+                    f"- `{eval_id}` [{severity}] **{ftype}**{related_text}"
+                )
+                fix = finding.get("suggested_fix")
+                if fix:
+                    lines.append(f"    - Suggested fix: {fix}")
+            lines.append("")
+        return lines
 
     def _derive_status(
         self,
