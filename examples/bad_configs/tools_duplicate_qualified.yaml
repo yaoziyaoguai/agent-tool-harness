@@ -1,0 +1,23 @@
+tools:
+  - name: lookup
+    namespace: shared
+    version: "1.0.0"
+    description: "First copy."
+    when_to_use: "first"
+    when_not_to_use: "n/a"
+    input_schema: {}
+    output_contract: {}
+    token_policy: {}
+    side_effects: {}
+    executor: {type: python, module: x, attribute: y}
+  - name: lookup
+    namespace: shared
+    version: "1.0.0"
+    description: "Second copy with the same qualified name."
+    when_to_use: "second"
+    when_not_to_use: "n/a"
+    input_schema: {}
+    output_contract: {}
+    token_policy: {}
+    side_effects: {}
+    executor: {type: python, module: x, attribute: y}

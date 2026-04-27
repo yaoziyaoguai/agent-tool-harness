@@ -1,5 +1,8 @@
 # Roadmap
 
+> 外部接入指南见 [ONBOARDING.md](./ONBOARDING.md)；
+> 常见坏配置对照表见 [`examples/bad_configs/README.md`](../examples/bad_configs/README.md)。
+
 ## 最近一次实现状态
 
 当前 MVP 已完成可运行闭环：
@@ -75,6 +78,9 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 - 复杂 LLM Judge
 - 并发执行
 - 大规模 benchmark
+- `generate-evals --source transcripts/docs/logs`（当前只支持 `from_tools` / `from_tests`）
+- held-out eval split 自动迁移
+- CI 集成（GitHub Actions / pre-commit）
 
 任何新增文件如果实现上述能力，都应先进入 Roadmap review，而不是直接进入代码。
 

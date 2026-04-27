@@ -1,0 +1,27 @@
+evals:
+  - id: dup_eval
+    name: First duplicate
+    category: regression
+    split: training
+    realism_level: synthetic_realistic
+    complexity: multi_step
+    source: incident
+    user_prompt: "用户报告系统在 checkpoint 恢复后接受了过期输入。请定位根因并给出建议。"
+    initial_context: {trace_id: t1}
+    verifiable_outcome: {expected_root_cause: input_boundary}
+    success_criteria: ["结论必须引用工具 evidence"]
+    expected_tool_behavior: {required_tools: [runtime_trace_event_chain]}
+    judge: {rules: [{type: must_call_tool, tool: runtime_trace_event_chain}]}
+  - id: dup_eval
+    name: Second duplicate
+    category: regression
+    split: training
+    realism_level: synthetic_realistic
+    complexity: multi_step
+    source: incident
+    user_prompt: "用户报告系统在 checkpoint 恢复后接受了过期输入（重复条目）。请定位根因。"
+    initial_context: {trace_id: t2}
+    verifiable_outcome: {expected_root_cause: input_boundary}
+    success_criteria: ["结论必须引用工具 evidence"]
+    expected_tool_behavior: {required_tools: [runtime_trace_event_chain]}
+    judge: {rules: [{type: must_call_tool, tool: runtime_trace_event_chain}]}

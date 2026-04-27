@@ -1,0 +1,7 @@
+tools:
+  - name: vague_lookup
+    namespace: weak
+    version: "0.1.0"
+    description: "Returns stuff."
+    input_schema: {}
+    executor: {type: python, module: examples.runtime_debug.demo_tools, attribute: lookup_session_failure}

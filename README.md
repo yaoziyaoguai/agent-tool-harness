@@ -27,6 +27,9 @@ Agent Tool Harness 目前是 **MVP**，与 Anthropic 文章方法论存在已知
 
 ## 快速开始
 
+> 第一次接入的团队请先看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；
+> 常见坏配置对照表见 [examples/bad_configs/README.md](examples/bad_configs/README.md)。
+
 ```bash
 python -m pytest -q
 

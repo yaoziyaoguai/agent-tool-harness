@@ -119,6 +119,11 @@ python -m ruff check .
   signal_quality 提醒。
 - artifact schema 必须有 `docs/ARTIFACTS.md` 文档，并包含全部 9 个 artifact 名称；
   README 与 ARCHITECTURE 必须引用该文档。
+- `examples/bad_configs/` 中的每个坏 fixture 必须被 `tests/test_bad_configs.py`
+  锁定其错误信息：包括空 tools/evals warn、scalar root、bad entry、duplicate qualified
+  tool name（runner 须保全成 `tool_registry_initialization_failed` artifact）、
+  duplicate eval id、tool 缺 `when_to_use`/`output_contract` 时的 audit finding、
+  eval 缺 `verifiable_outcome` 时被标 `not_runnable`。
 
 ## 如何检查 artifacts
 

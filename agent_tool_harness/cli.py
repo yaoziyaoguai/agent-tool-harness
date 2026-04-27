@@ -12,6 +12,7 @@ from agent_tool_harness.config.loader import ConfigError, load_evals, load_proje
 from agent_tool_harness.eval_generation.candidate_writer import CandidateWriter
 from agent_tool_harness.eval_generation.generator import EvalGenerator
 from agent_tool_harness.runner.eval_runner import EvalRunner
+from agent_tool_harness.tools.registry import ToolRegistryError
 
 
 class CLIError(SystemExit):
@@ -95,6 +96,17 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "hint: 确认相对路径是从当前工作目录解析；project.yaml 中的 executor.path "
             "相对 tools.yaml 所在目录。",
+            file=sys.stderr,
+        )
+        return 2
+    except ToolRegistryError as exc:
+        # ToolRegistryError 通常意味着用户写了重复的 qualified tool name，或者用了短名
+        # 但同名工具在多个 namespace 下存在。这是 run 命令最容易踩的注册期失败，
+        # 把它转成 CLI 友好错误，避免用户看到内部 traceback。
+        print(f"error: tool registry — {exc}", file=sys.stderr)
+        print(
+            "hint: 确保 tools.yaml 中每个 namespace.name 唯一；"
+            "使用短名调用前请先消除歧义。",
             file=sys.stderr,
         )
         return 2

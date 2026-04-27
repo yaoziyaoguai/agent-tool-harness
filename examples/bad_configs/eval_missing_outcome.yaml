@@ -1,0 +1,11 @@
+evals:
+  - id: missing_outcome
+    name: Eval without verifiable outcome
+    category: regression
+    split: training
+    realism_level: synthetic_realistic
+    complexity: multi_step
+    source: incident
+    user_prompt: "用户报告系统在 checkpoint 恢复后接受了过期输入。请定位根因并提供修复建议。"
+    expected_tool_behavior: {required_tools: [runtime_trace_event_chain]}
+    judge: {rules: []}
