@@ -37,6 +37,13 @@ class ToolSpec:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], source_path: Path | None = None) -> ToolSpec:
+        """从 YAML mapping 构造 ToolSpec。
+
+        ToolSpec 是用户工具契约的结构化边界。这里不评价工具设计好坏，但会拒绝明显错误的
+        字段类型，例如把 `input_schema` 写成字符串。质量问题交给 ToolDesignAuditor，结构问题
+        应在 loader 阶段就报清楚，避免 executor 在运行时用错误契约调用用户工具。
+        """
+
         known = {
             "name",
             "namespace",
@@ -51,7 +58,7 @@ class ToolSpec:
             "executor",
         }
         metadata = {key: value for key, value in data.items() if key not in known}
-        executor = dict(data.get("executor", {}))
+        executor = _mapping_field(data, "executor")
         if source_path is not None:
             executor.setdefault("__base_dir", str(source_path.parent))
         return cls(
@@ -61,10 +68,10 @@ class ToolSpec:
             description=str(data.get("description", "")),
             when_to_use=str(data.get("when_to_use", "")),
             when_not_to_use=str(data.get("when_not_to_use", "")),
-            input_schema=dict(data.get("input_schema", {})),
-            output_contract=dict(data.get("output_contract", {})),
-            token_policy=dict(data.get("token_policy", {})),
-            side_effects=dict(data.get("side_effects", {})),
+            input_schema=_mapping_field(data, "input_schema"),
+            output_contract=_mapping_field(data, "output_contract"),
+            token_policy=_mapping_field(data, "token_policy"),
+            side_effects=_mapping_field(data, "side_effects"),
             executor=executor,
             metadata=metadata,
             source_path=source_path,
@@ -86,3 +93,18 @@ class ToolSpec:
         }
         data.update(self.metadata)
         return data
+
+
+def _mapping_field(data: dict[str, Any], name: str) -> dict[str, Any]:
+    """读取 ToolSpec 的 mapping 字段。
+
+    工具 schema、输出契约、token 策略、副作用和 executor 都是后续 audit/executor 的输入。
+    如果这里宽松吞掉错误类型，最终会在 tool execution 时产生更难复盘的失败。
+    """
+
+    value = data.get(name, {})
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be a mapping")
+    return dict(value)

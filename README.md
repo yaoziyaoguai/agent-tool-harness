@@ -88,6 +88,9 @@ python -m agent_tool_harness.cli run \
 - `side_effects`
 - `executor`
 
+`tools.yaml` 可以使用 `tools: [...]` 包裹，也可以直接使用 list root。结构字段如
+`input_schema`、`output_contract`、`token_policy`、`side_effects`、`executor` 必须是 mapping。
+
 `evals.yaml` 描述 eval case：
 
 - `id`
@@ -103,6 +106,10 @@ python -m agent_tool_harness.cli run \
 - `success_criteria`
 - `expected_tool_behavior`
 - `judge`
+
+`evals.yaml` 可以使用 `evals: [...]` 包裹，也可以直接使用 list root。`id` 必须唯一；
+`initial_context`、`verifiable_outcome`、`expected_tool_behavior`、`judge` 必须是 mapping；
+`success_criteria`、`missing_context` 必须是 list。
 
 ## CLI 用法
 

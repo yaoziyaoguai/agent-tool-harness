@@ -34,6 +34,14 @@ class EvalSpec:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], source_path: Path | None = None) -> EvalSpec:
+        """从 YAML mapping 构造 EvalSpec。
+
+        这里做轻量类型归一化，而不做质量审计。比如 `success_criteria` 必须仍是 list，
+        `initial_context` 必须仍是 mapping；如果用户写错类型，loader 会把这里的 ValueError
+        包装成带文件位置的 ConfigError。这样能在接入阶段尽早发现配置问题，而不是让 runner
+        生成混乱 artifacts。
+        """
+
         return cls(
             id=str(data.get("id", "")),
             name=str(data.get("name", "")),
@@ -43,13 +51,13 @@ class EvalSpec:
             complexity=str(data.get("complexity", "")),
             source=str(data.get("source", "")),
             user_prompt=str(data.get("user_prompt", "")),
-            initial_context=dict(data.get("initial_context", {})),
-            verifiable_outcome=dict(data.get("verifiable_outcome", {})),
-            success_criteria=list(data.get("success_criteria", [])),
-            expected_tool_behavior=dict(data.get("expected_tool_behavior", {})),
-            judge=dict(data.get("judge", {})),
-            runnable=bool(data.get("runnable", True)),
-            missing_context=list(data.get("missing_context", [])),
+            initial_context=_mapping_field(data, "initial_context"),
+            verifiable_outcome=_mapping_field(data, "verifiable_outcome"),
+            success_criteria=_list_field(data, "success_criteria"),
+            expected_tool_behavior=_mapping_field(data, "expected_tool_behavior"),
+            judge=_mapping_field(data, "judge"),
+            runnable=_bool_field(data, "runnable", default=True),
+            missing_context=_list_field(data, "missing_context"),
             source_path=source_path,
         )
 
@@ -71,3 +79,52 @@ class EvalSpec:
             "runnable": self.runnable,
             "missing_context": self.missing_context,
         }
+
+
+def _mapping_field(data: dict[str, Any], name: str) -> dict[str, Any]:
+    """读取 mapping 字段。
+
+    Eval 配置里的上下文、可验证结果和 judge 都是结构化契约。字符串或列表不应被偷偷转换成
+    dict，否则后续 auditor/runner 会基于错误结构生成误导性 artifacts。
+    """
+
+    value = data.get(name, {})
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be a mapping")
+    return dict(value)
+
+
+def _list_field(data: dict[str, Any], name: str) -> list[Any]:
+    """读取 list 字段，避免把字符串拆成字符列表。
+
+    YAML 用户很容易把 `success_criteria: "..."` 写成字符串。这里选择报错而不是宽松转换，
+    因为 eval 质量和报告解释依赖明确的多条 criteria。
+    """
+
+    value = data.get(name, [])
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"{name} must be a list")
+    return list(value)
+
+
+def _bool_field(data: dict[str, Any], name: str, *, default: bool) -> bool:
+    """读取 boolean 字段。
+
+    YAML 原生 bool 会直接保留；对被引号包住的 `"false"`/`"true"` 做兼容，是为了减少真实
+    用户配置迁移时的踩坑。但无法识别的字符串会报错，避免 `"nope"` 被 Python bool 规则当真。
+    """
+
+    value = data.get(name, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "1"}:
+            return True
+        if normalized in {"false", "no", "0"}:
+            return False
+    raise ValueError(f"{name} must be a boolean")

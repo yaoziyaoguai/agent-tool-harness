@@ -94,6 +94,7 @@ python -m ruff check .
 - ToolRegistry 对歧义短名不静默覆盖；
 - PythonToolExecutor 校验 required/type 并正确绑定单参数函数；
 - RuleJudge 拒绝空 root cause 和未引用具体 evidence 的答案。
+- loader 支持 tools/evals list root，并对重复 eval id、错误 entry 类型和错误字段类型报 ConfigError。
 
 ## 如何检查 artifacts
 

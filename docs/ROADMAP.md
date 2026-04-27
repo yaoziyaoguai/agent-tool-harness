@@ -36,6 +36,7 @@
 - ToolRegistry 不再静默覆盖歧义短名；
 - PythonToolExecutor 增加最小 input_schema 校验和单参数绑定修正；
 - RuleJudge 修复空 root cause 和弱 evidence 引用的明显误判。
+- 配置 loader 支持 tools/evals list root，并拒绝重复 eval id 和明显错误字段类型。
 
 每次 run 会生成：
 
@@ -86,6 +87,7 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 - `RuleJudge.must_use_evidence` 已支持基础 evidence id/label 引用，后续仍需要更完整的 evidence matcher。
 - metrics 只统计基础数量，后续需要 latency、token、tool error、retry 等指标。
 - 当前文档测试只能检查关键短语和范围守卫，不能替代人工架构 review。
+- loader 仍不是完整 schema validator；它只做接入期结构校验，深层质量判断仍依赖 audit。
 
 ## P0 后续
 
