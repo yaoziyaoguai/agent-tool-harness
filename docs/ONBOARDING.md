@@ -21,12 +21,13 @@
 ```
 1) 准备三个 YAML
 2) audit-tools         → tool design audit
-3) generate-evals      → 候选 eval 草稿
-4) 人工 review         → 转正候选 eval
-5) audit-evals         → eval quality audit
-6) run --mock-path good / bad
-7) 看 artifacts + report.md
-8) 根据 report 改工具/eval/adapter
+3) generate-evals      → 候选 eval 草稿（顶层带 warnings）
+4) 人工 review         → 把 review_status 改为 "accepted"
+5) promote-evals       → 非交互机械搬运到 evals.promoted.yaml
+6) audit-evals         → eval quality audit（验证 promoted）
+7) run --mock-path good / bad
+8) 看 artifacts + report.md（注意 schema_version / run_metadata）
+9) 根据 report 改工具/eval/adapter
 ```
 
 每步都会落 artifact，详细字段见 [docs/ARTIFACTS.md](./ARTIFACTS.md)。
@@ -66,28 +67,48 @@
   --out runs/onboarding-generated/eval_candidates.from_tools.yaml
 ```
 
-输出是**候选**：每条带 `review_status: "candidate"` / `review_notes` / `difficulty` / `runnable: false`。
+输出是**候选**：每条带 `review_status: "candidate"` / `review_notes` /
+`difficulty` / `runnable: false`。文件顶层还会带 `warnings` 字段（empty_input /
+all_unrunnable / missing_review_notes / high_missing_context /
+cheating_prompt_suspect），同样的内容也会镜像到 stderr。
 **不要直接拿候选去 run**，先人工 review。
 
 ## 4) 人工 review 候选
 
 最低要求：
 
-- 把 `user_prompt` 改成真实业务问题，**不要出现“请调用 X 工具”**（否则会触发 `realism.cheating_prompt` finding）；
+- 把 `user_prompt` 改成真实业务问题，**不要出现"请调用 X 工具"**（否则会触发 `realism.cheating_prompt` finding）；
 - 补 `initial_context`（trace_id / session_id / fixture）；
 - 补 `verifiable_outcome`（expected_root_cause、evidence_ids）；
-- 把 `runnable` 改为 `true`，把 `review_status` 改为 `"approved"`；
-- 拷贝到正式 `evals.yaml`。
+- 补 `judge.rules`（至少一条非 tautological 规则，例如 `must_use_evidence` /
+  `expected_root_cause_contains`）；
+- 把 `runnable` 改为 `true`，把 `review_status` 改为 `"accepted"`。
 
-## 5) audit-evals
+## 5) promote-evals（非交互转正）
+
+不要再手 copy 候选到 evals.yaml，调 promoter：
+
+```bash
+.venv/bin/python -m agent_tool_harness.cli promote-evals \
+  --candidates runs/onboarding-generated/eval_candidates.from_tools.yaml \
+  --out runs/onboarding-generated/evals.promoted.yaml
+# 默认禁覆盖；要覆盖加 --force
+```
+
+promoter 只搬运 `review_status="accepted"` + `runnable=true` + 字段齐全
+（`initial_context` / `verifiable_outcome.expected_root_cause` / `judge.rules`）
+的候选；其它会被列在输出文件 `promote_summary.skipped[*].reason` 里告诉你下一步
+要补什么。即使 0 条搬运也返回退出码 0——"质量不足"不等于"CLI 失败"。
+
+## 6) audit-evals（验证 promoted）
 
 ```bash
 .venv/bin/python -m agent_tool_harness.cli audit-evals \
-  --evals your/evals.yaml \
+  --evals runs/onboarding-generated/evals.promoted.yaml \
   --out runs/onboarding-audit-evals
 ```
 
-`EvalQualityAuditor` 会标 `not_runnable` 和 `low_score_evals`。低分项不修复就拿去 run，等于污染 eval harness。
+`EvalQualityAuditor` 会标 `not_runnable` 和 `low_score_evals`。低分项不修复就拿去 run，等于污染 eval harness。验证通过后再 merge 进正式 `evals.yaml`。
 
 ## 6) run good / bad（验证 harness 自身）
 

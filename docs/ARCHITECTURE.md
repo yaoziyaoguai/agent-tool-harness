@@ -82,14 +82,18 @@ eval。架构上把“生成”和“转正”刻意分开，是因为：
 
 ```
 generate-evals --source tools|tests
-   → 候选 YAML (顶层 key: eval_candidates)
+   → 候选 YAML (顶层 key: schema_version / run_metadata / warnings / eval_candidates)
    → 人工补 initial_context / expected_root_cause / judge.rules
-   → 复制到正式 evals.yaml (顶层 key: evals)
+   → 把 review_status 改为 "accepted"
+   → promote-evals --candidates ... --out evals.promoted.yaml
+        （非交互、机械搬运、默认禁覆盖）
    → audit-evals 必须 runnable=true 且 findings 为空
-   → 与正式 eval 一起 commit；不要把 review_status=candidate 带进正式 eval
+   → 与正式 eval 一起 commit；review_status / review_notes 可保留作审核痕迹
 ```
 
-CLI 不提供交互式 reviewer，这是 MVP 阶段的有意约束；未来扩展点见 `docs/ROADMAP.md`。
+CLI **不提供**交互式 reviewer，但 P1B 已落地非交互 promoter；它只做"已审核条目
+机械搬运 + 硬约束二次校验"，不做 audit、不改 prompt、不替人决定，也不 fallback
+（任何缺字段都拒绝该候选并写明 reason）。完整能力边界见 `docs/ROADMAP.md` 第八阶段。
 
 ## 模块职责
 
@@ -124,6 +128,32 @@ audit 不运行 Agent，也不调用工具。
 `EvalGenerator` 从 tools 或 tests 生成候选 eval。
 
 它不覆盖正式 `evals.yaml`。候选缺上下文时必须标记 `runnable: false` 和 `missing_context`。
+
+`CandidateWriter` 把候选写盘时会顺手 collect 五类 warning（empty_input /
+all_unrunnable / missing_review_notes / high_missing_context /
+cheating_prompt_suspect）作为顶层字段，避免审核者只看终端就漏掉质量风险。
+
+`CandidatePromoter` 是非交互转正器：读已审核的候选 YAML，按硬约束
+（`review_status="accepted"` / `runnable=true` / `initial_context` 非空 /
+`verifiable_outcome.expected_root_cause` 非空 / `judge.rules` 非空）筛掉不合格
+条目，把剩下的搬运到 `evals:` 顶层下。**它不做 audit、不改 prompt、不替人下决定**；
+拒绝时给出明确 reason，让审核者知道下一步要补什么。默认禁止覆盖已存在文件，需
+显式 `--force`。
+
+### artifact_schema
+
+`agent_tool_harness/artifact_schema.py` 定义全框架解析契约的根：
+
+- `ARTIFACT_SCHEMA_VERSION="1.0.0"`：当前版本号；
+- `make_run_metadata(...)`：返回带 `run_id`（UUID4，可被
+  `AGENT_TOOL_HARNESS_RUN_ID` 环境变量覆盖）/ `generated_at` / `project_name` /
+  `eval_count` / `extra` 的 dict；
+- `stamp_artifact(payload, run_metadata)`：幂等地把 `schema_version` /
+  `run_metadata` 注入到 payload 顶层（**不**包裹原结构，保持下游字段访问路径
+  不变）。
+
+raw JSONL 不打戳——事件流逐行独立，加一行假事件会污染时序；它们的字段约定由
+`docs/ARTIFACTS.md` 和 schema_version 共同表达。
 
 ### tools
 

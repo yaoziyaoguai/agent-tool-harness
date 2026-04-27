@@ -76,6 +76,30 @@
 - 新增 `tests/test_p0_governance_hardening.py` 8 条治理测试，每条都同时写正向
   与反向用例（避免新规则误伤合理 eval）。
 
+第八阶段 P1B 接入体验三件套已加入当前工作范围（本轮）：
+
+- **CLI `promote-evals` 子命令**：把 `eval_candidates.yaml` 中
+  `review_status="accepted"` 且 `runnable=true` 且字段齐全（initial_context /
+  verifiable_outcome.expected_root_cause / judge.rules）的候选机械搬运到指定
+  正式 evals.yaml 片段。**默认禁止覆盖已有文件**，需 `--force`；保留
+  review_status / review_notes / source 等审核痕迹；不做 audit、不改 prompt、
+  不自动 LLM 评审。Skip reason 显式可读，告诉审核者下一步要补什么。
+- **CandidateWriter 顶层 `warnings` 字段**：generate-evals 输出文件直接带
+  empty_input / all_unrunnable / missing_review_notes / high_missing_context /
+  cheating_prompt_suspect 等可行动质量提示，审核者关掉终端也不会丢失；CLI 同时
+  把 warning 镜像到 stderr。warnings 不是失败，CLI 退出码仍为 0。
+- **artifact `schema_version` + `run_metadata`**：新模块
+  `agent_tool_harness/artifact_schema.py` 定义 `ARTIFACT_SCHEMA_VERSION="1.0.0"`
+  与 `make_run_metadata`，给 metrics.json / audit_tools.json / audit_evals.json /
+  judge_results.json / diagnosis.json 以及 generate-evals / promote-evals 输出
+  YAML 都打戳。同一次 run 的 5 份 artifact 共享同一个 `run_id`，下游可由它串
+  起来复盘。**不是 OpenTelemetry**，只是最小解析契约；raw JSONL 不打戳（事件流
+  逐行独立，由 docs/ARTIFACTS.md 与 schema_version 共同表达字段约定）。
+- 新增 `tests/test_p1b_promote_warnings_schema.py` 19 条治理测试：覆盖 promote
+  accepted/needs_review/rejected/runnable=false/缺字段 + 拒覆盖 + 强制覆盖 +
+  promoted 文件可被 load_evals/audit-evals 读 + 各 artifact schema_version 一致
+  + 失败路径 artifact 也带 schema_version + CLI 退出码语义。
+
 每次 run 会生成：
 
 - `transcript.jsonl`
@@ -186,15 +210,20 @@ Anthropic *Writing effective tools for agents* 主张评估必须由真实 LLM a
 - 支持多 eval 文件合并和 split 过滤。
 - 给候选 eval 增加更细的 review 状态机（`needs_review` / `approved` /
   `rejected`），并提供非交互式 promote 命令，把已审核条目合入正式 `evals.yaml`。
-  当前 MVP 只提供 `review_status="candidate"` + `review_notes` 字段，转正流程仍由
-  人工执行（详见 README 与 docs/ARCHITECTURE.md “候选 eval 审核流程”）。
+  **本轮（第八阶段）已落地最小版本**：`promote-evals` 子命令支持把
+  `review_status="accepted"` + `runnable=true` + 字段齐全的候选机械搬运到指定
+  evals.yaml 片段；默认禁止覆盖；保留 review_notes。仍未做的：完整状态机（
+  needs_review/approved/rejected 多态流转）、PR/issue tracker 双向同步。
 - 在 `report.md` 的 Per-Eval Details 中加入 trajectory 节选块（带行号）和 token
   估算；本轮已渲染 failure attribution finding 列表 / category breakdown /
   root cause hypothesis / what to check next，但仍是字段聚合，**没有原始
   transcript 片段**。trajectory 节选属于 P1 后续（需要先稳定 transcript schema
   版本号）。
-- 给 artifact schema 加版本号字段（`schema_version`），保证未来字段扩展不破坏
-  下游消费者。当前以 `docs/ARTIFACTS.md` 作为人类可读契约。
+- 给 artifact schema 加版本号字段（`schema_version`）：**本轮（第八阶段）已落地
+  最小版本**——`agent_tool_harness/artifact_schema.py` 定义
+  `ARTIFACT_SCHEMA_VERSION="1.0.0"`，所有派生 JSON / generate-evals / promote-evals
+  输出 YAML 均带戳；同一 run 共享 `run_metadata.run_id`。仍未做的：raw JSONL
+  自描述（事件流逐行独立）、SemVer 升级流程自动化、跨版本兼容性测试。
 
 ## P2 后续
 

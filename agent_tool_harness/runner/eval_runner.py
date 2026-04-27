@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_tool_harness.agents.agent_adapter_base import AgentAdapter, AgentRunResult
+from agent_tool_harness.artifact_schema import make_run_metadata, stamp_artifact
 from agent_tool_harness.audit.eval_quality_auditor import EvalQualityAuditor
 from agent_tool_harness.audit.tool_design_auditor import ToolDesignAuditor
 from agent_tool_harness.config.eval_spec import EvalSpec
@@ -306,11 +307,31 @@ class EvalRunner:
             "domain": project.domain,
             "description": project.description,
         }
-        recorder.write_json("metrics.json", metrics)
-        recorder.write_json("audit_tools.json", audit_tools)
-        recorder.write_json("audit_evals.json", audit_evals)
-        recorder.write_json("judge_results.json", judge_payload)
-        recorder.write_json("diagnosis.json", diagnosis_payload)
+        # P1：给所有派生 JSON artifact 打 schema_version + run_metadata 戳。
+        # 设计选择：戳是**新增顶层 key**，不会包裹原有结构（详见 artifact_schema.py
+        # 注释）；同一 run 内所有 artifact 共享同一份 run_metadata，下游可以靠
+        # ``run_metadata.run_id`` 把 5 份 JSON 串起来复盘同一次 run。
+        # raw JSONL（transcript / tool_calls / tool_responses）不打戳——它们是
+        # 事件流，逐行独立；其字段约定由 docs/ARTIFACTS.md + 本 schema_version 共同
+        # 表达。
+        run_metadata = make_run_metadata(
+            project_name=project.name,
+            eval_count=len(evals),
+            extra={"command": "run", "signal_quality": signal_quality},
+        )
+        recorder.write_json("metrics.json", stamp_artifact(metrics, run_metadata=run_metadata))
+        recorder.write_json(
+            "audit_tools.json", stamp_artifact(audit_tools, run_metadata=run_metadata)
+        )
+        recorder.write_json(
+            "audit_evals.json", stamp_artifact(audit_evals, run_metadata=run_metadata)
+        )
+        recorder.write_json(
+            "judge_results.json", stamp_artifact(judge_payload, run_metadata=run_metadata)
+        )
+        recorder.write_json(
+            "diagnosis.json", stamp_artifact(diagnosis_payload, run_metadata=run_metadata)
+        )
         recorder.write_text(
             "report.md",
             self.report.render(
@@ -330,6 +351,7 @@ class EvalRunner:
             "judge_results": judge_payload,
             "diagnosis": diagnosis_payload,
             "artifacts": self.REQUIRED_ARTIFACTS,
+            "run_metadata": run_metadata,
         }
 
     def _metrics(

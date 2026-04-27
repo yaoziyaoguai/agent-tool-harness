@@ -151,6 +151,22 @@ python -m ruff check .
   (6) 报告必须包含顶层 **Failure Attribution** 段、`Root cause hypothesis`、
   `What to check next`、以及"deterministic heuristic"措辞——防止 diagnosis 被
   误传成"真实根因"或"LLM Judge 输出"。
+- `tests/test_p1b_promote_warnings_schema.py` 钉住第八阶段 P1B 三组根因边界：
+  (1) **promote-evals 硬约束**——promoter 必须只搬运 `review_status="accepted"`
+  + `runnable=true` + `initial_context` 非空 + `verifiable_outcome.expected_root_cause`
+  非空 + `judge.rules` 非空的候选；needs_review / rejected / runnable=false /
+  缺字段必须被 skip 并写明 reason；默认禁覆盖已有文件，需 `--force`；promoted
+  YAML 必须能被 `load_evals()` 直接读，闭环 promote→audit-evals→run；
+  (2) **CandidateWriter warnings**——必须能识别并写入 5 类质量警告
+  （`empty_input` / `all_unrunnable` / `missing_review_notes` /
+  `high_missing_context` / `cheating_prompt_suspect`），且对干净候选不发明假警告
+  （防止 warning 通胀降低信号价值）；
+  (3) **artifact schema_version 一致性**——run 成功 / 失败两条路径下，metrics /
+  audit_tools / audit_evals / judge_results / diagnosis 顶层必须都带
+  `schema_version` 与 `run_metadata.run_id`；同一次 run 五份 artifact 共享同一
+  `run_id`；CLI audit-tools / audit-evals / generate-evals / promote-evals 输出
+  也带戳；CLI promote-evals 0 条 promoted 仍返回 0，遇已有文件返回 2 并提示
+  --force（防止退出码语义被悄悄改成"质量不足=失败"）。
 
 ## 如何检查 artifacts
 

@@ -6,11 +6,13 @@ import sys
 from pathlib import Path
 
 from agent_tool_harness.agents.mock_replay_adapter import MockReplayAdapter
+from agent_tool_harness.artifact_schema import make_run_metadata, stamp_artifact
 from agent_tool_harness.audit.eval_quality_auditor import EvalQualityAuditor
 from agent_tool_harness.audit.tool_design_auditor import ToolDesignAuditor
 from agent_tool_harness.config.loader import ConfigError, load_evals, load_project, load_tools
 from agent_tool_harness.eval_generation.candidate_writer import CandidateWriter
 from agent_tool_harness.eval_generation.generator import EvalGenerator
+from agent_tool_harness.eval_generation.promoter import CandidatePromoter
 from agent_tool_harness.runner.eval_runner import EvalRunner
 from agent_tool_harness.tools.registry import ToolRegistryError
 
@@ -70,6 +72,21 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--out", required=True)
     run.add_argument("--mock-path", choices=["good", "bad"], default="good")
 
+    promote = subparsers.add_parser(
+        "promote-evals",
+        help=(
+            "把 review 通过的候选（review_status=accepted 且 runnable=true）"
+            "搬运成正式 evals.yaml 片段；默认禁止覆盖已有文件，需 --force。"
+        ),
+    )
+    promote.add_argument("--candidates", required=True)
+    promote.add_argument("--out", required=True)
+    promote.add_argument(
+        "--force",
+        action="store_true",
+        help="允许覆盖已存在的输出文件（默认禁止，避免冲掉手写正式 evals.yaml）",
+    )
+
     args = parser.parse_args(argv)
     try:
         if args.command == "audit-tools":
@@ -80,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
             return _audit_evals(args.evals, args.out)
         if args.command == "run":
             return _run(args.project, args.tools, args.evals, args.out, args.mock_path)
+        if args.command == "promote-evals":
+            return _promote_evals(args.candidates, args.out, force=args.force)
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
         # 避免把内部 traceback 推给真实团队；他们应该得到一条直接告诉他们改哪个字段
@@ -107,6 +126,16 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "hint: 确保 tools.yaml 中每个 namespace.name 唯一；"
             "使用短名调用前请先消除歧义。",
+            file=sys.stderr,
+        )
+        return 2
+    except FileExistsError as exc:
+        # promote-evals 拒绝覆盖时走这里。把它和 ConfigError 区分开，方便 CI 脚本根据
+        # 退出原因决定是否加 --force。
+        print(f"error: refused to overwrite — {exc}", file=sys.stderr)
+        print(
+            "hint: 如果你确定要覆盖（例如 --out 指向 runs/ 临时目录而非手写正式 "
+            "evals.yaml），请加 --force 重跑。",
             file=sys.stderr,
         )
         return 2
@@ -145,7 +174,13 @@ def _audit_tools(tools_path: str, out: str) -> int:
     result = ToolDesignAuditor().audit(tools)
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(out_dir / "audit_tools.json", result)
+    # 给独立 audit-tools artifact 也打 schema_version 戳，让"不在 run 里跑"的 audit
+    # 输出与 run 内部产出一致；下游 CI 解析逻辑可统一处理。
+    stamped = stamp_artifact(
+        result,
+        run_metadata=make_run_metadata(extra={"command": "audit-tools"}),
+    )
+    _write_json(out_dir / "audit_tools.json", stamped)
     print(f"wrote {out_dir / 'audit_tools.json'}")
     return 0
 
@@ -169,7 +204,14 @@ def _generate_evals(
                 "示例：--source tests --tests tests/"
             )
         candidates = generator.from_tests(tests_path)
-    path = CandidateWriter().write(candidates, out)
+    writer = CandidateWriter()
+    path = writer.write(candidates, out)
+    # warnings 是质量提示，**不**影响退出码（CLI 仍 0）。把它打到 stderr 是为了
+    # 让 CI/审核者立刻看到；同时它也已经被写入 YAML 顶层 ``warnings`` 字段，跟随
+    # 候选文件进 review/PR diff，形成审核闭环。详见 CandidateWriter docstring。
+    warnings = writer.collect_warnings(candidates)
+    for warning in warnings:
+        print(f"warning: {warning}", file=sys.stderr)
     print(f"wrote {path}")
     return 0
 
@@ -180,7 +222,14 @@ def _audit_evals(evals_path: str, out: str) -> int:
     result = EvalQualityAuditor().audit(evals)
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(out_dir / "audit_evals.json", result)
+    stamped = stamp_artifact(
+        result,
+        run_metadata=make_run_metadata(
+            eval_count=len(evals),
+            extra={"command": "audit-evals"},
+        ),
+    )
+    _write_json(out_dir / "audit_evals.json", stamped)
     print(f"wrote {out_dir / 'audit_evals.json'}")
     return 0
 
@@ -203,6 +252,39 @@ def _run(project_path: str, tools_path: str, evals_path: str, out: str, mock_pat
             ensure_ascii=False,
         )
     )
+    return 0
+
+
+def _promote_evals(candidates_path: str, out: str, *, force: bool) -> int:
+    """把 review 通过的候选搬运到正式 evals.yaml 片段。
+
+    退出码：
+    - 0：正常（即使 promoted 为空、即使有 skipped 项；这是为了让"候选还差什么"
+      不被误解为 CLI 失败，审核者仍能从 stdout/JSON 看到 skip 原因）；
+    - 2：拒绝覆盖（FileExistsError）/ FileNotFoundError / ConfigError 等。
+
+    输出：stdout 写一行 JSON 摘要 ``{out, promoted, skipped, summary}``，便于 CI
+    grep；文件本身已包含 ``promote_summary``，这里只是镜像，方便不读文件就能看到。
+    """
+
+    promoter = CandidatePromoter()
+    promote_result = promoter.promote(candidates_path, out, force=force)
+    summary = {
+        "out": str(promote_result.out_path),
+        "promoted_count": len(promote_result.promoted),
+        "skipped_count": len(promote_result.skipped),
+        "promoted_ids": [str(item.get("id")) for item in promote_result.promoted],
+        "skipped": promote_result.skipped,
+    }
+    if promote_result.skipped:
+        # 把"哪些候选被跳"在 stderr 显式列一遍，让审核者立即看到下一步要补什么；
+        # 不靠他们去打开 YAML 翻 promote_summary。
+        for item in promote_result.skipped:
+            print(
+                f"skip: candidate {item['id']} — {item['reason']}",
+                file=sys.stderr,
+            )
+    print(json.dumps(summary, ensure_ascii=False))
     return 0
 
 

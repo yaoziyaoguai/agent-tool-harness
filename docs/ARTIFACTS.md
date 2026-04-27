@@ -24,6 +24,37 @@ ToolRegistry 初始化失败、eval 被 audit 判定不可运行，runner 也会
 > 任何只看 `report.md` 或 `metrics.json` 就下结论的复盘都是危险的。raw artifacts
 > 才是一手证据。
 
+## schema_version 与 run_metadata（最小解析契约）
+
+所有派生 JSON artifact（metrics / audit_tools / audit_evals / judge_results /
+diagnosis）以及 `generate-evals` 写出的 `eval_candidates.yaml` 与 `promote-evals`
+写出的 `evals.yaml` 片段，**顶层都带两条额外字段**：
+
+- `schema_version`：字符串，当前为 `"1.0.0"`。语义遵循 SemVer：
+  - PATCH（1.0.x）：纯字段新增 / 文档补充 / bug 修复，下游无需改动；
+  - MINOR（1.x.0）：新增字段或新增 finding 类型，下游兼容老版本仍能解析；
+  - MAJOR（x.0.0）：删字段 / 改字段语义 / 改类型，下游必须升级。
+- `run_metadata`：dict，至少包含：
+  - `run_id`：UUID4，用于把同一次 run 的多份 artifact 串起来复盘；可被环境变量
+    `AGENT_TOOL_HARNESS_RUN_ID` 显式覆盖（CI build id 透传）；
+  - `generated_at`：UTC ISO8601；
+  - `project_name` / `eval_count`：上下文自描述；
+  - `extra`：调用方塞少量 hint，例如 `command="run"` / `mock_path="bad"`。
+
+这是**最小解析契约**，**不是** OpenTelemetry / OpenInference / W3C trace context；
+不引入任何 SDK，不承担分布式追踪。raw JSONL 不打戳——它们是事件流，逐行独立；
+其字段约定由本 schema_version 配合下文字段说明共同表达。完整设计写在
+`agent_tool_harness/artifact_schema.py` 的 docstring。
+
+`promote-evals` 输出的 evals.yaml 还会额外带 `promote_summary`：
+- `promoted_ids`：被搬运的候选 id 列表；
+- `skipped`：list of `{id, reason}`，告诉审核者下一步要补什么。
+
+`generate-evals` 输出的候选文件会额外带 `warnings`：
+- 非空时表示候选质量有可见风险（`empty_input` / `all_unrunnable` /
+  `missing_review_notes` / `high_missing_context` / `cheating_prompt_suspect`）；
+- 仅是提示，不是失败；CLI 退出码仍为 0。
+
 ---
 
 ## transcript.jsonl

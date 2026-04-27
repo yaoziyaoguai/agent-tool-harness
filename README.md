@@ -239,15 +239,35 @@ python -m agent_tool_harness.cli run \
 合并进 `evals.yaml`，必须经过下面流程才能转正：
 
 1. **生成**：`agent-tool-harness generate-evals --source tools|tests ...` 写到候选 YAML
-   文件（顶层 key 是 `eval_candidates`，与正式 `evals` 区别明显）。
+   文件（顶层 key 是 `eval_candidates`，与正式 `evals` 区别明显）。文件还会带顶层
+   `warnings` 字段，列出可见质量风险（empty_input / all_unrunnable /
+   missing_review_notes / high_missing_context / cheating_prompt_suspect）；CLI 同
+   时把这些 warning 写到 stderr。
 2. **审核**：人工逐条对照 `review_notes`，补 `initial_context` / `expected_root_cause` /
-   `judge.rules`，确认 `user_prompt` 真的来自真实用户问题。
-3. **本地验证**：把已审核的条目复制到正式 `evals.yaml`（顶层 `evals:`），对它跑
-   `audit-evals` 确保 `runnable=true` 且 findings 为空。
-4. **入库**：与正式 `evals.yaml` 一起 commit；`review_status=candidate` 字段不应进入
-   正式 eval。
+   `judge.rules`，确认 `user_prompt` 真的来自真实用户问题。审核通过后把
+   `review_status` 改为 `accepted`（其它合法值 `needs_review` / `rejected` 会被
+   promoter 跳过）。
+3. **转正（非交互）**：
 
-详细字段约定与排查指引见 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)。
+   ```bash
+   python -m agent_tool_harness.cli promote-evals \
+     --candidates runs/generate-evals/eval_candidates.from_tools.yaml \
+     --out evals.promoted.yaml
+   # 默认禁止覆盖；如确实要覆盖加 --force
+   ```
+
+   promoter 只搬运 `review_status="accepted"` + `runnable=true` + 字段齐全
+   （`initial_context` / `verifiable_outcome.expected_root_cause` /
+   `judge.rules` 非空）的候选。每条被 skip 的候选都会在输出文件的
+   `promote_summary.skipped` 与 stderr 里给出明确 reason，告诉审核者下一步要补什么。
+   即使 0 条搬运也返回退出码 0（"质量不足"≠"CLI 失败"）。
+4. **本地验证**：对 promoted YAML 跑 `audit-evals`，确认 `runnable=true` 且 findings
+   为空再 merge 进正式 `evals.yaml`。
+5. **入库**：与正式 `evals.yaml` 一起 commit；`review_status` / `review_notes` /
+   `source` 字段允许保留作为审核痕迹。
+
+详细字段约定与排查指引见 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)；schema_version /
+run_metadata 解析契约也在同一文件。
 
 ## 如何理解报告
 
