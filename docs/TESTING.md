@@ -167,6 +167,24 @@ python -m ruff check .
   `run_id`；CLI audit-tools / audit-evals / generate-evals / promote-evals 输出
   也带戳；CLI promote-evals 0 条 promoted 仍返回 0，遇已有文件返回 2 并提示
   --force（防止退出码语义被悄悄改成"质量不足=失败"）。
+- `tests/test_from_tools_judge_quality.py` 钉住"`from_tools` 候选阶段必须默认就降低
+  tautological / 自证风险"这条根因（候选 B 转正后的回归保险）：
+  (1) 默认 judge 必须含 `must_use_evidence` + `must_not_modify_before_evidence`
+  等语义/防御性规则；跑完 EvalQualityAuditor 不应再被报
+  `judge.tautological_must_call_tool`；
+  (2) 默认 `success_criteria` 必须含反 tautology 文案；新增 finding
+  `verifiability.success_criteria_only_required_tools` 必须能识别"只把
+  required_tools 复述成准则"的伪装，但**不**误伤含 evidence/根因/行为关键词的
+  正常 eval；
+  (3) 工具契约缺关键字段（`when_to_use` / `when_not_to_use` / `output_contract` /
+  `output_contract.required_fields` 含 `evidence` / `input_schema.properties` 含
+  `response_format`）时，候选必须落到 `review_status="needs_review"` +
+  `runnable=false`，且能被 promoter 的硬约束自然 skip（reason 包含 review_status）；
+  (4) 契约齐全只是缺 fixture/expected_root_cause 时仍保持 `review_status="candidate"`，
+  避免错误升级 needs_review；
+  (5) `_scrub_cheating_signals` 必须在去工具名之外再兜底替换"动词+工具/tool"共现；
+  (6) 治理硬约束：本轮新增/重写的 helper 必须有中文学习型 docstring（关键词扫描），
+  防止下次 refactor 把注释一并删掉退化为纯英文 API doc。
 
 ## 如何检查 artifacts
 

@@ -271,6 +271,26 @@ class EvalQualityAuditor:
                     "写出最终结论、证据使用、禁止行为等准则。",
                 )
             )
+        else:
+            # 新增（P1B 候选治理）：success_criteria 必须包含**至少一条**语义/行为/证据
+            # 类要求；如果所有条目都只重复"required_tools / 调用某工具"这类结构话术，
+            # 等于把"工具被调用"写成评估标准。这条 finding 与 from_tools 默认 success
+            # criteria 的反 tautology 文案配合，构成"生成时挂提醒、审计时再钉一遍"的
+            # 双层防护。
+            if not _success_criteria_has_behavioral_signal(case.success_criteria):
+                score -= 2
+                findings.append(
+                    EvalFinding(
+                        "verifiability.success_criteria_only_required_tools",
+                        "high",
+                        "success_criteria 全部条目都只指向 required_tools / 调用动作，"
+                        "缺少证据/根因/行为类可验证语义；这等同于把『工具被调用』写成"
+                        "评估标准，无法证伪 Agent 真实能力。",
+                        "至少补一条要求引用 evidence、命中 expected_root_cause 或描述"
+                        "可观测行为的准则；与 judge.must_use_evidence /"
+                        " expected_root_cause_contains 配合判定。",
+                    )
+                )
         rules = case.judge.get("rules", [])
         if not rules:
             score -= 2
@@ -425,3 +445,60 @@ def _has_substantive_value(container: Any) -> bool:
     if isinstance(container, list | tuple | set):
         return any(_has_substantive_value(v) for v in container)
     return _is_truthy(container)
+
+
+# 行为/证据/根因类语义关键词（中英）。出现任意一个就视为 success_criteria 含可验证
+# 语义信号；否则触发 ``verifiability.success_criteria_only_required_tools`` finding。
+# 这是 deterministic 启发式，**不是** NLU——审核者仍要核对每条 criterion 是否真的可
+# 被 RuleJudge 验证。新增关键词请同步 docs/TESTING.md 的覆盖范围说明。
+_BEHAVIORAL_KEYWORDS = (
+    "evidence",
+    "证据",
+    "root cause",
+    "root_cause",
+    "根因",
+    "cite",
+    "引用",
+    "explain",
+    "说明",
+    "解释",
+    "outcome",
+    "结论",
+    "verify",
+    "验证",
+    "before",
+    "之前",
+    "without",
+    "不能",
+    "禁止",
+    "must not",
+    "must_not",
+    "answer",
+    "回答",
+    "identify",
+    "确定",
+    "确认",
+    "confirm",
+    "behavior",
+    "行为",
+)
+
+
+def _success_criteria_has_behavioral_signal(criteria: list[Any]) -> bool:
+    """判断 success_criteria 列表里是否至少有一条包含行为/证据/根因关键词。
+
+    输入约束：``criteria`` 由 EvalSpec.success_criteria 直接传入，已是 list；
+    元素允许为字符串或 dict（dict 会被拼成 JSON-like 文本再扫描）。
+
+    判定口径：**任意一条**条目命中关键词即返回 True。这条阈值很低是故意的——审计要
+    避免误伤合理 eval；只在所有条目都仅是结构话术时才报 finding。具体语义级评判仍
+    需 LLM Judge（已记 docs/ROADMAP.md）。
+    """
+
+    for item in criteria or []:
+        text = item if isinstance(item, str) else str(item)
+        lowered = text.lower()
+        for keyword in _BEHAVIORAL_KEYWORDS:
+            if keyword in lowered:
+                return True
+    return False

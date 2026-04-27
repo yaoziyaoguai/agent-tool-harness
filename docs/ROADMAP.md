@@ -148,11 +148,23 @@ MVP 目标是“可运行闭环”，不是大而全 benchmark。
 - Audit 规则是启发式 deterministic rules，后续需要用真实项目反馈调权重。
 - **`ToolDesignAuditor` 当前只是 structural / completeness 检查**：它只读 `tools.yaml` 字段，不读 Python 源码、不调用工具、不做语义级判断。语义诱饵（与已有工具职责重叠的浅封装）会被判高分，已在 `tests/test_tool_design_audit_decoy_xfail.py` 用 strict xfail 钉住。
 - **`MockReplayAdapter` 直接读 `eval.expected_tool_behavior.required_tools` 反向回放**，导致 RuleJudge 在 good path 上结构性 PASS。这是当前最大的 evaluation 信号缺陷，靠 `signal_quality=tautological_replay` 标签向使用者诚实披露；真正修复要等真实 LLM adapter。
-- `from_tools` 只能生成候选题，缺少真实 fixture 时不可运行。**当前候选 judge 默认
-  只挂一条 `must_call_tool` 指向自己的源工具（tautological 必过结构）**；P0 治理已
-  通过 `EvalQualityAuditor.judge.tautological_must_call_tool` finding 与 candidate
-  `review_notes` 提醒钉死，但根因修复要等支持非 tautological 自动规则生成（如
-  `must_use_evidence` 默认 + 反向工具组合）。详见 `tests/test_anti_patch.py`。
+- `from_tools` 只能生成候选题，缺少真实 fixture 时不可运行。**默认 judge 已升级为
+  `must_call_tool` + `must_use_evidence` + `must_not_modify_before_evidence`（destructive
+  工具自动加），并在 hint 提供 `expected_root_cause` 时再加 `expected_root_cause_contains`**；
+  这关掉了"调用即通过"的根因，使新候选不再被 `EvalQualityAuditor.judge.tautological_must_call_tool`
+  报告。同时：
+  - 工具契约缺关键字段（`when_to_use` / `when_not_to_use` / `output_contract` /
+    `output_contract.required_fields` 含 `evidence` / `input_schema.properties` 含
+    `response_format`）时，候选自动落到 `review_status="needs_review"` + `runnable=false`，
+    审核者必须先回 `tools.yaml` 修工具契约，不能改 eval 绕过。
+  - 默认 `success_criteria` 含 4 条反 tautology 文案；`EvalQualityAuditor` 新增
+    `verifiability.success_criteria_only_required_tools` finding，识别"只把 required_tools
+    复述成准则"的伪装。
+  - `user_prompt` 在去工具名后再做一次"动词+工具/tool"共现兜底替换（`_scrub_cheating_signals`），
+    避免 cheating prompt 回潮。
+  详见 `tests/test_from_tools_judge_quality.py`、`tests/test_anti_patch.py`。
+  仍未做：从 transcripts / 真实工单 / docs 自动生成更真实的 user_prompt——这要等
+  `from_transcripts` / `from_docs` 与 LLM 辅助改写，已记 P2。
 - `EvalQualityAuditor.runnable` 现已穿透字段层只看实际值（`_has_substantive_value`），
   能识别 `initial_context: {trace_id: ""}` 这种"看似配齐"的伪 fixture，并要求
   `verifiable_outcome` 至少含一条非空 `expected_root_cause` 或 `evidence_ids`；

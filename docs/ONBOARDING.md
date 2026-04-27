@@ -84,6 +84,14 @@ cheating_prompt_suspect），同样的内容也会镜像到 stderr。
   `expected_root_cause_contains`）；
 - 把 `runnable` 改为 `true`，把 `review_status` 改为 `"accepted"`。
 
+> **看到 `review_status: "needs_review"` 怎么办？**
+> 这表示生成器认为对应工具的 `tools.yaml` 契约本身就不完整（缺
+> `when_to_use` / `when_not_to_use` / `output_contract.required_fields` 含
+> `evidence` / `input_schema.properties` 含 `response_format` 等关键字段）。
+> **正确做法是回 `tools.yaml` 修工具契约，不是改这条 eval 绕过**——契约不齐
+> 时候选 eval 没办法跑出有意义的信号。修完工具后重新 generate-evals 即可。
+> 候选的 `missing_context` 字段会列出具体缺哪些项。
+
 ## 5) promote-evals（非交互转正）
 
 不要再手 copy 候选到 evals.yaml，调 promoter：
