@@ -52,6 +52,11 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > v1.5 第二轮（**已合入 main，待发版**）：MarkdownReport 多 advisory 可读性扩展——`report.md` 在 majority/votes 概览下为每条 advisory 输出 `provider/passed/rationale/confidence` 或 `error_code/suggested_fix` 缩进子条目，让 reviewer 不用打开 JSON 即可定位分歧与错误。`_ADVISORY_SUGGESTED_FIX` 静态映射覆盖 9 类 error_code。新增 6 条渲染契约测试。**仍是文档/可读性强化，不是真实 LLM Judge**。
 >
 > v1.5 release notes：见 [RELEASE_NOTES_v1.5.md](RELEASE_NOTES_v1.5.md)（multi-advisory CLI + report readability MVP）。
+>
+> v1.6 第一轮（**已合入 main，待发版**）：补齐三处 live readiness 治理空缺——
+> (a) `LiveAnthropicTransport` 新增 retry/backoff 治理（默认 `max_attempts=1` 与 v1.5 字节兼容；只对 rate_limited / network_error / timeout 三类做指数退避；非 retryable 永不重试；CI 用 `sleep_fn` 注入 fake clock 钉死序列）；
+> (b) 新增 `runs/<dir>/llm_cost.json` artifact + MarkdownReport `Cost Summary` 段，**advisory-only 不是真实账单**，永远不 fabricate token，缺失自动写 `cost_unknown_reason`；
+> (c) 新增 `audit-judge-prompts` CLI 子命令 + `agent_tool_harness/audit/judge_prompt_auditor.py` 7 类启发式（含 sk- key 字面、引导泄漏 secret、把 advisory 当 ground truth 等），输出 `audit_judge_prompts.json` + `.md`；附 `examples/judge_prompts.yaml` 示例 fixture。新增 25 条契约测试。**仍 0 新增依赖、CI 0 联网、不调真实 LLM**。
 
 ## 快速开始
 

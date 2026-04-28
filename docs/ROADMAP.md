@@ -878,6 +878,47 @@ deterministic 分歧 / 出错的 advisory 该怎么修"成本高。
 - multi-advisory 投票算法权重 / 阈值可配置（先观察使用模式）。
 
 
+### v1.6 第一轮已落地：retry/backoff + LLM cost 聚合 + judge prompt 启发式审计
+
+**根因**：v1.5 第二轮把多 advisory 可读性补齐后，仍有三处治理空缺会
+让真实 live 模式不可控：
+
+1. `LiveAnthropicTransport` 不做 retry → 任何 429 / 网络抖动直接抛错，
+   reviewer 看不出"是真不可用还是临时抖一下"；
+2. 没有 LLM 成本聚合 artifact → 每条 advisory token / retry 散落在
+   `judge_results.json::dry_run_provider` 内，无法跨 eval 横向看；
+3. 没有 judge prompt 安全 audit → 真实 LLM judge 落地之前，prompt 文本
+   可能引导泄漏 secret / 把 advisory 当 ground truth 之类反模式。
+
+**本轮范围（已落地）**：
+- `LiveAnthropicTransport` 新增 retry/backoff 治理（默认
+  `max_attempts=1` 与 v1.5 字节兼容；只对 rate_limited / network_error /
+  timeout 三类 retryable error 做指数退避；非 retryable 永不重试；
+  退避序列 deterministic，CI 用 `sleep_fn` 注入 fake clock 钉死序列）；
+- `attempts_summary` / `retry_count` 透传到
+  `judge_results.json::dry_run_provider.results[].extra`；
+- 新增 `agent_tool_harness/reports/cost_tracker.py`，把 dry_run 结果聚合
+  成 `runs/<dir>/llm_cost.json`（schema_version=1，含 totals /
+  per_eval / cost_unknown_reasons），永远不 fabricate token；
+- `MarkdownReport` 增加 Cost Summary 段，**显式声明** advisory-only /
+  不是真实账单；
+- 新增 `audit-judge-prompts` CLI 子命令 + `agent_tool_harness/audit/
+  judge_prompt_auditor.py`：deterministic 启发式扫描 prompt + rubric
+  （太短 / 缺 evidence_refs 占位 / 缺 PASS/FAIL rubric / 缺 grounding /
+  含 key 字面 / 引导泄漏 secret / 把 advisory 当 ground truth 七类
+  finding），输出 `audit_judge_prompts.json` + `.md`；
+- 新增 25 条契约测试：retry/backoff（7）+ cost tracker（7）+ judge
+  prompt audit（11）；
+- 文档同步 README / ARTIFACTS / ARCHITECTURE / TESTING / ROADMAP。
+
+**本轮范围外（仅 ROADMAP 备忘，**不**实现）**：
+- price table 注入 → `estimated_cost_usd` 永远 None（v1.7+）；
+- prompt audit 的语义级评估（属真实 LLM judge 评估，v1.7+）；
+- 跨多 run cost dashboard / per-eval-budget 强制 cap（v1.7+）；
+- jitter / 跨 process 限流（v1.7+）；
+- 真实联网 retry 验证（永远不在 CI）。
+
+
 ---
 
 ## 暂不做范围（永久或长期）

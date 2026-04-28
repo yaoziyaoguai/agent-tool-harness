@@ -500,6 +500,93 @@ disabled_live_provider / 6 类 transport），未识别 → 通用 fallback hint
 
 ---
 
+## llm_cost.json（v1.6 新增）
+
+由 `EvalRunner` 在每次 `run` 子命令产生；从 `judge_results.json::dry_run_provider`
+聚合而来，**advisory-only**，不是真实账单。
+
+字段：
+
+- `schema_version`（int，当前 1）：本 artifact schema 版本，"只增不删"承诺。
+- `totals`：跨所有 advisory 的合计：
+  - `advisory_count`：本 run 共多少条 advisory 结果（按 entry × advisories 展开）；
+  - `with_usage_count`：实际带 token usage 的 advisory 条数；
+  - `tokens_in` / `tokens_out`：累加（任何缺失字段按 0 计，不 fabricate）；
+  - `retry_count_total`：累加 LiveAnthropicTransport retry/backoff 次数；
+  - `error_count`：errored advisory 计数（不计入 token）。
+- `per_eval`：`[{eval_id, advisories: [{provider, mode, model, usage,
+  attempts_summary, retry_count, error_code}]}]`。
+- `cost_unknown_reasons`：`[{reason, count}]` 去重列表，解释"为什么没法
+  算 cost"（如 ``"recorded mode does not report token usage"``）。
+- `estimated_cost_usd`：v1.6 永远 None（v1.7+ 会引入 price 注入）；
+- `estimated_cost_note`：明确声明"deterministic stats only;
+  advisory-only and MUST NOT be used as a billing source"。
+
+**反模式硬约束**：
+
+- 永远不把 None token 数当 0 后偷偷算成 cost；
+- 永远不把 advisory error 漏算到 cost_unknown_reasons；
+- 永远不把 raw key / base_url 写入本 artifact——所有 secret 已在
+  provider 层脱敏。
+
+排查路径：
+
+- 想知道"这次 run 共调了多少 token / 重试了多少次"？读 `totals`；
+- 想知道"为什么没 token 数"？读 `cost_unknown_reasons`；
+- 想知道单条 advisory 的 retry 决策？看
+  `per_eval[].advisories[].attempts_summary`。
+
+---
+
+## audit_judge_prompts.json / audit_judge_prompts.md（v1.6 `audit-judge-prompts` CLI 输出）
+
+由 `python -m agent_tool_harness.cli audit-judge-prompts --prompts PATH --out DIR` 写出，
+对将要发给 LLM Judge 的 prompt + rubric 做 deterministic 启发式安全审计。
+
+输入文件结构（yaml/json 二选一）：
+
+```yaml
+prompts:
+  - id: my-prompt-1
+    prompt: "..."
+    rubric: "..."
+```
+
+`audit_judge_prompts.json` 字段：
+
+- `summary`：`{prompt_count, finding_count, by_severity:
+  {critical, high, medium}}`；
+- `findings`：`[{prompt_id, rule_id, severity, description, evidence}]`；
+- `rules`：所有 rule_id 的元数据（severity + description）。
+
+7 类启发式 rule_id：
+
+| rule_id | severity | 触发条件 |
+| --- | --- | --- |
+| `prompt_too_short` | high | prompt 文本 <80 字符 |
+| `missing_evidence_refs_placeholder` | high | 未引用 evidence_refs / transcript / artifact 占位 |
+| `missing_pass_fail_rubric` | high | rubric 无 PASS/FAIL/通过/失败 关键词 |
+| `missing_grounding_requirement` | medium | 未要求模型基于 evidence/事实判断 |
+| `contains_key_like_string` | critical | 出现 sk- / Bearer / 长 hex 等 key 字面 |
+| `instructs_secret_disclosure` | critical | 引导模型披露 key/secret/credential |
+| `advisory_treated_as_truth` | high | 暗示 advisory 输出就是最终结果 |
+
+**硬约束**：
+
+- 启发式 ≠ 语义级安全验证；通过 audit 不代表 prompt 在生产中安全；
+- finding 的 `evidence` 字段对 key 字面**自动脱敏**（只保留前 4 字符 +
+  长度），任何 audit artifact 都不会把 raw key 写回；
+- 本 audit 永远不调 LLM、不联网；可在 CI 任意频次跑。
+
+排查路径：
+
+- critical/high finding 必须在合入新 prompt 前修掉；
+- 想理解某条 finding 为什么触发？看 `rules[rule_id].description` + `evidence`；
+- 想新增检测规则？编辑 `agent_tool_harness/audit/judge_prompt_auditor.py::_RULES`
+  并补对应测试。
+
+---
+
 ## tool_use_signals.json / tool_use_signals.md（analyze-artifacts CLI 输出）
 
 由 `python -m agent_tool_harness.cli analyze-artifacts --run RUN_DIR --tools TOOLS_YAML
