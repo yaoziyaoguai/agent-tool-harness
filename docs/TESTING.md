@@ -364,3 +364,24 @@ python -m agent_tool_harness.cli run \
 Anthropic-compatible 等）落地时，这些边界仍要保留——错误信息脱敏
 （不打印真实 key / Authorization header / 完整请求体响应体）也将作为
 新增契约测试加入本文件。
+
+## v1.x 第三轮 preflight 契约（7 条新测试）
+
+`tests/test_judge_provider_preflight.py`：
+
+1. **缺 env**：空 `AnthropicCompatibleConfig` → `missing_fields` 必含全部 4
+   个 KEY 名 + `summary.config_complete=False`，且 `ready_for_live=False`。
+2. **`.gitignore` 缺 `.env`**：`gitignore_status.ignores_dotenv=False` +
+   actionable hint 必出现，**不**静默 pass。
+3. **`.env.example` 含真实 value**：报具体 KEY 名，但 value 字面值
+   **绝不**出现在 status 字段或 hint 中（防 preflight artifact 二次泄漏）。
+4. **8 类 error taxonomy 全脱敏**：用真实长 key / 真实 base_url 做泄漏扫
+   描，所有 message 模板都不能 substring 命中字面值。
+5. **artifact 不泄漏**：`preflight.json` / `preflight.md` 任何路径下
+   **不**包含 fake key / fake base_url / fake model 字面值。
+6. **socket ban 下仍跑通**：`monkeypatch.setattr(socket, "socket",
+   _BannedSocket)` 后 CLI 依然 exit 0 + 写出两份 artifact —— 证明 preflight
+   路径**完全无网络**。
+7. **fake env 端到端**：env 中有 fake key/base_url/model 时 CLI 不崩溃，
+   summary 字段齐全（`config_complete=True`、`gitignore_safe=True`、
+   `env_example_safe=True`），但 `ready_for_live` 仍 `False`。

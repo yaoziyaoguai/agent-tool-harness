@@ -262,6 +262,16 @@ provider_error`）+ `_safe_message` 模板化错误消息（绝不 echo raw exce
 不泄漏 / artifact 不泄漏 fake key/base_url / monkeypatch 禁 socket 仍跑通。
 详见 `docs/ROADMAP.md` v1.x 第二轮段、`.env.example` 占位符。
 
+**v1.x 第三轮**：新增 `agent_tool_harness/judges/preflight.py` +
+`judge-provider-preflight` CLI —— 真实 LLM judge live **之前**的"本地侧
+最后一道闸"。**纯本地、不联网、不读取真实 key**：检查 4 项 env 字段齐全
+度 / `.gitignore` 是否忽略 `.env` / `.env.example` 是否仅含占位符 / 8
+类 error taxonomy message 用真实 key/base_url 做泄漏扫描。输出
+`preflight.json` + `preflight.md`，**绝不**写入 api_key / base_url 字面值。
+`summary.ready_for_live` **永远** `False`——live 仍属未来 milestone。
+契约由 `tests/test_judge_provider_preflight.py` 7 条测试钉死。详见
+`docs/ROADMAP.md` v1.x 第三轮段、`.env.example` 占位符。
+
 ### diagnose
 
 `TranscriptAnalyzer` 把 raw artifacts（transcript / tool_calls / tool_responses /

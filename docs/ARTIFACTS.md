@@ -349,6 +349,33 @@ api_key 与 base_url），并把 provider 包在 `CompositeJudgeProvider` 里。
 "artifact 不泄漏 fake key/base_url"与"CLI monkeypatch 禁 socket 后仍跑通"
 两条不开网络硬约束。
 
+### v1.x 第三轮 judge-provider-preflight 输出（live readiness 本地侧自检）
+
+CLI `python -m agent_tool_harness.cli judge-provider-preflight --out
+runs/<dir>` 写出两份 artifact，**纯本地、不联网、不读取真实 key**：
+
+- `preflight.json`：结构化结果，schema 由 `PreflightReport` dataclass 锁
+  死。顶层字段：`schema_version`（`"1.0.0-preflight"`）、`provider`、
+  `live_mode_enabled`（永远 `False`）、`config_status`（仅含 `*_set` 布
+  尔与 `missing_fields` KEY 名列表，**不**含值）、`gitignore_status`
+  （`gitignore_present` / `ignores_dotenv` / `hint`）、`env_example_status`
+  （`env_example_present` / `all_placeholders` / `non_placeholder_keys`
+  KEY 名 / `hint`）、`provider_self_test`（8 类 error taxonomy 全脱敏扫
+  描结果，含 `error_taxonomy_safe` 与 `error_taxonomy_total` 比值）、
+  `summary`（`ready_for_live` / `config_complete` / `gitignore_safe` /
+  `env_example_safe` / `error_taxonomy_safe` 五个布尔）、`actionable_hints`
+  （字符串列表）。
+- `preflight.md`：人类可读摘要，按"通过 / 警告 / 行动项"分段。
+
+**关键安全约束**：本 artifact **绝不**包含 `api_key` / `base_url` /
+`model` 字面值。即使 env 已设置真实值，也只反映 `*_set` 布尔。`summary.
+ready_for_live` **永远** `False`——本轮不开 live；要 live 必须等未来
+`LiveAnthropicTransport` milestone 显式开关。
+
+契约由 `tests/test_judge_provider_preflight.py` 的 7 条测试钉死，包括
+"artifact 不泄漏 fake key/base_url/model"与"CLI monkeypatch 禁 socket 后
+仍跑通"两条不开网络硬约束。
+
 ## diagnosis.json
 
 `TranscriptAnalyzer` 派生的失败归因（deterministic heuristic，**不是 LLM Judge**）。

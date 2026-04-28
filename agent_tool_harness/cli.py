@@ -166,6 +166,36 @@ def _build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--evals", required=True)
     replay.add_argument("--out", required=True)
 
+    preflight = subparsers.add_parser(
+        "judge-provider-preflight",
+        help=(
+            "Anthropic-compatible provider 的 live readiness preflight："
+            "**纯本地、不联网、不读取真实 key**。检查 env 配置齐全度、"
+            ".gitignore 是否忽略 .env、.env.example 是否仅含占位符、"
+            "8 类 error taxonomy message 是否脱敏。"
+        ),
+    )
+    preflight.add_argument(
+        "--out",
+        required=True,
+        help="输出目录，将写入 preflight.json + preflight.md。",
+    )
+    preflight.add_argument(
+        "--repo-root",
+        default=".",
+        help="仓库根（默认当前目录）；用于定位 .gitignore 与 .env.example。",
+    )
+    preflight.add_argument(
+        "--gitignore",
+        default=None,
+        help="显式指定 .gitignore 路径（覆盖 --repo-root 默认）。",
+    )
+    preflight.add_argument(
+        "--env-example",
+        default=None,
+        help="显式指定 .env.example 路径（覆盖 --repo-root 默认）。",
+    )
+
     return parser
 
 
@@ -214,6 +244,13 @@ def main(argv: list[str] | None = None) -> int:
                 args.tools,
                 args.evals,
                 args.out,
+            )
+        if args.command == "judge-provider-preflight":
+            return _judge_provider_preflight(
+                out=args.out,
+                repo_root=args.repo_root,
+                gitignore=args.gitignore,
+                env_example=args.env_example,
             )
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
@@ -690,6 +727,52 @@ def _replay_run(
                 "out_dir": result["out_dir"],
                 "metrics": result["metrics"],
                 "source_run": str(adapter.source_run_dir),
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
+def _judge_provider_preflight(
+    *,
+    out: str,
+    repo_root: str,
+    gitignore: str | None,
+    env_example: str | None,
+) -> int:
+    """`judge-provider-preflight` 子命令实现。
+
+    设计意图见 `agent_tool_harness/judges/preflight.py` 模块 docstring：
+    本命令是真实 LLM judge live 之前的"本地侧最后一道闸"，**纯本地、不联网、
+    不读 .env 中的真实值**——只检查文件结构和环境变量字段齐全度，并用
+    fake transport 触发 8 类错误确认 message 模板脱敏。
+
+    artifact：`out/preflight.json` + `out/preflight.md`，绝不写入 api_key /
+    base_url 字面值。
+    """
+
+    from .judges.preflight import (
+        AnthropicCompatibleConfig,
+        run_preflight,
+        write_preflight_artifacts,
+    )
+
+    out_dir = Path(out)
+    config = AnthropicCompatibleConfig.from_env()
+    report = run_preflight(
+        config,
+        repo_root=Path(repo_root),
+        gitignore_path=Path(gitignore) if gitignore else None,
+        env_example_path=Path(env_example) if env_example else None,
+    )
+    write_preflight_artifacts(report, out_dir)
+    print(
+        json.dumps(
+            {
+                "out_dir": str(out_dir),
+                "summary": report.summary,
+                "actionable_hints": report.actionable_hints,
             },
             ensure_ascii=False,
         )
