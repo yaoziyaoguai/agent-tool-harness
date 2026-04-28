@@ -77,9 +77,11 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > **v2.0 Internal Trial Ready（已 release）**：v2.0 是主线终点，定位为
 > **公司内部小团队可以本地 clone / 安装 / 按 [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)
 > 端到端跑通**的离线优先 Agent Tool Evaluation Harness。第一次接入的内部
-> 团队请直接进入 [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md) +
+> 团队请直接进入 [docs/INTERNAL_TRIAL_QUICKSTART.md](docs/INTERNAL_TRIAL_QUICKSTART.md)
+> 一页 5 条命令版（10-15 分钟最小闭环），完整版见
+> [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)；反馈用
 > [docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md](docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md)
-> 提交结构化反馈。
+> 提交结构化反馈（含 5 分钟极简版）。
 >
 > v1.8 起 `project.yaml` 支持 advisory `pricing` + per-eval
 > `budget_cap`（max_tokens_total / max_cost_usd）；`runs/<dir>/llm_cost.json`

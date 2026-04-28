@@ -1,5 +1,8 @@
 # Internal Trial 指南 — 给公司内部小团队第一次试用的人
 
+> **TL;DR — 想立刻跑通最小闭环？请先读 [INTERNAL_TRIAL_QUICKSTART.md](INTERNAL_TRIAL_QUICKSTART.md)（一页 5 条命令，10-15 分钟）。**
+> 本页是完整版（含接入自己的工具 / pricing / budget / 9+ artifact 解释）。
+>
 > 这份文档面向**公司内部 5-10 人小团队**第一次试用 agent-tool-harness。
 > 它**不是**面向企业级 / 多租户 / 生产 SaaS 用户。读完这页你应该能：
 >

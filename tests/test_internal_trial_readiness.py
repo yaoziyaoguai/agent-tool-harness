@@ -47,6 +47,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 ROADMAP = REPO_ROOT / "docs" / "ROADMAP.md"
 README = REPO_ROOT / "README.md"
 INTERNAL_TRIAL = REPO_ROOT / "docs" / "INTERNAL_TRIAL.md"
+INTERNAL_TRIAL_QUICKSTART = REPO_ROOT / "docs" / "INTERNAL_TRIAL_QUICKSTART.md"
 FEEDBACK_TEMPLATE = REPO_ROOT / "docs" / "INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md"
 
 
@@ -91,6 +92,49 @@ def test_internal_trial_files_exist_and_link_to_each_other():
     trial = _read(INTERNAL_TRIAL)
     assert "INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md" in trial, (
         "INTERNAL_TRIAL.md 必须链接到反馈模板。"
+    )
+
+
+def test_internal_trial_quickstart_exists_and_is_linked():
+    """Quickstart 一页版必须存在 + 被 README/INTERNAL_TRIAL 引用。
+
+    防回归价值：v2.0 Internal Usability Assessment 发现 INTERNAL_TRIAL
+    完整版 290 行太长，新用户难以快速上手；Quickstart 是 P1 修复，必
+    须保证不被后续提交悄悄删掉或断链。
+    """
+    assert INTERNAL_TRIAL_QUICKSTART.exists(), (
+        "docs/INTERNAL_TRIAL_QUICKSTART.md 必须存在，作为 10-15 分钟"
+        "最小闭环路径，避免新用户被 290 行完整版劝退。"
+    )
+    quickstart = _read(INTERNAL_TRIAL_QUICKSTART)
+    # Quickstart 必须自带"5 条命令"标识与边界提醒，避免被改成无关内容。
+    assert "5 条命令" in quickstart or "五条命令" in quickstart, (
+        "Quickstart 必须明确告知用户'5 条命令'，否则不再是 quickstart。"
+    )
+    assert "MockReplayAdapter" in quickstart, (
+        "Quickstart 必须包含 MockReplayAdapter 边界提醒，避免新用户"
+        "把 PASS/FAIL 当真实能力。"
+    )
+    # 必须被 README 与 INTERNAL_TRIAL 引用，否则用户找不到入口。
+    assert "INTERNAL_TRIAL_QUICKSTART.md" in _read(README), (
+        "README 必须链接 Quickstart 作为内部团队首次入口。"
+    )
+    assert "INTERNAL_TRIAL_QUICKSTART.md" in _read(INTERNAL_TRIAL), (
+        "INTERNAL_TRIAL.md 顶部 TL;DR 必须链接 Quickstart。"
+    )
+
+
+def test_feedback_template_has_5_minute_minimal_section():
+    """反馈模板必须含 5 分钟极简版，否则新用户填不完。
+
+    防回归价值：原模板 107 行 10 段，Internal Usability Assessment
+    发现新用户填到一半放弃；5 分钟极简版是 P1 修复，必须保证不被
+    后续编辑覆盖。
+    """
+    feedback = _read(FEEDBACK_TEMPLATE)
+    assert "5 分钟极简版" in feedback or "5 分钟" in feedback, (
+        "反馈模板必须含 5 分钟极简版段落，让没时间填完整版的用户也能"
+        "提交关键反馈。"
     )
 
 
