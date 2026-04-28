@@ -468,6 +468,33 @@ class MarkdownReport:
                 lines.append(
                     f"- `{eval_id}` [{severity}] **{ftype}**{related_text}"
                 )
+                # v1.0 候选 A：evidence grounding 类 finding 的结构化细节渲染。
+                # 这些字段由 TranscriptAnalyzer 显式塞入 finding payload；report
+                # 只负责渲染，不二次推理。**不渲染** finding 内部 deterministic
+                # 启发式之外的内容，避免暗示这是 LLM 级根因。
+                if ftype == "evidence_grounded_in_decoy_tool":
+                    cited_refs = finding.get("cited_refs") or []
+                    cited_tools = finding.get("cited_tools") or []
+                    required_tools = finding.get("required_tools") or []
+                    if cited_refs or cited_tools:
+                        lines.append(
+                            f"    - Cited evidence: {cited_refs} from non-required "
+                            f"tool(s) {cited_tools}; required={required_tools}"
+                        )
+                elif ftype == "no_evidence_grounding":
+                    had_evidence = finding.get("tool_responses_had_evidence")
+                    available = finding.get("available_evidence_refs") or []
+                    if had_evidence is True:
+                        lines.append(
+                            f"    - Tool returned evidence ({available}) but "
+                            "final_answer did not cite any id/label — fix prompt or "
+                            "Agent strategy."
+                        )
+                    elif had_evidence is False:
+                        lines.append(
+                            "    - Tool responses contained no evidence id/label — fix "
+                            "tool output_contract.required_fields first."
+                        )
                 fix = finding.get("suggested_fix")
                 if fix:
                     lines.append(f"    - Suggested fix: {fix}")

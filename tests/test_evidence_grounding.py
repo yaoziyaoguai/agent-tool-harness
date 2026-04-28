@@ -284,3 +284,109 @@ def test_analyzer_does_not_fire_decoy_finding_when_no_evidence_cited():
     diag = _analyze(case, run)
     types = [f["type"] for f in diag.get("findings", [])]
     assert "evidence_grounded_in_decoy_tool" not in types
+
+
+# --------------------- v1.0 候选 A：finding 结构化字段 + report 渲染 边界 -----
+def test_no_evidence_grounding_distinguishes_when_tool_returned_evidence():
+    """子场景区分：tool_responses 里有 evidence id 但 final_answer 没引用 →
+    finding 必须把 ``tool_responses_had_evidence=True`` 与 ``available_evidence_refs``
+    暴露出来，让 report 能告诉用户"是 prompt/Agent 没引用，不是工具没返回"。"""
+    case = _build_eval(
+        required_tools=["primary_tool"],
+        rules=[{"type": "must_use_evidence"}],
+    )
+    run = _build_run(
+        eval_id=case.id,
+        final_answer="The evidence supports input_boundary.",
+        tool_responses=[_tool_response("primary_tool", evidence_ids=["ev-real-17"])],
+    )
+    diag = _analyze(case, run)
+    finding = next(f for f in diag["findings"] if f["type"] == "no_evidence_grounding")
+    assert finding["tool_responses_had_evidence"] is True
+    assert "ev-real-17" in finding["available_evidence_refs"]
+
+
+def test_no_evidence_grounding_distinguishes_when_tool_returned_nothing():
+    """子场景区分：tool_responses 没 evidence id → ``tool_responses_had_evidence=False``，
+    并明确建议先修工具 output_contract，而不是去改 prompt。"""
+    case = _build_eval(
+        required_tools=["primary_tool"],
+        rules=[{"type": "must_use_evidence"}],
+    )
+    run = _build_run(
+        eval_id=case.id,
+        final_answer="Based on evidence, root cause is decoy_grounding.",
+        tool_responses=[_tool_response("primary_tool")],
+    )
+    diag = _analyze(case, run)
+    finding = next(f for f in diag["findings"] if f["type"] == "no_evidence_grounding")
+    assert finding["tool_responses_had_evidence"] is False
+    assert finding["available_evidence_refs"] == []
+
+
+def test_decoy_finding_carries_structured_cited_fields():
+    """新增结构化字段：``cited_refs`` / ``cited_tools`` / ``required_tools`` 必须可程序化读取。
+
+    这条防回归用于钉住 report 渲染契约——report 直接读字段，不解析字符串。"""
+    case = _build_eval(
+        required_tools=["primary_tool"],
+        rules=[{"type": "must_use_evidence"}],
+    )
+    run = _build_run(
+        eval_id=case.id,
+        final_answer="snap-decoy-99 confirms decoy_grounding.",
+        tool_responses=[_tool_response("decoy_tool", evidence_ids=["snap-decoy-99"])],
+    )
+    finding = next(
+        f
+        for f in _analyze(case, run)["findings"]
+        if f["type"] == "evidence_grounded_in_decoy_tool"
+    )
+    assert finding["cited_refs"] == ["snap-decoy-99"]
+    assert finding["cited_tools"] == ["decoy_tool"]
+    assert finding["required_tools"] == ["primary_tool"]
+
+
+def test_report_renders_evidence_grounding_details():
+    """端到端：MarkdownReport 必须把 decoy finding 与 no_evidence_grounding
+    的结构化字段渲染成可读 bullet。"""
+    from agent_tool_harness.reports.markdown_report import MarkdownReport
+
+    case = _build_eval(
+        required_tools=["primary_tool"],
+        rules=[{"type": "must_use_evidence"}],
+    )
+    run = _build_run(
+        eval_id=case.id,
+        final_answer="snap-decoy-99 confirms decoy_grounding.",
+        tool_responses=[_tool_response("decoy_tool", evidence_ids=["snap-decoy-99"])],
+    )
+    judge = _judge(case, run)
+    diag = TranscriptAnalyzer().analyze(case, run, judge)
+    diagnosis_doc = {
+        "results": [
+            {
+                "eval_id": case.id,
+                "findings": diag["findings"],
+            }
+        ]
+    }
+    md = MarkdownReport().render(
+        project={"name": "test"},
+        metrics={
+            "total_evals": 1,
+            "executed_evals": 1,
+            "passed": 0,
+            "failed": 1,
+            "skipped_evals": 0,
+            "error_evals": 0,
+        },
+        audit_tools={"summary": {"low_score_tools": []}, "tools": []},
+        audit_evals={"summary": {"not_runnable": []}, "evals": []},
+        judge_results={"results": []},
+        diagnosis=diagnosis_doc,
+    )
+    assert "evidence_grounded_in_decoy_tool" in md
+    assert "snap-decoy-99" in md
+    assert "decoy_tool" in md
+    assert "primary_tool" in md

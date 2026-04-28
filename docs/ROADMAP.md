@@ -487,6 +487,13 @@ trajectory 上的真实路径错误被掩盖。这是 trajectory 级 anti-decoy 
 **仍不是 / 边界声明**：本规则与 finding 仍是 **deterministic 启发式**，不是 LLM
 Judge，不验 evidence 内容语义；语义级 grounding 等真实 LLM judge（v1.0 后续条目）。
 
+**v1.0 候选 A 增量（已落地）**：把 `evidence_grounded_in_decoy_tool` 与
+`no_evidence_grounding` 在 finding payload 中**结构化**暴露 `cited_refs /
+cited_tools / required_tools` 与 `tool_responses_had_evidence /
+available_evidence_refs`；`report.md` Failure Attribution 直接读这些字段，
+让用户一眼看到"Agent 引用了哪些 id、来自哪个工具、应该来自哪个 required 工具"。
+`no_evidence_grounding` 进一步区分两种修复方向完全不同的子场景。
+
 **与 subtle decoy strict xfail 的关系**：
 `tests/test_tool_design_audit_subtle_decoy_xfail.py` 仍保留 strict xfail，
 因为它测的是**静态 ToolDesignAuditor 仅看 yaml 字段**就能识别 disjoint-vocabulary

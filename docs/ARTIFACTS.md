@@ -250,6 +250,15 @@ RuleJudge 对每个 eval 的逐规则结果。
     deterministic anti-decoy：final_answer 引用的 evidence 全部来自非 required 工具
     时触发；与 `must_use_evidence` 通过/失败正交，专门暴露"看似 grounded 实际走错
     路"的 trajectory）。
+  - **`evidence_grounded_in_decoy_tool` 专属字段**（v1.0 候选 A）：
+    `cited_refs`（list[str]，final_answer 实际引用的 evidence id/label）/
+    `cited_tools`（list[str]，这些 evidence 来自的工具名）/
+    `required_tools`（list[str]，eval 期望的 required_tools）。report.md 直接读
+    这些结构化字段渲染，不解析 evidence_refs 字符串。
+  - **`no_evidence_grounding` 专属字段**（v1.0 候选 A）：
+    `tool_responses_had_evidence`（bool，区分子场景：True=工具返回了 evidence 但
+    Agent 没引用，应改 prompt；False=工具根本没返回 evidence，应改 output_contract）/
+    `available_evidence_refs`（list[str]，工具实际可用的 evidence id/label）。
   - `severity`：`high` / `medium` / `info`。
   - `category`：`tool_design` / `eval_definition` / `agent_tool_choice` / `runtime`，
     四类对齐 Anthropic 文章的失败来源分类，方便读者一眼看出"该改工具、改 eval、

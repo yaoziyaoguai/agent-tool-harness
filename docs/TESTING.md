@@ -195,6 +195,19 @@ python -m ruff check .
   (6) 报告必须包含顶层 **Failure Attribution** 段、`Root cause hypothesis`、
   `What to check next`、以及"deterministic heuristic"措辞——防止 diagnosis 被
   误传成"真实根因"或"LLM Judge 输出"。
+- `tests/test_evidence_grounding.py`（v1.0 第一项 P1，13 条边界）覆盖 deterministic
+  anti-decoy evidence grounding 的真实失败场景：
+  (1) `must_use_evidence` 子场景三件事钉死（keyword-only / id-not-cited / 正确引用）；
+  (2) `evidence_from_required_tools` 新规则：未声明 required 自动 PASS、引用 decoy
+  evidence 必须 FAIL、混合源 PASS；
+  (3) TranscriptAnalyzer 的 `evidence_grounded_in_decoy_tool` finding 必须在用户没
+  配新规则时也自动 surface，但与 `no_evidence_grounding` 互斥避免刷屏；
+  (4) v1.0 候选 A 结构化字段：`cited_refs / cited_tools / required_tools` 与
+  `tool_responses_had_evidence / available_evidence_refs` 必须可程序化读取，
+  并被 MarkdownReport 端到端渲染（防止 report 倒退去解析 evidence_refs 字符串）。
+  内联 decoy trajectory 样本库刻意**不落到 fixtures/**，避免业务符号污染全局
+  fixture；与 `test_tool_design_audit_subtle_decoy_xfail.py` 的 strict xfail 是
+  不同维度互补，xfail 仍保留。
 - `tests/test_p1b_promote_warnings_schema.py` 钉住 v0.1 收口期的 P1B 三组根因边界（promote-evals
   闭环 + candidate writer warnings + artifact schema_version 一致性）：
   (1) **promote-evals 硬约束**——promoter 必须只搬运 `review_status="accepted"`

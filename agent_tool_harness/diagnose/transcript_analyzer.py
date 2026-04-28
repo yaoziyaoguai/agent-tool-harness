@@ -417,6 +417,17 @@ class TranscriptAnalyzer:
                     }
                 )
             elif rule_type == "must_use_evidence":
+                # v1.0 候选 A 增强：把"工具是否真的返回了 evidence"显式区分进 payload。
+                # 两种子场景修复方向完全不同：
+                #   - tool_responses_had_evidence=False → 修工具 output_contract，
+                #     让它真返回 evidence；
+                #   - tool_responses_had_evidence=True  → 修 prompt / Agent 策略，
+                #     让它真的引用 evidence id。
+                # 不在 message 文本里塞这个区分（report 一致按结构化字段读，避免 string 解析）。
+                from agent_tool_harness.judges.rule_judge import RuleJudge
+
+                ref_to_tools = RuleJudge()._evidence_reference_to_tools(run)
+                tool_responses_had_evidence = bool(ref_to_tools)
                 out.append(
                     {
                         "type": "no_evidence_grounding",
@@ -426,6 +437,8 @@ class TranscriptAnalyzer:
                             "judge_results.json#checks[type=must_use_evidence]",
                             f"tool_responses.jsonl#eval_id={case.id}",
                         ],
+                        "tool_responses_had_evidence": tool_responses_had_evidence,
+                        "available_evidence_refs": sorted(ref_to_tools.keys()),
                         "why_it_matters": (
                             "最终回答没有引用工具返回的 evidence id/label——结论可能是"
                             "Agent 自己脑补，或工具根本没返回 evidence。"
@@ -577,6 +590,11 @@ class TranscriptAnalyzer:
                 f"transcript.jsonl#eval_id={case.id} final_answer cites {cited_refs}",
                 f"evals.yaml#id={case.id} required_tools={sorted(required_set)}",
             ],
+            # v1.0 候选 A 增强：结构化字段，让 report.md 能直接渲染"引用了什么 / 来自什么 /
+            # 应该来自什么"，避免读者去解析 evidence_refs 字符串。
+            "cited_refs": sorted(cited_refs),
+            "cited_tools": sorted(cited_tools),
+            "required_tools": sorted(required_set),
             "why_it_matters": (
                 f"final_answer 引用的 evidence 全部来自非 required 工具 "
                 f"{sorted(cited_tools)}，required_tools={sorted(required_set)}。"
