@@ -28,10 +28,22 @@
 
 | 阶段 | 一句话目标 | 当前状态 |
 |------|-----------|---------|
-| **v0.1** | **最小 harness 跑起来** —— 一次 Agent 运行能记录证据、用基础规则判断工具调用链路是否合理、跑最小 eval、输出可读报告 | **release-ready（3/3 blocking 闭环，commit `493f677`）** |
-| v0.2 | 更强的 deterministic audit / judge / transcript 能力 | 进行中（**建议暂停扩张直到 v0.1 毕业**）|
+| **v0.1** | **最小 harness 跑起来** —— 一次 Agent 运行能记录证据、用基础规则判断工具调用链路是否合理、跑最小 eval、输出可读报告 | **已 release（commit `2161193`，tag `v0.1`）** |
+| **v0.2** | 更强的 deterministic audit / judge / transcript 能力 | **启动中** —— 第一阶段聚焦 ToolDesignAuditor 语义信号（候选 A 已第一轮落地，commit `5016660`）；第二阶段补 actionable principle metadata 与 report 渲染（进行中）。本阶段**仍是 deterministic 启发式**，不接真实 LLM judge / MCP / HTTP / Shell / Web UI / 真实 Agent runtime——这些属 v0.3+。|
 | v0.3 | 自动化回归 / 场景库 / 真实 Agent Runtime 集成 | 未启动 |
 | v1.0 | 稳定可扩展的 Agent Harness 平台 | 未启动 |
+
+**为什么 v0.2 先做语义级 deterministic audit，而不是直接接真实 LLM / MCP / HTTP**：
+- v0.1 已经把"框架能跑通 + 9 个 artifact + 文档自洽"闭环；下一步真正能放大用户
+  价值的是**audit/judge 信号本身的质量**，不是更多 adapter；
+- 真实 LLM judge / MCP / HTTP 会立刻引入网络依赖、API 配额、不确定性、调试难
+  ——在 audit 信号还无法识别明显诱饵的情况下接它们，等于在沙堆上盖楼；
+- deterministic 启发式可以让 CI / 离线场景仍然能用，并且为未来 LLM judge 准备
+  好评估对照基线（同一个 decoy 工具，启发式说什么、LLM 说什么、人类说什么）；
+- 严格按 Anthropic 工具设计 5 类原则把 audit 升级到"per-finding actionable"
+  （rule_id + principle + severity + why_it_matters + suggestion）后，下游
+  dashboard / CI bot 可以在不依赖任何真实模型的前提下消费这些信号——这是
+  v0.3 真实 Agent runtime 集成的前置条件。
 
 ---
 

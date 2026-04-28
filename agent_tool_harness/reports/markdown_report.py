@@ -233,11 +233,16 @@ class MarkdownReport:
     def _render_audit_high_severity_findings(
         self, audit_tools: dict[str, Any]
     ) -> list[str]:
-        """渲染所有工具的 high-severity finding + suggested_fix。
+        """渲染所有工具的 high-severity finding + principle + suggested_fix。
 
-        负责什么：让用户在 report.md 里直接看到"哪个工具 / 哪条规则 / 怎么修"
-        三元组，不必去翻 audit_tools.json。只展示 high severity 是为了避免
-        report 过长——medium / low 仍然写在 audit_tools.json 里。
+        负责什么：让用户在 report.md 里直接看到"哪个工具 / 哪条规则 / 属于
+        Anthropic 哪条原则 / 为什么重要 / 怎么修"五元组，不必去翻
+        audit_tools.json。只展示 high severity 是为了避免 report 过长——
+        medium / low 仍然写在 audit_tools.json 里。
+
+        v0.2 第二轮新增：渲染 ``principle_title`` 与 ``why_it_matters`` 字段
+        （由 ToolDesignAuditor.AuditFinding 自动派生 / 可选填充），让消费者
+        不用解析 rule_id 字符串就能按原则归类。
 
         不负责什么：不做新的判定逻辑——只是按 severity 过滤已有 finding。
         """
@@ -249,10 +254,15 @@ class MarkdownReport:
                 continue
             rows.append(f"- **{tool.get('tool_name')}**:")
             for f in high:
+                principle_title = f.get("principle_title") or f.get("principle") or ""
+                principle_seg = f" _[{principle_title}]_" if principle_title else ""
                 rows.append(
-                    f"  - `{f.get('rule_id')}` — {f.get('message')}"
+                    f"  - `{f.get('rule_id')}`{principle_seg} — {f.get('message')}"
                 )
-                fix = f.get("suggested_fix")
+                why = f.get("why_it_matters")
+                if why:
+                    rows.append(f"    - why_it_matters: {why}")
+                fix = f.get("suggested_fix") or f.get("suggestion")
                 if fix:
                     rows.append(f"    - suggested_fix: {fix}")
         if not rows:

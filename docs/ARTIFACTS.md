@@ -145,15 +145,46 @@ Agent 实际发出的工具调用流水。每行一条。
 
 字段：
 
-- `summary`：`tool_count`、`average_score`、`low_score_tools`。
-- `tools`：每个 tool 的 `tool_name`、`namespace`、`overall_score`、`scores`（按
-  right_tools / namespacing / meaningful_context / token_efficiency / spec_quality
-  五维）、`findings`（list of dict，含 dimension/severity/message）。
+- `schema_version`、`run_metadata`：与所有派生 JSON artifact 同模式打戳，
+  方便下游版本协商与 run 关联。
+- `summary`：
+  - `tool_count`、`average_score`、`low_score_tools`；
+  - `warnings`（list[str]）：顶层风险信号，例如 `empty_input` 或
+    `semantic_risk_detected: <tools>`——CI / 远程消费者一眼看到"score 高 ≠
+    没问题"；
+  - `signal_quality`（v0.2 候选 A 起）：当前固定为 `deterministic_heuristic`，
+    与 MockReplayAdapter 的 `tautological_replay` 同模式披露；
+  - `signal_quality_note`：人类可读边界声明，明确 auditor 不读源码、不调用
+    工具、不做 LLM 语义判定。
+- `tools`：每个 tool 的 `tool_name`、`qualified_name`、`overall_score`、
+  `category_scores`（按 right_tools / namespacing / meaningful_context /
+  token_efficiency / prompt_spec 五维 = Anthropic 工具设计 5 类原则）、
+  `findings`。每条 finding 字段：
+  - `rule_id`：唯一规则 id，前缀对应原则；
+  - `severity`：`high` / `medium` / `low`；
+  - `message`：问题是什么（人类可读）；
+  - `suggestion`：怎么修（人类可读）；
+  - `principle`（v0.2 第二轮新增）：从 rule_id 派生的原则 token，下游不必
+    解析字符串就能按原则归类；
+  - `principle_title`（v0.2 第二轮新增）：人类可读的 Anthropic 原则标题
+    （例如 "Choosing the right tools (Anthropic principle 1)"）；
+  - `why_it_matters`（v0.2 第二轮新增，可选）：为什么必须改——本轮在 high
+    severity 关键 finding（`right_tools.shallow_wrapper` /
+    `right_tools.semantic_overlap` / `prompt_spec.usage_boundary_duplicated`）
+    上首先填充。
 
 排查指引：
 
-- 全部 5.0 不代表工具好用：当前 audit 仅做 structural / completeness 检查，详见
-  README 与 `docs/ROADMAP.md` 的 P0 后续 / 设计债说明。
+- 全部 5.0 仍不代表工具好用：当前 audit 仍是 deterministic 启发式，**不读
+  源码、不调用工具、不做 LLM 语义判断**。`signal_quality` 字段由 audit 自报，
+  不允许在没有真实 transcript / LLM judge 的情况下偷偷升级。
+- 看 `summary.warnings` 是否含 `semantic_risk_detected` —— 这是"score 高但
+  仍有高严重度语义信号"的反误读护栏，必须人工 review。
+- v0.1 `tests/test_tool_design_audit_decoy_xfail.py` 已被 v0.2 候选 A
+  解决并转正为 `tests/test_tool_design_audit_decoy.py`；剩余更深一层
+  "字段齐全 + 无捷径话术 + 用完全不同词汇描述同一职责" 的诱饵 gap 由
+  `tests/test_tool_design_audit_subtle_decoy_xfail.py` 用 strict xfail 钉
+  根因，转正条件需 transcript / LLM judge，详见 `docs/ROADMAP.md`。
 
 ## audit_evals.json
 

@@ -9,10 +9,62 @@ from agent_tool_harness.config.tool_spec import ToolSpec
 
 @dataclass
 class AuditFinding:
+    """单条 ToolDesignAuditor finding 的结构化表示。
+
+    字段语义（v0.2 第二轮新增 principle / why_it_matters）：
+    - ``rule_id``：规则唯一 id，前缀对应 Anthropic 工具设计 5 类原则之一
+      （right_tools / namespacing / meaningful_context / token_efficiency /
+      prompt_spec）。
+    - ``severity``：``high`` / ``medium`` / ``low``。high 会出现在 report.md
+      的 actionable 摘要里。
+    - ``message``：人类可读的"问题是什么"。
+    - ``suggestion``：人类可读的"该怎么修"，与 ``message`` 一一对应。
+    - ``principle``（v0.2 新增）：从 rule_id 派生的 Anthropic 原则 token，让
+      消费者不必自己解析 rule_id 前缀。默认空字符串，``to_dict`` 会自动派生。
+    - ``why_it_matters``（v0.2 新增）：可选的"为什么这条规则重要"补充段；当
+      ``message`` 已经能解释清楚时，这里允许为空，避免冗余。
+
+    设计动机：v0.1 期间 finding 只暴露 ``rule_id / severity / message /
+    suggestion`` 四个字段，下游（report / 远程 dashboard / CI bot）想按
+    Anthropic 原则归类必须自己解析 rule_id 字符串——这是脆弱耦合。
+    显式 ``principle`` 字段让 finding 自描述，未来加新原则也只需要改
+    `_PRINCIPLE_TITLES` 而不必改任何消费者。
+
+    不负责：
+    - 不做 LLM 语义判定，不读源码——这是 deterministic 启发式。
+    - 不携带"分数"——分数在 ``ToolAuditResult.category_scores`` 上。
+
+    artifact 排查路径：``audit_tools.json`` → ``tools[*].findings[*]``。
+    """
+
     rule_id: str
     severity: str
     message: str
     suggestion: str
+    principle: str = ""
+    why_it_matters: str = ""
+
+
+# Anthropic 工具设计 5 类原则的 principle token → 人类可读标题。
+# 用于 ``AuditFinding.to_dict`` 自动派生 principle 字段，也用于 MarkdownReport
+# 渲染 actionable 摘要时显示原则归类。
+_PRINCIPLE_TITLES: dict[str, str] = {
+    "right_tools": "Choosing the right tools (Anthropic principle 1)",
+    "namespacing": "Namespacing tools (Anthropic principle 2)",
+    "meaningful_context": "Returning meaningful context (Anthropic principle 3)",
+    "token_efficiency": "Optimizing tool responses for token efficiency (Anthropic principle 4)",
+    "prompt_spec": "Prompt-engineering your tool descriptions (Anthropic principle 5)",
+}
+
+
+def _derive_principle(rule_id: str) -> str:
+    """从 rule_id 前缀派生 principle token，对未知前缀回退为前缀本身。
+
+    设计动机：所有 finding 的 rule_id 已经按 ``<principle>.<sub-rule>`` 命名，
+    这里只是把这层 implicit 约定显式化为 finding 字段，降低下游解析成本。
+    """
+
+    return rule_id.split(".", 1)[0] if "." in rule_id else rule_id
 
 
 @dataclass
@@ -29,12 +81,25 @@ class ToolAuditResult:
         return round(sum(self.category_scores.values()) / len(self.category_scores), 2)
 
     def to_dict(self) -> dict[str, Any]:
+        # v0.2 第二轮新增：把每条 finding 的 ``principle`` 字段自动填充并附带
+        # 人类可读 ``principle_title``——下游消费者（report.md / 远程 dashboard）
+        # 不必再解析 rule_id 字符串。**back-compat**：原有 rule_id / severity /
+        # message / suggestion 不变；新增字段都是追加，老消费者忽略即可。
+        finding_dicts = []
+        for finding in self.findings:
+            d = dict(finding.__dict__)
+            if not d.get("principle"):
+                d["principle"] = _derive_principle(finding.rule_id)
+            d["principle_title"] = _PRINCIPLE_TITLES.get(
+                d["principle"], d["principle"]
+            )
+            finding_dicts.append(d)
         return {
             "tool_name": self.tool_name,
             "qualified_name": self.qualified_name,
             "overall_score": self.overall_score,
             "category_scores": self.category_scores,
-            "findings": [finding.__dict__ for finding in self.findings],
+            "findings": finding_dicts,
         }
 
 
@@ -300,6 +365,11 @@ class ToolDesignAuditor:
                     "可能诱导 Agent 跳过真正的诊断流程。",
                     "去掉捷径承诺，明确该工具只在哪些前置条件下成立；"
                     "如果它真的能一步给答案，请在 description 写出可验证的边界。",
+                    why_it_matters=(
+                        "Agent 阅读工具 description 决定调用顺序。捷径话术会让"
+                        "Agent 优先选择此工具并跳过真正能拿到证据的工具调用——"
+                        "在生产环境表现为'一次调用，结论无证据'，根因看不到。"
+                    ),
                 )
             )
         # v0.2 候选 A 新增：跨工具语义重叠（high）。
@@ -318,6 +388,12 @@ class ToolDesignAuditor:
                     + "。Agent 选择时可能分心或被诱饵命中。",
                     "明确两者的真实边界差异（输入前提 / 输出粒度 / 触发场景），"
                     "或合并为一个支持 mode/filter 的工具。",
+                    why_it_matters=(
+                        "工具集合里出现职责高度重叠的两条工具时，Agent 选择会变得"
+                        "不稳定（同一问题不同 trace 可能选不同工具），且任一条只要被"
+                        "诱饵化（加入捷径话术）就会污染结果。Anthropic 工具设计指南"
+                        "建议每个工具承担清晰、不可替代的工作流边界。"
+                    ),
                 )
             )
         if len(tool.description.split()) < 10 and len(tool.description) < 80:
@@ -534,6 +610,12 @@ class ToolDesignAuditor:
                     "重写 when_not_to_use，明确"
                     "在哪些场景该工具反而是错误选择（输入前提缺失 / 资源类型不匹配 / "
                     "需要先调用其它工具等）。",
+                    why_it_matters=(
+                        "Agent 同时读取 when_to_use 和 when_not_to_use 来决定是否"
+                        "选用此工具。两段文本相同时 Agent 拿到的有效边界信息为零，"
+                        "等于工具自己声称'任何场景都用我'——这往往是用户复制粘贴"
+                        "为了'凑齐字段'绕过 missing_usage_boundaries 的真实痕迹。"
+                    ),
                 )
             )
         # v0.2 候选 A 新增：when_to_use / when_not_to_use 过短（< 30 字符）。
