@@ -57,6 +57,8 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > (a) `LiveAnthropicTransport` 新增 retry/backoff 治理（默认 `max_attempts=1` 与 v1.5 字节兼容；只对 rate_limited / network_error / timeout 三类做指数退避；非 retryable 永不重试；CI 用 `sleep_fn` 注入 fake clock 钉死序列）；
 > (b) 新增 `runs/<dir>/llm_cost.json` artifact + MarkdownReport `Cost Summary` 段，**advisory-only 不是真实账单**，永远不 fabricate token，缺失自动写 `cost_unknown_reason`；
 > (c) 新增 `audit-judge-prompts` CLI 子命令 + `agent_tool_harness/audit/judge_prompt_auditor.py` 7 类启发式（含 sk- key 字面、引导泄漏 secret、把 advisory 当 ground truth 等），输出 `audit_judge_prompts.json` + `.md`；附 `examples/judge_prompts.yaml` 示例 fixture。新增 25 条契约测试。**仍 0 新增依赖、CI 0 联网、不调真实 LLM**。
+>
+> v1.6 release notes：见 [RELEASE_NOTES_v1.6.md](RELEASE_NOTES_v1.6.md)（retry/backoff + cost + judge prompt audit MVP）。
 
 ## 快速开始
 
