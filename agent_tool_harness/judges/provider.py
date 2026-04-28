@@ -339,7 +339,8 @@ class CompositeJudgeProvider:
                     "rubric": adv_result.rubric,
                 },
             }
-            for key in ("error_code", "error_message", "model"):
+            for key in ("error_code", "error_message", "model",
+                        "attempts_summary", "retry_count", "usage"):
                 if key in adv_result.extra:
                     extra[key] = adv_result.extra[key]
             return ProviderJudgeResult(
@@ -380,7 +381,8 @@ class CompositeJudgeProvider:
                 "confidence": adv_result.confidence,
                 "rubric": adv_result.rubric,
             }
-            for key in ("error_code", "error_message", "model"):
+            for key in ("error_code", "error_message", "model",
+                        "attempts_summary", "retry_count", "usage"):
                 if key in adv_result.extra:
                     adv_entry[key] = adv_result.extra[key]
             serialized_advisories.append(adv_entry)
@@ -721,6 +723,11 @@ class LiveAnthropicTransport:
         live_confirmed: bool = False,
         http_factory: Any = None,
         timeout_s: float | None = None,
+        max_attempts: int = 1,
+        base_delay_s: float = 0.5,
+        max_delay_s: float = 8.0,
+        retryable_error_codes: tuple[str, ...] | None = None,
+        sleep_fn: Any = None,
     ) -> None:
         self._config = config
         # 双标志同时为 True 才认为 user 完整 opt-in；任一缺失 → 走
@@ -744,6 +751,37 @@ class LiveAnthropicTransport:
             except (ValueError, TypeError):
                 timeout_s = 30.0
         self._timeout_s = max(1.0, min(120.0, float(timeout_s)))
+        # v1.6 第一项：retry/backoff 治理。设计边界：
+        # - 默认 ``max_attempts=1`` → 无重试，与 v1.5 字节兼容；
+        # - 只对**可重试**的 8 类 error_code 子集做指数退避（默认仅
+        #   rate_limited / network_error / timeout）；auth_error /
+        #   missing_config / disabled_live_provider / bad_response /
+        #   provider_error 永远不重试——这些重试只会放大账单或泄漏；
+        # - 退避公式：``min(max_delay, base_delay * 2 ** (attempt-1))``，
+        #   不引入 jitter / 不引入新依赖；CI 用 ``sleep_fn`` 注入 fake
+        #   clock 钉死序列；
+        # - retry 决策与序列化的 ``attempts_summary`` 写入 advisory 结果
+        #   ``extra`` 中（由 AnthropicCompatibleJudgeProvider 透传），方便
+        #   reviewer 在 ``judge_results.json`` / ``llm_cost.json`` 排查。
+        self._max_attempts = max(1, int(max_attempts))
+        self._base_delay_s = max(0.0, float(base_delay_s))
+        self._max_delay_s = max(self._base_delay_s, float(max_delay_s))
+        self._retryable_codes = tuple(
+            retryable_error_codes
+            if retryable_error_codes is not None
+            else (ERROR_RATE_LIMITED, ERROR_NETWORK, ERROR_TIMEOUT)
+        )
+        # sleep_fn 默认走 ``time.sleep``；测试 / smoke 注入 lambda 记录调用
+        # 序列即可，永远不真实 sleep。
+        if sleep_fn is None:
+            import time as _time
+
+            sleep_fn = _time.sleep
+        self._sleep_fn = sleep_fn
+        # 最近一次 send 的 attempts_summary，由 send() 写入。AnthropicCompatible
+        # JudgeProvider.judge() 会在 send 返回/抛错后读取并写入 ProviderJudge
+        # Result.extra；外部不要直接依赖这个属性。
+        self.last_attempts_summary: list[dict] = []
 
     @property
     def is_live_ready(self) -> bool:
@@ -756,11 +794,56 @@ class LiveAnthropicTransport:
         return self._enabled
 
     def send(self, request: dict) -> dict:
+        """发送一次 request；可重试 error 按配置重试，其它立即抛错。
+
+        v1.6 第一项扩展：retry/backoff 在本方法外层做 deterministic 包裹。
+        每次尝试调用内部 ``_send_once()``；命中 retryable error_code →
+        计算退避 → 调 ``sleep_fn`` → 进入下一次 attempt；其它 error 立刻
+        抛出。最终把 attempts 序列写入 ``self.last_attempts_summary``，
+        由 :class:`AnthropicCompatibleJudgeProvider` 在外层读取。
+
+        本方法不打印 secret；任何 raw exception 都已经在 ``_send_once``
+        被映射成 ``_FakeTransportError(error_code)``。
+        """
+
+        attempts: list[dict] = []
+        last_exc: _FakeTransportError | None = None
+        for attempt_idx in range(1, self._max_attempts + 1):
+            try:
+                result = self._send_once(request)
+                attempts.append({"attempt": attempt_idx, "outcome": "success"})
+                self.last_attempts_summary = attempts
+                return result
+            except _FakeTransportError as exc:
+                last_exc = exc
+                attempts.append(
+                    {"attempt": attempt_idx, "outcome": "error", "error_code": exc.error_code}
+                )
+                # 不可重试 → 立即抛；或者用尽 max_attempts → 立即抛。
+                if exc.error_code not in self._retryable_codes:
+                    self.last_attempts_summary = attempts
+                    raise
+                if attempt_idx >= self._max_attempts:
+                    self.last_attempts_summary = attempts
+                    raise
+                # 指数退避：min(max_delay, base * 2^(attempt-1))。
+                delay = min(
+                    self._max_delay_s,
+                    self._base_delay_s * (2 ** (attempt_idx - 1)),
+                )
+                attempts[-1]["sleep_s"] = delay
+                self._sleep_fn(delay)
+        # 理论不可达；保险起见。
+        self.last_attempts_summary = attempts
+        if last_exc is not None:
+            raise last_exc
+        raise _FakeTransportError(ERROR_PROVIDER)
+
+    def _send_once(self, request: dict) -> dict:
         """发送一次 request；任何分类错误统一抛 ``_FakeTransportError``。
 
-        本方法不做 retry / 不做日志 / 不打印 secret；调用方（
-        :class:`AnthropicCompatibleJudgeProvider`）已经在 v1.x 第二轮把
-        异常捕获 + 脱敏路径钉死。
+        本方法不做 retry / 不做日志 / 不打印 secret；调用方 :meth:`send`
+        负责重试；上层 provider 负责脱敏。
         """
 
         if not self._enabled:
@@ -958,7 +1041,9 @@ class AnthropicCompatibleJudgeProvider:
 
         def _wrap(passed: bool, message: str, error_code: str | None = None,
                   rationale: str | None = None, confidence: float | None = None,
-                  rubric: str | None = None) -> ProviderJudgeResult:
+                  rubric: str | None = None,
+                  attempts_summary: list[dict] | None = None,
+                  usage: dict[str, Any] | None = None) -> ProviderJudgeResult:
             placeholder = RuleCheckResult(
                 rule={"type": "anthropic_compatible_provider", "provider": self.name},
                 passed=passed,
@@ -970,6 +1055,18 @@ class AnthropicCompatibleJudgeProvider:
                 # 错误信息走脱敏模板；**绝不**夹带 raw exception / key / url。
                 extra["error_code"] = error_code
                 extra["error_message"] = _safe_message(error_code)
+            # v1.6 第一项：把 transport.last_attempts_summary 透传到
+            # advisory ``extra``。reviewer 可以在 ``judge_results.json`` 直接
+            # 看到每次 attempt 的 outcome / error_code / sleep_s——这是
+            # retry/backoff 治理的"证据落地"。
+            if attempts_summary:
+                extra["attempts_summary"] = attempts_summary
+                extra["retry_count"] = max(0, len(attempts_summary) - 1)
+            # v1.6 第二项：把 token usage 透传给 EvalRunner 聚合。
+            # 任何缺失都不在这里 fabricate；EvalRunner 会按 cost_unknown_reason
+            # 显式记录。
+            if usage:
+                extra["usage"] = usage
             return ProviderJudgeResult(
                 inner=inner,
                 provider=self.name,
@@ -991,24 +1088,36 @@ class AnthropicCompatibleJudgeProvider:
                 "eval_id": case.id,
                 "model": self._config.model,
             }
+            # 提前抓 transport 上的 attempts_summary（如果属性存在），
+            # 不存在则传空列表——FakeAnthropicTransport 可能没有 retry 治理。
             try:
                 response = self._transport.send(request)
             except _FakeTransportError as exc:
+                attempts = list(getattr(self._transport, "last_attempts_summary", []) or [])
                 return _wrap(False, _safe_message(exc.error_code),
-                             error_code=exc.error_code)
+                             error_code=exc.error_code,
+                             attempts_summary=attempts)
             except Exception:  # noqa: BLE001 - 防御 transport 抛出未分类异常
+                attempts = list(getattr(self._transport, "last_attempts_summary", []) or [])
                 # 不把 raw exception 序列化进 artifact——只落分类 + 安全模板文本。
                 return _wrap(False, _safe_message(ERROR_PROVIDER),
-                             error_code=ERROR_PROVIDER)
+                             error_code=ERROR_PROVIDER,
+                             attempts_summary=attempts)
             if not isinstance(response, dict) or "passed" not in response:
+                attempts = list(getattr(self._transport, "last_attempts_summary", []) or [])
                 return _wrap(False, _safe_message(ERROR_BAD_RESPONSE),
-                             error_code=ERROR_BAD_RESPONSE)
+                             error_code=ERROR_BAD_RESPONSE,
+                             attempts_summary=attempts)
+            attempts = list(getattr(self._transport, "last_attempts_summary", []) or [])
+            usage = response.get("usage") if isinstance(response.get("usage"), dict) else None
             return _wrap(
                 bool(response.get("passed")),
                 str(response.get("rationale", "fake transport advisory")),
                 rationale=response.get("rationale"),
                 confidence=response.get("confidence"),
                 rubric=response.get("rubric"),
+                attempts_summary=attempts,
+                usage=usage,
             )
 
         # offline_fixture 路径
@@ -1016,10 +1125,12 @@ class AnthropicCompatibleJudgeProvider:
             return _wrap(False, _safe_message(ERROR_DISABLED_LIVE),
                          error_code=ERROR_DISABLED_LIVE)
         rec = self._offline_fixture[case.id]
+        usage = rec.get("usage") if isinstance(rec.get("usage"), dict) else None
         return _wrap(
             bool(rec.get("passed", False)),
             str(rec.get("rationale", "offline fixture advisory")),
             rationale=rec.get("rationale"),
             confidence=rec.get("confidence"),
             rubric=rec.get("rubric"),
+            usage=usage,
         )
