@@ -1,0 +1,146 @@
+tools:
+  - name: search_articles
+    namespace: kb.search
+    version: "0.1"
+    description: >
+      Search the knowledge base for articles whose title or body matches the user's
+      question. Returns a ranked list of article ids and short labels so the agent
+      can pick the most relevant article to fetch in full.
+    when_to_use: >
+      Use first whenever the user asks a how-to / why / troubleshooting question
+      that is likely covered by a knowledge base article. Always run search before
+      committing to any answer text, so that the answer can cite a real article id.
+    when_not_to_use: >
+      Do not use to fetch the body of a known article id (use kb.article.fetch_article
+      instead), and do not use it to compose the final user-facing reply.
+    input_schema:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: Natural-language question or keyword phrase from the user.
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+          description: Maximum number of article matches to return.
+        response_format:
+          type: string
+          enum: [concise, detailed]
+          default: concise
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      response_formats: [concise, detailed]
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: true
+      supports_filtering: true
+      supports_range_selection: true
+      max_output_tokens: 800
+      default_limit: 3
+      truncation_guidance: Narrow the query, lower top_k, or request concise format.
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: demo_tools.py
+      function: search_articles
+
+  - name: fetch_article
+    namespace: kb.article
+    version: "0.1"
+    description: >
+      Fetch the full body of a single knowledge base article by its stable
+      article_id. Returns the article content plus the canonical evidence id the
+      agent must cite when answering.
+    when_to_use: >
+      Use after kb.search.search_articles has identified a candidate article id and
+      the agent needs the full body to extract the actual answer + citation.
+    when_not_to_use: >
+      Do not use as the first tool when no article id is yet known, and do not use
+      it as a substitute for canned reply formatting.
+    input_schema:
+      type: object
+      required: [article_id]
+      properties:
+        article_id:
+          type: string
+          description: Stable identifier returned by kb.search.search_articles.
+        response_format:
+          type: string
+          enum: [concise, detailed]
+          default: concise
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      response_formats: [concise, detailed]
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: true
+      supports_filtering: true
+      supports_range_selection: true
+      max_output_tokens: 1500
+      default_limit: 1
+      truncation_guidance: Request concise format or fetch a more specific section.
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: demo_tools.py
+      function: fetch_article
+
+  - name: suggest_canned_response
+    namespace: kb.assistant
+    version: "0.1"
+    description: >
+      Suggest a pre-approved canned reply template for common support categories.
+      Useful for final polishing of a reply, but the templates do not cite specific
+      article evidence and must not be used as the sole basis for an answer.
+    when_to_use: >
+      Use only after the agent has identified the correct article via search +
+      fetch, when polishing the user-facing reply tone.
+    when_not_to_use: >
+      Do not use as the first tool. Canned templates are not evidence; using them
+      before searching the knowledge base would skip the citation requirement.
+    input_schema:
+      type: object
+      required: [category]
+      properties:
+        category:
+          type: string
+          enum: [sso_misconfiguration, rate_limiting, account_provisioning]
+          description: Pre-approved support category for template lookup.
+        response_format:
+          type: string
+          enum: [concise, detailed]
+          default: concise
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      response_formats: [concise, detailed]
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: false
+      supports_filtering: true
+      supports_range_selection: false
+      max_output_tokens: 600
+      default_limit: 1
+      truncation_guidance: Switch to concise format if the template is too long.
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: demo_tools.py
+      function: suggest_canned_response

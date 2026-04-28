@@ -1,0 +1,45 @@
+evals:
+  - id: kb_sso_session_loss_regression
+    name: KB-cited answer for SSO session loss
+    category: knowledge_search
+    split: regression
+    realism_level: regression
+    complexity: multi_step
+    source: hand_authored_demo_from_knowledge_search
+    user_prompt: >
+      A customer reports that after a successful SAML SP-initiated login, their
+      session is silently dropped within minutes. They want a workaround and want
+      us to point at the relevant documentation.
+    initial_context:
+      query: SAML SP-initiated login session drops after a few minutes
+      article_id: kb-sso-014
+      category: sso_misconfiguration
+      observed_symptom: session lost shortly after SP-initiated SAML login
+    verifiable_outcome:
+      expected_root_cause: sso_misconfiguration
+      evidence_ids: [kb-sso-014]
+    success_criteria:
+      - The first evidence-gathering step should search the knowledge base.
+      - The agent should fetch the matched article in full before giving the answer.
+      - The final answer should cite the matched article id (kb-sso-014).
+      - The agent must not rely on a canned template before evidence is collected.
+    expected_tool_behavior:
+      required_tools: [kb.search.search_articles, kb.article.fetch_article]
+      allowed_alternatives: []
+      notes: >
+        Producing a canned response without searching/fetching is insufficient,
+        because canned templates do not cite article evidence.
+    judge:
+      rules:
+        - type: must_call_tool
+          tool: kb.search.search_articles
+        - type: must_call_tool
+          tool: kb.article.fetch_article
+        - type: forbidden_first_tool
+          tool: kb.assistant.suggest_canned_response
+        - type: max_tool_calls
+          value: 4
+        - type: expected_root_cause_contains
+          text: sso_misconfiguration
+        - type: must_use_evidence
+        - type: must_not_modify_before_evidence

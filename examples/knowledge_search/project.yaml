@@ -1,0 +1,31 @@
+project:
+  name: knowledge-search-demo
+  domain: knowledge base search for support agents
+  description: >
+    Second example project for agent-tool-harness, intentionally chosen from a
+    different domain than runtime_debug (KB retrieval rather than runtime/checkpoint
+    tracing). Its job is to prove that the harness, the auditors, the runner and the
+    judges are not coupled to any single business vocabulary.
+
+evidence_sources:
+  - name: kb_search_index
+    type: text_search_index
+    description: Inverted index over support knowledge base articles.
+  - name: kb_articles
+    type: structured_document
+    description: Full article body keyed by stable article_id.
+  - name: canned_response_library
+    type: template_corpus
+    description: Pre-approved canned reply templates. Helpful as final polish, but
+      it is not evidence about the user's actual issue.
+
+domain_taxonomy:
+  issue_categories:
+    - sso_misconfiguration
+    - rate_limiting
+    - account_provisioning
+  evidence_types:
+    - article_match
+    - article_body
+    - canned_template
+    - root_cause_summary
