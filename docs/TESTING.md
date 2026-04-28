@@ -347,6 +347,18 @@ python -m agent_tool_harness.cli run \
 5. **字节兼容**：未配 dry-run provider 时 `judge_results.json` /
    `metrics.json` 与 v1.0 完全一致——无 `dry_run_provider` /
    `judge_disagreement` 字段。
+6. **AnthropicCompatibleJudgeProvider 错误必须脱敏**（v1.x 第二轮新增 8
+   条契约测试 `tests/test_anthropic_compatible_provider.py`）：
+   - `repr(AnthropicCompatibleConfig)` 不含 api_key 与 base_url 字面值；
+   - 8 类 error taxonomy 的 `error.message` 来自模板，不含 raw exception
+     / Authorization / response body / api_key / base_url；
+   - CLI 完整闭环（`--judge-provider anthropic_compatible_offline
+     --judge-recording PATH`）后 `judge_results.json` / `metrics.json` /
+     `report.md` 全文**不出现** fake key / fake base_url；
+   - 缺 key 时 CLI **不崩溃**，artifact 中 entry.error.type=`missing_config`，
+     metrics 计入 `judge_disagreement.error` 桶；
+   - CLI 路径在 `monkeypatch.setattr(socket, "socket", _BannedSocket)`
+     下仍跑通——双重钉死"不开网络"硬约束。
 
 未来真实 LLM provider（OpenAI / Anthropic / 阿里云 Coding Plan
 Anthropic-compatible 等）落地时，这些边界仍要保留——错误信息脱敏

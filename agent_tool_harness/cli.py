@@ -87,10 +87,13 @@ def _build_parser() -> argparse.ArgumentParser:
     # 真实外部调用——v1.1 第一轮明确不接 LLM。
     run.add_argument(
         "--judge-provider",
-        choices=["recorded", "composite"],
+        choices=["recorded", "composite", "anthropic_compatible_offline"],
         default=None,
         help="可选 dry-run judge provider；'recorded' 仅写 advisory，"
-        "'composite' 同时跑 deterministic + recorded 并输出 disagreement metrics。"
+        "'composite' 同时跑 deterministic + recorded 并输出 disagreement metrics，"
+        "'anthropic_compatible_offline' 用 AnthropicCompatibleJudgeProvider 的 "
+        "offline_fixture 模式（**不联网、不读真实 key、不调真实模型**）并由 "
+        "CompositeJudgeProvider 包裹。"
         "结果写入 judge_results.json::dry_run_provider，不会覆盖 deterministic baseline。",
     )
     run.add_argument(
@@ -421,6 +424,8 @@ def _run(
     """
 
     from agent_tool_harness.judges.provider import (
+        AnthropicCompatibleConfig,
+        AnthropicCompatibleJudgeProvider,
         CompositeJudgeProvider,
         RecordedJudgeProvider,
         RuleJudgeProvider,
@@ -431,7 +436,7 @@ def _run(
     _warn_if_empty(tools, "tools", tools_path)
     _warn_if_empty(evals, "evals", evals_path)
     dry_provider = None
-    if judge_provider in ("recorded", "composite"):
+    if judge_provider in ("recorded", "composite", "anthropic_compatible_offline"):
         if not judge_recording:
             print(
                 f"error: --judge-provider {judge_provider} 必须同时给 --judge-recording PATH",
@@ -444,18 +449,27 @@ def _run(
             )
             return 2
         recordings = _load_judge_recording(judge_recording)
-        recorded = RecordedJudgeProvider(recordings=recordings)
-        if judge_provider == "composite":
-            # Composite 把 deterministic + advisory 并列：deterministic 仍是
-            # ground truth；advisory 只贡献 disagreement signal。这里**不**复用
-            # EvalRunner.judge 实例——为了让 provider 行为完全可被 contract test
-            # 复盘，每次 CLI 运行都用一个新鲜的 RuleJudgeProvider。
+        if judge_provider == "anthropic_compatible_offline":
+            # 从环境变量读 anthropic-compatible 配置；本路径**不**联网、
+            # **不**读真实 key（缺 key/model 时 provider 会返回 missing_config
+            # 脱敏错误，而不是抛异常或静默 PASS）。CompositeJudgeProvider 包裹
+            # 让 disagreement metrics 与其他 provider 的视图保持一致。
+            cfg = AnthropicCompatibleConfig.from_env()
+            advisory = AnthropicCompatibleJudgeProvider(
+                config=cfg, offline_fixture=recordings
+            )
+            dry_provider = CompositeJudgeProvider(
+                deterministic=RuleJudgeProvider(),
+                advisory=advisory,
+            )
+        elif judge_provider == "composite":
+            recorded = RecordedJudgeProvider(recordings=recordings)
             dry_provider = CompositeJudgeProvider(
                 deterministic=RuleJudgeProvider(),
                 advisory=recorded,
             )
         else:
-            dry_provider = recorded
+            dry_provider = RecordedJudgeProvider(recordings=recordings)
     result = EvalRunner(dry_run_provider=dry_provider).run(
         load_project(project_path),
         tools,

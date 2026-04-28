@@ -32,6 +32,8 @@ v1.0 release-ready 摘要见 [`RELEASE_NOTES_v1.0.md`](RELEASE_NOTES_v1.0.md)（
 v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（JudgeProvider abstraction + EvalRunner dry-run/recorded provider 集成；不接真实 LLM、不联网、不需要密钥）。
 
 > v1.x 第一轮（**未发布、未 tag**，已合入 main）：新增 `CompositeJudgeProvider` + `metrics.json::judge_disagreement` 分歧率统计 + `--judge-provider composite` CLI；仍**完全不接真实 LLM、不联网、不需要密钥**。未来真实 Anthropic-compatible（含阿里云 Coding Plan）provider 所需环境变量名见仓库根 [`.env.example`](.env.example)（当前 v1.x 不读取）。
+>
+> v1.x 第二轮（**未发布、未 tag**）：新增 `AnthropicCompatibleJudgeProvider` offline / fake-transport skeleton + 稳定 error taxonomy（8 类）+ `--judge-provider anthropic_compatible_offline` CLI。**本轮仍零依赖、零联网、零真实 key**——只是把"未来接阿里云 Coding Plan Anthropic-compatible endpoint"所需的 transport 抽象、配置脱敏、错误分类、artifact schema 与契约测试**先**钉死。详见 [docs/ROADMAP.md](docs/ROADMAP.md) "v1.x 第二轮已落地" 段。
 
 ## 快速开始
 

@@ -244,9 +244,23 @@ ground truth**——dry-run/recorded/composite 结果绝不覆盖 `results[].pas
 缺 recording / fixture 文件 / 顶层字段时 CLI 立即 exit 2 + 可行动 hint。
 契约由 `tests/test_judge_provider_skeleton.py` + `tests/test_eval_runner_judge_provider.py`
 共 16 条测试钉死（其中 v1.x 第一轮新增 4 条，含"Composite 路径 monkeypatch
-禁用 socket 后仍跑通"的不开网络硬约束）。详见 `docs/ROADMAP.md` v1.1 / v1.x
-段、`docs/ARTIFACTS.md` "judge_results.json::dry_run_provider" 段、
-仓库根 `.env.example` 未来真实 LLM provider 占位符。
+禁用 socket 后仍跑通"的不开网络硬约束）。
+
+**v1.x 第二轮**：再新增 `AnthropicCompatibleJudgeProvider`（同文件）+
+`AnthropicCompatibleConfig`（4 个 `AGENT_TOOL_HARNESS_LLM_*` 环境变量；
+`__repr__` 屏蔽 api_key 与 base_url）+ `JudgeTransport` Protocol 注入
+seam（本轮**只**接受 `FakeJudgeTransport`，无 live HTTP 实现）+ 稳定
+**error taxonomy 8 类**（`missing_config / disabled_live_provider /
+auth_error / rate_limited / network_error / timeout / bad_response /
+provider_error`）+ `_safe_message` 模板化错误消息（绝不 echo raw exception
+/ Authorization / response body）。Provider **返回**带 `error_code` 的
+`ProviderJudgeResult`（不抛异常）→ EvalRunner 转 `entry.error` →
+`judge_disagreement.error` 桶，杜绝吞异常假成功。CLI 新增
+`--judge-provider anthropic_compatible_offline`，默认无 env 时不崩溃
+（artifact 中 entry.error.type=`missing_config`）。新增 8 条契约测试
+`tests/test_anthropic_compatible_provider.py` 钉死：6 类错误脱敏 / 配置
+不泄漏 / artifact 不泄漏 fake key/base_url / monkeypatch 禁 socket 仍跑通。
+详见 `docs/ROADMAP.md` v1.x 第二轮段、`.env.example` 占位符。
 
 ### diagnose
 

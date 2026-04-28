@@ -553,6 +553,23 @@ class EvalRunner:
                 "traceback": traceback.format_exc(limit=5),
             }
             return entry
+        # v1.x AnthropicCompatibleJudgeProvider：当 provider **返回**带
+        # ``error_code`` 的结果（而不是抛异常）时，把它转成与"provider 抛异常"
+        # 同构的结构化 ``entry.error`` 路径——避免：
+        # 1) ``passed=False`` 被 metrics.judge_disagreement 误计为"分歧"；
+        # 2) provider 已脱敏的 ``error_message`` 被 entry["passed"] 喧宾夺主。
+        # 这一步**不**重新调用 provider，只读已落到 result.extra 的字段。
+        error_code = result.extra.get("error_code") if hasattr(result, "extra") else None
+        if error_code:
+            entry["error"] = {
+                "type": str(error_code),
+                "message": str(result.extra.get("error_message", "")),
+            }
+            # ``model`` 在错误路径下也会落到 entry，便于排查"是哪个模型配置缺失"；
+            # 但**不**包含 base_url / api_key——脱敏由 provider 保证。
+            if result.extra.get("model") is not None:
+                entry["model"] = result.extra["model"]
+            return entry
         entry["passed"] = result.passed
         entry["agrees_with_deterministic"] = bool(result.passed) == bool(
             deterministic_passed
@@ -567,7 +584,7 @@ class EvalRunner:
         # 让 metrics.json::judge_disagreement 与 report.md 能直接消费——
         # 而不需要重新调用 provider 反推。这里只搬已知键，避免 provider 实现
         # 不小心把 raw API 响应等敏感字段（潜在 key/PII）泄漏到 artifact。
-        for key in ("agreement", "advisory_result", "deterministic_result"):
+        for key in ("agreement", "advisory_result", "deterministic_result", "model"):
             if key in result.extra:
                 entry[key] = result.extra[key]
         return entry

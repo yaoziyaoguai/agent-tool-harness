@@ -324,6 +324,31 @@ judgments:
 `AGENT_TOOL_HARNESS_LLM_MODEL`）见仓库根 `.env.example`，当前 v1.x **完全
 不读取**这些变量。
 
+### v1.x 第二轮 AnthropicCompatibleJudgeProvider 路径（offline / fake transport）
+
+CLI `--judge-provider anthropic_compatible_offline` 会从 4 个
+`AGENT_TOOL_HARNESS_LLM_*` 环境变量读 config（`__repr__` 屏蔽
+api_key 与 base_url），并把 provider 包在 `CompositeJudgeProvider` 里。
+本轮**仍然没有真实 HTTP 实现**——provider 只能：
+
+- 走 offline_fixture（`--judge-recording PATH`，与 recorded 同 schema），或
+- 由测试注入 `FakeJudgeTransport`（in-process）。
+
+每条 entry 在 Composite 段基础上**额外**可能出现：
+
+- `model`: env `AGENT_TOOL_HARNESS_LLM_MODEL` 的值（**不会**写 base_url 与
+  api_key 到 artifact）。
+- 当 advisory 走错误路径，entry 不带 `passed`，而是带：
+  - `error.type` ∈ `missing_config / disabled_live_provider / auth_error /
+    rate_limited / network_error / timeout / bad_response / provider_error`；
+  - `error.message`：模板化字符串，**绝不**含 raw exception / Authorization
+    / response body / api_key / base_url。
+- 此时 `metrics.judge_disagreement.error += 1`，**不**计入 `agree/disagree`。
+
+契约由 `tests/test_anthropic_compatible_provider.py` 的 8 条测试钉死，包括
+"artifact 不泄漏 fake key/base_url"与"CLI monkeypatch 禁 socket 后仍跑通"
+两条不开网络硬约束。
+
 ## diagnosis.json
 
 `TranscriptAnalyzer` 派生的失败归因（deterministic heuristic，**不是 LLM Judge**）。

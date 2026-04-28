@@ -305,6 +305,30 @@ class CompositeJudgeProvider:
         # 的字段**（passed + provider/mode + 可选 rationale 等），不夹带原始
         # JudgeResult 对象——避免 dataclass 直接进 json.dumps 出错，也防止
         # 把 RuleJudge 的 checks 列表泄漏到 advisory 视图（语义会被误读）。
+        extra: dict[str, Any] = {
+            "agreement": agreement,
+            "deterministic_result": {
+                "provider": det_result.provider,
+                "mode": det_result.mode,
+                "passed": det_result.passed,
+            },
+            "advisory_result": {
+                "provider": adv_result.provider,
+                "mode": adv_result.mode,
+                "passed": adv_result.passed,
+                "rationale": adv_result.rationale,
+                "confidence": adv_result.confidence,
+                "rubric": adv_result.rubric,
+            },
+        }
+        # 透传 advisory 的脱敏 error_code / error_message / model 字段（如有）：
+        # 让 EvalRunner._invoke_dry_run_provider 在 advisory 走 error 路径时
+        # 仍能把 entry 渲染成结构化 ``entry.error``，而不是把"advisory 错误"
+        # 误算成"advisory 与 deterministic 一致 / 分歧"——这是反吞异常假成功
+        # 的关键链路。
+        for key in ("error_code", "error_message", "model"):
+            if key in adv_result.extra:
+                extra[key] = adv_result.extra[key]
         return ProviderJudgeResult(
             inner=det_result.inner,
             provider=self.name,
@@ -312,20 +336,345 @@ class CompositeJudgeProvider:
             rationale=adv_result.rationale,
             confidence=adv_result.confidence,
             rubric=adv_result.rubric,
-            extra={
-                "agreement": agreement,
-                "deterministic_result": {
-                    "provider": det_result.provider,
-                    "mode": det_result.mode,
-                    "passed": det_result.passed,
-                },
-                "advisory_result": {
-                    "provider": adv_result.provider,
-                    "mode": adv_result.mode,
-                    "passed": adv_result.passed,
-                    "rationale": adv_result.rationale,
-                    "confidence": adv_result.confidence,
-                    "rubric": adv_result.rubric,
-                },
-            },
+            extra=extra,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Anthropic-compatible JudgeProvider skeleton（v1.x 第二轮 — offline / fake transport）
+# ---------------------------------------------------------------------------
+#
+# 本节负责什么
+# ============
+# 为未来接入"Anthropic Messages API 兼容"端点（典型如阿里云 Coding Plan
+# 的 Anthropic-compatible 协议资源）**先把契约 / 配置 / 错误分类 / 脱敏 /
+# artifact schema / 测试边界**全部钉住——但**绝不**在本轮做真实 HTTP
+# 请求、**绝不**读取真实 API key、**绝不**联网、**绝不**引入新依赖。
+#
+# 本节**不**负责什么
+# ==================
+# - 不做真实 SDK 集成（``anthropic`` / ``httpx`` / ``requests`` 均**不**
+#   引入）。本轮只暴露一个注入式 ``JudgeTransport`` 协议，未来真实 HTTP
+#   client 落地时只换 transport 实现，provider 主体不动。
+# - 不做密钥管理 / 成本治理 / 隐私脱敏 prompt 工程。本轮只确保 error
+#   message **不会**回传任何 key-like / Authorization / 完整 base_url
+#   query / 完整请求体响应体——这是脱敏底线。
+# - 不在 deterministic 路径之外私自走任何降级。Composite + 本 provider 组合
+#   时，deterministic baseline 永远是 ground truth。
+#
+# 为什么这样设计
+# ==============
+# 用户只能提供"阿里云 Coding Plan Anthropic-compatible 协议资源"，模型 /
+# base_url / key 都需要从环境变量按需读取。如果不先把 transport 抽象出来，
+# 后续加 HTTP client 时极容易把 key 通过 logging / traceback / response
+# body 泄漏到 ``runs/`` artifacts 或 git。这里把"读 env → 校验 → 调
+# transport → 分类异常 → 脱敏 → 包装成 ProviderJudgeResult"整条链路写死
+# 在一个 provider 里，使得未来加 transport 实现时**所有**安全约束都在已
+# 钉住的契约里。
+#
+# 用户项目自定义入口
+# ==================
+# - 环境变量：``AGENT_TOOL_HARNESS_LLM_PROVIDER=anthropic_compatible`` /
+#   ``AGENT_TOOL_HARNESS_LLM_BASE_URL`` / ``AGENT_TOOL_HARNESS_LLM_API_KEY``
+#   / ``AGENT_TOOL_HARNESS_LLM_MODEL``。详见仓库根 ``.env.example``。
+# - Python：构造 ``AnthropicCompatibleJudgeProvider(config=..., transport=...,
+#   offline_fixture=...)``，传入未来的 HTTP transport 或测试用的
+#   ``FakeJudgeTransport``。
+#
+# artifacts 排查路径
+# ==================
+# - ``judge_results.json::dry_run_provider.results[].provider="anthropic_compatible"``；
+# - ``mode`` 取值：``offline_fixture``（无 transport，从 fixture 读）/
+#   ``fake_transport``（注入了 transport）/ 未来 ``live``（真实 HTTP，
+#   **本轮不做**）；
+# - 失败时 entry 含 ``error={code, message}``，``code`` 走稳定 taxonomy：
+#   ``missing_config / disabled_live_provider / auth_error / rate_limited /
+#   network_error / timeout / bad_response / provider_error``。
+# - ``model`` 字段（如配置）会以**已脱敏**形式落到 entry。base_url 与 key
+#   **绝不**落到 artifact。
+
+ANTHROPIC_COMPATIBLE_PROVIDER_NAME = "anthropic_compatible"
+
+# 错误分类常量。新增/重命名一定要 bump PROVIDER_SCHEMA_VERSION。
+ERROR_MISSING_CONFIG = "missing_config"
+ERROR_DISABLED_LIVE = "disabled_live_provider"
+ERROR_AUTH = "auth_error"
+ERROR_RATE_LIMITED = "rate_limited"
+ERROR_NETWORK = "network_error"
+ERROR_TIMEOUT = "timeout"
+ERROR_BAD_RESPONSE = "bad_response"
+ERROR_PROVIDER = "provider_error"
+
+
+@dataclass
+class AnthropicCompatibleConfig:
+    """Anthropic-compatible provider 的配置数据类。
+
+    本类负责什么
+    ------------
+    把 4 个环境变量（provider/base_url/api_key/model）封装成一个**值对象**，
+    并提供 :meth:`from_env` 工厂；任何想"把 env 读取写在 provider 内部"
+    的诱惑都被这里拦住——provider 只接受已构造好的 config，便于单元测试
+    传入 in-process 假 config 而不污染真实环境变量。
+
+    本类**不**负责什么
+    ------------------
+    - 不校验 base_url 格式 / 不验证 api_key 真伪——本轮没有真实 HTTP，
+      验证留给未来 transport 实现；
+    - 不**在任何序列化路径**暴露 ``api_key``。本类故意**不**实现
+      ``__str__`` / ``__repr__`` 之外的导出方法，且实现 ``__repr__``
+      时屏蔽 ``api_key``。
+    """
+
+    provider: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None
+    model: str | None = None
+
+    @classmethod
+    def from_env(cls, env: dict | None = None) -> AnthropicCompatibleConfig:
+        import os as _os
+
+        e = env if env is not None else _os.environ
+        return cls(
+            provider=e.get("AGENT_TOOL_HARNESS_LLM_PROVIDER") or None,
+            base_url=e.get("AGENT_TOOL_HARNESS_LLM_BASE_URL") or None,
+            api_key=e.get("AGENT_TOOL_HARNESS_LLM_API_KEY") or None,
+            model=e.get("AGENT_TOOL_HARNESS_LLM_MODEL") or None,
+        )
+
+    def __repr__(self) -> str:
+        # 屏蔽 api_key + base_url 的敏感片段；只暴露是否已设置。
+        # 这样 logging / pytest 失败摘要也不会意外打印 secret。
+        return (
+            f"AnthropicCompatibleConfig(provider={self.provider!r}, "
+            f"base_url_set={bool(self.base_url)}, "
+            f"api_key_set={bool(self.api_key)}, model={self.model!r})"
+        )
+
+
+class JudgeTransport(Protocol):
+    """注入式 transport 契约（本轮只接受 fake / offline transport）。
+
+    本协议负责什么
+    --------------
+    把"实际发请求"这一步抽象成 ``send(request) -> response`` 一对一的纯
+    函数，让 :class:`AnthropicCompatibleJudgeProvider` 完全不知道底层是
+    httpx / requests / 还是 in-process fake。未来真实 HTTP 落地时只需提
+    供一个新的 transport，provider 主体零改动。
+
+    本协议**不**负责什么
+    --------------------
+    - 不做重试 / 限流 / 超时治理——这些属未来真实 transport 的实现细节，
+      provider 只感知最终结果（成功 / 已分类异常）。
+    - 不规定请求 / 响应 schema 的字节细节——本轮 provider 只读 response
+      中的 ``passed / rationale / confidence / rubric`` 字段；未来真实
+      Anthropic Messages 响应需要适配层把内容字段映射过来。
+    """
+
+    def send(self, request: dict) -> dict:
+        ...
+
+
+class FakeJudgeTransport:
+    """测试 / smoke 专用的 in-process fake transport。
+
+    本类负责什么
+    ------------
+    根据初始化时给的 ``responses`` 字典（``eval_id -> {passed, ...}``）
+    或 ``raise_error``（错误 taxonomy slug，模拟 transport 抛出何种类别
+    的异常）返回固定结果。**不**做任何网络 IO；**不**读取真实 key（构造
+    时若不慎传入也会被 ``AnthropicCompatibleJudgeProvider`` 在 send
+    之前的脱敏路径处理）。
+
+    本类**不**负责什么
+    ------------------
+    不模拟真实 Anthropic API 的字节级语义；只提供"成功 / 失败分类"两类
+    分支。真实集成测试需要等 live transport 落地后单独覆盖。
+    """
+
+    def __init__(
+        self,
+        responses: dict[str, dict[str, Any]] | None = None,
+        raise_error: str | None = None,
+    ) -> None:
+        self._responses = dict(responses or {})
+        self._raise_error = raise_error
+
+    def send(self, request: dict) -> dict:
+        if self._raise_error:
+            # 用一个内部异常类承载错误分类；provider 会捕获并脱敏。
+            raise _FakeTransportError(self._raise_error)
+        eval_id = request.get("eval_id")
+        if eval_id not in self._responses:
+            # 模拟"transport 拿到了请求但响应里没有可解析的判定"——按
+            # bad_response 分类，让 provider 走脱敏错误路径。
+            raise _FakeTransportError(ERROR_BAD_RESPONSE)
+        return dict(self._responses[eval_id])
+
+
+class _FakeTransportError(Exception):
+    """内部用：携带错误分类 slug 的 fake transport 异常。
+
+    用户**永远**不会直接看到此类异常文本——AnthropicCompatibleJudgeProvider
+    会捕获它、读取 ``error_code``、构造脱敏 message。
+    """
+
+    def __init__(self, error_code: str) -> None:
+        super().__init__(error_code)
+        self.error_code = error_code
+
+
+def _safe_message(error_code: str) -> str:
+    """根据错误分类返回固定的安全提示文本（**不**含任何用户输入）。
+
+    设计意图：拒绝把 transport 抛出的原始 message 直接 echo 出去——
+    raw exception 文本经常包含 base_url、Authorization header 片段、
+    完整请求体响应体。这里返回的是固定模板，永远不会泄漏 secret。
+    """
+
+    table = {
+        ERROR_MISSING_CONFIG: (
+            "AnthropicCompatibleJudgeProvider 缺必要配置 "
+            "(AGENT_TOOL_HARNESS_LLM_API_KEY 或 _MODEL)；"
+            "见 .env.example。"
+        ),
+        ERROR_DISABLED_LIVE: (
+            "live transport 在本轮被显式禁用；本 provider 仅支持 "
+            "offline_fixture 或 fake_transport 模式。"
+        ),
+        ERROR_AUTH: "transport 报告认证失败（auth_error，已脱敏）。",
+        ERROR_RATE_LIMITED: "transport 报告被限流（rate_limited，已脱敏）。",
+        ERROR_NETWORK: "transport 报告网络错误（network_error，已脱敏）。",
+        ERROR_TIMEOUT: "transport 报告超时（timeout，已脱敏）。",
+        ERROR_BAD_RESPONSE: "transport 返回不可解析的响应（bad_response，已脱敏）。",
+        ERROR_PROVIDER: "provider 未分类错误（provider_error，已脱敏）。",
+    }
+    return table.get(error_code, "provider 错误（未分类，已脱敏）。")
+
+
+class AnthropicCompatibleJudgeProvider:
+    """Anthropic-compatible judge provider skeleton（v1.x 第二轮 — offline）。
+
+    实战行为
+    --------
+    - **未注入 transport** 且 **未给 offline_fixture** → 每次 judge 返回
+      ``error.code=disabled_live_provider``，绝不落入"静默 PASS"。
+    - **未注入 transport** 但给了 ``offline_fixture`` → ``mode=
+      offline_fixture``，按 fixture 构造 advisory result。
+    - **注入了 fake transport** → ``mode=fake_transport``，调 transport，
+      捕获 :class:`_FakeTransportError` 走脱敏 error 路径；transport 正常
+      返回则按响应字段构造 advisory result。
+    - 在以上任何路径下，若 ``config.api_key`` 或 ``config.model`` 缺失，
+      **优先**返回 ``missing_config`` 错误——避免"配置缺失但 fixture 命中
+      就给 PASS"成为新的吞异常假成功路径。
+
+    本类**不**负责什么
+    ------------------
+    - 不做任何真实网络调用。**真实 HTTP transport 不在本轮落地范围**。
+    - 不修改 deterministic baseline。返回的 ``ProviderJudgeResult.passed``
+      仅作为 advisory；与 :class:`CompositeJudgeProvider` 组合时
+      deterministic 仍是 ground truth。
+    - 不打印 / 序列化任何 secret。错误 message 全部走 :func:`_safe_message`
+      固定模板。
+
+    未来扩展点
+    ----------
+    - ``LiveAnthropicTransport``：真实 HTTP client（基于 stdlib ``http.client``
+      或在用户明确允许后引入轻量依赖），覆盖 auth/retry/timeout 治理；
+    - prompt / rubric 的真实组装；
+    - 多 advisory / 投票聚合（接入 :class:`CompositeJudgeProvider` 的 list
+      形式扩展）。
+    """
+
+    name = ANTHROPIC_COMPATIBLE_PROVIDER_NAME
+
+    def __init__(
+        self,
+        config: AnthropicCompatibleConfig,
+        transport: JudgeTransport | None = None,
+        offline_fixture: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
+        self._config = config
+        self._transport = transport
+        self._offline_fixture = dict(offline_fixture or {})
+
+    @property
+    def mode(self) -> str:
+        if self._transport is not None:
+            return "fake_transport"
+        return "offline_fixture"
+
+    def judge(self, case: EvalSpec, run: AgentRunResult) -> ProviderJudgeResult:
+        # 占位 deterministic JudgeResult：本 provider 是 advisory，inner.passed
+        # 不应被消费方当成 deterministic baseline；CompositeJudgeProvider 会用
+        # 真正的 RuleJudgeProvider 提供 deterministic baseline。
+        from agent_tool_harness.judges.rule_judge import RuleCheckResult
+
+        def _wrap(passed: bool, message: str, error_code: str | None = None,
+                  rationale: str | None = None, confidence: float | None = None,
+                  rubric: str | None = None) -> ProviderJudgeResult:
+            placeholder = RuleCheckResult(
+                rule={"type": "anthropic_compatible_provider", "provider": self.name},
+                passed=passed,
+                message=message,
+            )
+            inner = JudgeResult(eval_id=case.id, passed=passed, checks=[placeholder])
+            extra: dict[str, Any] = {"model": self._config.model}
+            if error_code is not None:
+                # 错误信息走脱敏模板；**绝不**夹带 raw exception / key / url。
+                extra["error_code"] = error_code
+                extra["error_message"] = _safe_message(error_code)
+            return ProviderJudgeResult(
+                inner=inner,
+                provider=self.name,
+                mode=self.mode,
+                rationale=rationale,
+                confidence=confidence,
+                rubric=rubric,
+                extra=extra,
+            )
+
+        # Step 1：硬性 config 校验。api_key + model 任一缺失就直接 missing_config。
+        if not self._config.api_key or not self._config.model:
+            return _wrap(False, _safe_message(ERROR_MISSING_CONFIG),
+                         error_code=ERROR_MISSING_CONFIG)
+
+        # Step 2：走 transport（fake）或 offline_fixture。
+        if self._transport is not None:
+            request = {
+                "eval_id": case.id,
+                "model": self._config.model,
+            }
+            try:
+                response = self._transport.send(request)
+            except _FakeTransportError as exc:
+                return _wrap(False, _safe_message(exc.error_code),
+                             error_code=exc.error_code)
+            except Exception:  # noqa: BLE001 - 防御 transport 抛出未分类异常
+                # 不把 raw exception 序列化进 artifact——只落分类 + 安全模板文本。
+                return _wrap(False, _safe_message(ERROR_PROVIDER),
+                             error_code=ERROR_PROVIDER)
+            if not isinstance(response, dict) or "passed" not in response:
+                return _wrap(False, _safe_message(ERROR_BAD_RESPONSE),
+                             error_code=ERROR_BAD_RESPONSE)
+            return _wrap(
+                bool(response.get("passed")),
+                str(response.get("rationale", "fake transport advisory")),
+                rationale=response.get("rationale"),
+                confidence=response.get("confidence"),
+                rubric=response.get("rubric"),
+            )
+
+        # offline_fixture 路径
+        if case.id not in self._offline_fixture:
+            return _wrap(False, _safe_message(ERROR_DISABLED_LIVE),
+                         error_code=ERROR_DISABLED_LIVE)
+        rec = self._offline_fixture[case.id]
+        return _wrap(
+            bool(rec.get("passed", False)),
+            str(rec.get("rationale", "offline fixture advisory")),
+            rationale=rec.get("rationale"),
+            confidence=rec.get("confidence"),
+            rubric=rec.get("rubric"),
         )
