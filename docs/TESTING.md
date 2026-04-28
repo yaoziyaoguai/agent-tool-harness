@@ -22,9 +22,16 @@
 
 当前 strict xfail 测试（1 个）：
 
-- `tests/test_tool_design_audit_decoy_xfail.py::test_audit_should_flag_semantic_decoy_tool`
-  钉住 `ToolDesignAuditor` 不能识别语义诱饵工具的能力 gap。详见 `docs/ROADMAP.md`
-  的 “xfail 测试” 章节与转正条件。
+- `tests/test_tool_design_audit_subtle_decoy_xfail.py::test_audit_should_flag_subtle_semantic_decoy_with_disjoint_vocabulary`
+  钉住 deterministic 启发式的根本限制：当诱饵工具**字段齐全 + 无捷径话术 + 用完全
+  不同词汇描述与主工具同一职责**时（词袋 Jaccard 远低于 0.4 阈值），`shallow_wrapper`
+  / `semantic_overlap` 都不会触发，auditor 仍判 5.0 满分。转正需要 transcript-based
+  工具调用样本或 LLM judge——详见 `docs/ROADMAP.md`。
+  历史背景：v0.1 期间的 `tests/test_tool_design_audit_decoy_xfail.py` 已被 v0.2 候选 A
+  解决（`right_tools.shallow_wrapper` + `right_tools.semantic_overlap`）并转正为
+  `tests/test_tool_design_audit_decoy.py` 普通 passing 测试；剩余更深一层的诱饵
+  gap 转移到本 strict xfail 钉住根因。**不允许**通过放宽断言假装解决——例如改成
+  "任何工具都报 needs_review"那是补丁，不是根因修复。
 
 ## 接入文档 vs CLI 一致性测试
 

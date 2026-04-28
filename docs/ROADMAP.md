@@ -213,24 +213,56 @@ semantic signals`）原型化。功能方向正确（详见 §"v0.2 候选 A"）
 - **载体**：`v0.2/tool-design-semantic-signal` 是**仅本地存在的草案分支**，未推
   origin、未对外可见，**不属于** v0.1 main。`git branch --no-merged main` 始终列
   出它作为可审计标记。
-- **不允许的操作**（v0.1 release 前硬约束）：
-  - 不允许 `git merge v0.2/tool-design-semantic-signal` 到 main；
+- **不允许的操作**（v0.1 release 前硬约束 — v0.1 已 release，本节保留作为历史决议）：
+  - 不允许 `git merge v0.2/tool-design-semantic-signal` 到 main（仍然有效：分支
+    base 早于 v0.1 graduation，merge 会回退 v0.1 收口）；
   - 不允许 `git push origin v0.2/tool-design-semantic-signal`；
-  - 不允许从该分支 cherry-pick 任何代码 / 测试到 main；
-  - 不允许在 main 上"顺手"实现该分支已有的语义信号（即把候选 A 改名重写绕过
-    归档约束）。
+  - 不允许从该分支 `git cherry-pick` 任何 commit（同样会拉入旧 base 的删除）；
+  - 允许且**已经做**的操作：手工 port 增量代码 + 测试到 main 的 v0.1 之上
+    （v0.2 候选 A 第一轮已落地，详见下方"v0.2 候选 A 第一轮"段）。
 - **允许的操作**：纯文档层面在 main 引用该分支名 / 转正条件 / strict xfail 关系
   （即本节本身），用于 v0.1 release notes 与未来回溯。
-- **strict xfail 锚点**：`tests/test_tool_design_audit_decoy_xfail.py
-  ::test_audit_should_flag_semantic_decoy_tool_overlapping_with_primary` 与本分支
-  一一对应——该 xfail 用 ``strict=True`` 守住"未来某天 main 上的 auditor 真的能
-  flag 语义诱饵"的转正信号；候选 A 一旦合入 main，xfail 会变 XPASS 让 CI 失败，
-  强制把它改成普通 passing 测试并同步更新本节。**v0.1 release 期间禁止**删除 /
-  弱化 / 改 strict=False 这条 xfail，那等于偷偷绕过归档边界。
-- **未来转正条件**（任一满足且 strict xfail 自然 XPASS）：
+- **strict xfail 锚点演进**：v0.1 期间钉
+  `tests/test_tool_design_audit_decoy_xfail.py::test_audit_should_flag_semantic_decoy_tool_overlapping_with_primary`
+  ——v0.2 候选 A 第一轮（`right_tools.shallow_wrapper` + `right_tools.semantic_overlap`）
+  已让该 xfail 自然 XPASS，按归档承诺把它转正为
+  `tests/test_tool_design_audit_decoy.py` 普通 passing 测试。剩余更深一层的诱饵 gap
+  （字段齐全 + 无捷径话术 + 用完全不同词汇描述同一职责）转移到新的 strict xfail
+  `tests/test_tool_design_audit_subtle_decoy_xfail.py::test_audit_should_flag_subtle_semantic_decoy_with_disjoint_vocabulary`
+  钉根因——deterministic 启发式无法靠词袋识别"职责相同、词汇不同"。
+- **未来转正条件**（v0.2 第二轮或 v0.3，任一满足且新 strict xfail 自然 XPASS）：
   - 在 main 引入 transcript-based 或真实 tool response 样本驱动的语义级 audit；
-  - 或新增 `signal_quality` 维度对工具职责重叠 / 浅封装做严格判定；
-  - 或合入候选 A 分支并把所有结构性测试 + 这条 xfail 同步更新。
+  - 或合入 LLM judge 对工具职责做语义 cluster 识别"职责相同但词汇不同"的对子；
+  - 不允许通过"任何工具都报 needs_review"等放宽断言的方式假装解决。
+
+### v0.2 候选 A 第一轮（已落地）
+
+- **吸收范围（手工 port，不 merge / 不 cherry-pick）**：
+  - `agent_tool_harness/audit/tool_design_auditor.py` 新增：`GENERIC_NAME_TOKENS`
+    扩充（check / analyze / debug / read / quick / info / data / do / process / handle）；
+    `_SHALLOW_WRAPPER_PHRASES` + `right_tools.shallow_wrapper` finding；
+    `_OVERLAP_STOPWORDS` + `_OVERLAP_JACCARD_THRESHOLD = 0.4` + `_semantic_overlap_pairs`
+    + `right_tools.semantic_overlap` finding（双向）；`prompt_spec.usage_boundary_duplicated`
+    + `prompt_spec.shallow_usage_boundary` + `prompt_spec.missing_response_format`
+    findings；顶层 `signal_quality: deterministic_heuristic` + `signal_quality_note`
+    披露；`semantic_risk_detected` warning。
+  - `agent_tool_harness/reports/markdown_report.py` 增强：`## Tool Design Audit`
+    节渲染 signal_quality / signal_quality_note / warnings / 每个工具的高严重度 finding
+    + suggested_fix，让用户在 `report.md` 里直接看到语义风险，不必去翻 audit_tools.json。
+  - 测试：替换 `tests/test_tool_design_audit_decoy_xfail.py` 为
+    `tests/test_tool_design_audit_decoy.py`（转正版）；新增
+    `tests/test_tool_design_audit_semantic.py`（每个新 finding 含正向+反向断言 +
+    `examples/runtime_debug` 端到端反误报保险）；新增
+    `tests/test_tool_design_audit_subtle_decoy_xfail.py`（新 strict xfail 锚点）。
+- **明确丢弃**：v0.2 分支对 `cli.py` / docs / examples / RELEASE_NOTES 的所有删除/重写
+  ——分支 base 早于 v0.1 graduation，merge 任何 doc/CLI 改动都会回退已 release 的 v0.1。
+- **能力边界声明（不允许夸大）**：本轮只新增 deterministic 启发式信号；不是 LLM Judge，
+  不读工具源码，不调用工具，不做真实语义理解。`signal_quality` 仍是
+  `deterministic_heuristic`。
+- **后续 v0.2 / v0.3 路线**（写在这里，本轮**不实现**）：
+  - 引入 transcript-based 工具调用样本观测 Agent 是否在错误场景被诱饵命中；
+  - 接入 LLM judge 对工具职责做语义 cluster；
+  - 真实 OpenAI / Anthropic adapter / MCP executor / HTTP / Shell executor / Web UI。
 
 **v0.1 release 之后的处理路径**：v0.1 标 release 后，按 §"v0.2 候选 A"流程把
 `v0.2/tool-design-semantic-signal` 作为 v0.2 milestone 的第一个 PR 评审入口；
@@ -401,16 +433,21 @@ Anthropic *Writing effective tools for agents* 主张评估必须由真实 LLM a
 
 ## xfail 测试
 
-当前存在 1 个 strict xfail（v0.1 基线，HEAD `a432db9`）：
+当前存在 1 个 strict xfail（v0.2 候选 A 第一轮已落地后的新基线）：
 
-- `tests/test_tool_design_audit_decoy_xfail.py::test_audit_should_flag_semantic_decoy_tool_overlapping_with_primary`
-  —— **当前 v0.1 基线就在 main 上**（commit `67678e4`），不是候选 A 私有产物。
-  它把 ToolDesignAuditor 仅做结构检查、看不出"语义诱饵工具"这一 gap 钉成红线；
-  转正条件：引入 transcript-based 或真实 tool response 样本驱动的语义级 audit
-  （即 v0.2 路线的 ToolDesignAuditor 语义信号工作，候选 A 已实现该方向，文件名
-  在该分支被改写为 `test_tool_design_audit_decoy.py` + 新增 subtle decoy xfail）。
-- 候选 A 合入前**严禁**新增 xfail，也严禁删除/弱化此 xfail（strict=True 守住
-  "未来一旦能识别诱饵就必须把 xfail 转正" 的反向闸门）。
+- `tests/test_tool_design_audit_subtle_decoy_xfail.py::test_audit_should_flag_subtle_semantic_decoy_with_disjoint_vocabulary`
+  —— 钉住 deterministic 启发式根本限制：当诱饵工具**字段齐全 + 无捷径话术 + 用完全
+  不同词汇描述同一职责**时（词袋 Jaccard 远低于 0.4 阈值），`right_tools.shallow_wrapper`
+  / `right_tools.semantic_overlap` 都不会触发，auditor 仍判 5.0 满分。
+  **历史**：v0.1 期间的 `tests/test_tool_design_audit_decoy_xfail.py` 已被 v0.2 候选 A
+  第一轮（`right_tools.shallow_wrapper` + `right_tools.semantic_overlap`）解决，
+  按归档承诺（§3）转正为 `tests/test_tool_design_audit_decoy.py` 普通 passing 测试；
+  剩余更深一层 gap 转移到本新 strict xfail 钉根因。
+  **转正条件**（任一满足且 strict xfail 自然 XPASS）：引入 transcript-based 工具
+  调用样本观测 Agent 是否在错误场景被诱饵命中；或合入 LLM judge 对工具职责做语义
+  cluster 识别"职责相同但词汇不同"的对子。
+- 严禁通过"任何工具都报 needs_review"等放宽断言假装解决；严禁删除 / 弱化 / 改
+  strict=False。
 
 未来允许 xfail 的条件：
 

@@ -115,11 +115,21 @@ v0.2 backlog 中标注为"P1B"的 promoter 根因约束。
 - token efficiency
 - prompt/spec quality
 
-**当前能力边界（重要）：** 这是 **structural / completeness** 检查，不是语义级质量
-判断。它只读 `tools.yaml` 字段，不读 Python 工具源码、不调用工具看真实输出。**字段
-齐全 ≠ 工具好用**——一个字段写得无懈可击但与已有工具职责重叠的“语义诱饵”工具仍会
-被判 5.0。这一 gap 已被 `tests/test_tool_design_audit_decoy_xfail.py` 钉为 strict xfail，
-转正条件见 `docs/ROADMAP.md`。
+**当前能力边界（重要）：** 这是 **structural / completeness + deterministic 启发式**
+检查，不是语义级质量判断。它只读 `tools.yaml` 字段，不读 Python 工具源码、不调用
+工具看真实输出。**字段齐全 ≠ 工具好用**。
+
+v0.2 候选 A 已新增 `right_tools.shallow_wrapper`（捷径话术诱饵）/
+`right_tools.semantic_overlap`（description+when_to_use 词袋 Jaccard ≥ 0.4 双向重叠）/
+`prompt_spec.usage_boundary_duplicated` / `prompt_spec.shallow_usage_boundary` /
+`prompt_spec.missing_response_format` 等 finding；`audit_tools.json` 顶层会显式写
+`signal_quality: deterministic_heuristic` + `signal_quality_note`，并在命中高严重度信号
+时给 `semantic_risk_detected` warning，让 CI/远程消费者一眼看到"score 高 ≠ 没问题"。
+
+仍然存在的根因型 gap：当诱饵工具**字段齐全 + 无捷径话术 + 用完全不同词汇描述与主
+工具同一职责**时（词袋几乎不重合），deterministic 启发式仍判 5.0 满分。这一 gap
+由 `tests/test_tool_design_audit_subtle_decoy_xfail.py` 用 strict xfail 钉根因，
+转正条件需要 transcript-based 工具调用样本或 LLM judge——详见 `docs/ROADMAP.md`。
 
 `EvalQualityAuditor` 审计 eval 是否真实、多步、可验证、不过拟合唯一策略，并检查 split/fixture/runnable。
 

@@ -108,6 +108,9 @@ class MarkdownReport:
             f"- Tool count: {audit_tools.get('summary', {}).get('tool_count', 0)}",
             f"- Average score: {audit_tools.get('summary', {}).get('average_score', 0)}",
             f"- Low score tools: {low_score_tools}",
+            *self._render_audit_signal_quality(audit_tools),
+            *self._render_audit_warnings(audit_tools),
+            *self._render_audit_high_severity_findings(audit_tools),
             "",
             "## Eval Quality Audit",
             "",
@@ -179,6 +182,82 @@ class MarkdownReport:
             ]
         )
         return "\n".join(lines) + "\n"
+
+    def _render_audit_signal_quality(self, audit_tools: dict[str, Any]) -> list[str]:
+        """渲染 Tool Design Audit 顶层 signal_quality 披露。
+
+        负责什么：把 ToolDesignAuditor 写到 audit_tools.json 的
+        ``signal_quality`` + ``signal_quality_note`` 字段呈现到 report.md，
+        让用户在 report 里直接看到"这是 deterministic 启发式"的边界声明，
+        不必去翻 audit_tools.json。
+
+        不负责什么：不重新判定信号等级——只忠实转写 audit 输出。
+
+        为什么单独抽出：与 MockReplayAdapter 的 signal_quality banner 风格保持
+        一致；未来如果 audit 升级到 LLM judge，这里只需要被动跟随，渲染逻辑不变。
+
+        artifact 排查路径：``audit_tools.json`` → ``summary.signal_quality``
+        / ``summary.signal_quality_note``。
+        """
+
+        summary = audit_tools.get("summary", {})
+        sq = summary.get("signal_quality")
+        if not sq:
+            return []
+        note = summary.get("signal_quality_note", "")
+        return [
+            "",
+            "### Tool Design Audit signal quality",
+            "",
+            f"- Level: `{sq}`",
+            f"- Note: {note}",
+        ]
+
+    def _render_audit_warnings(self, audit_tools: dict[str, Any]) -> list[str]:
+        """渲染 Tool Design Audit 顶层 warnings。
+
+        最关键的是把 ``semantic_risk_detected`` 写到 report 显眼位置——
+        这是"score 高 ≠ 没问题"的反误读护栏。如果只看 average_score，用户
+        会以为 5.0 满分就万事大吉；warning 强制把命中浅封装/语义重叠/边界
+        重复的工具列出来。
+        """
+
+        warnings = audit_tools.get("summary", {}).get("warnings") or []
+        if not warnings:
+            return []
+        out = ["", "### Tool Design Audit warnings", ""]
+        for w in warnings:
+            out.append(f"- ⚠️  {w}")
+        return out
+
+    def _render_audit_high_severity_findings(
+        self, audit_tools: dict[str, Any]
+    ) -> list[str]:
+        """渲染所有工具的 high-severity finding + suggested_fix。
+
+        负责什么：让用户在 report.md 里直接看到"哪个工具 / 哪条规则 / 怎么修"
+        三元组，不必去翻 audit_tools.json。只展示 high severity 是为了避免
+        report 过长——medium / low 仍然写在 audit_tools.json 里。
+
+        不负责什么：不做新的判定逻辑——只是按 severity 过滤已有 finding。
+        """
+
+        rows: list[str] = []
+        for tool in audit_tools.get("tools", []):
+            high = [f for f in tool.get("findings", []) if f.get("severity") == "high"]
+            if not high:
+                continue
+            rows.append(f"- **{tool.get('tool_name')}**:")
+            for f in high:
+                rows.append(
+                    f"  - `{f.get('rule_id')}` — {f.get('message')}"
+                )
+                fix = f.get("suggested_fix")
+                if fix:
+                    rows.append(f"    - suggested_fix: {fix}")
+        if not rows:
+            return []
+        return ["", "### Tool Design Audit high-severity findings", ""] + rows
 
     def _render_eval_detail(
         self,
