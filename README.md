@@ -38,6 +38,8 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > v1.x 第二轮（已合入 main，已被 v1.2 收口）：新增 `AnthropicCompatibleJudgeProvider` offline / fake-transport skeleton + 稳定 error taxonomy（8 类）+ `--judge-provider anthropic_compatible_offline` CLI。
 >
 > v1.x 第三轮（已合入 main，已被 v1.2 收口）：新增 `judge-provider-preflight` CLI。详见 [`RELEASE_NOTES_v1.2.md`](RELEASE_NOTES_v1.2.md)。
+>
+> v1.3 第一轮（**已合入 main，待发版**）：`CompositeJudgeProvider` 支持多 advisory majority-vote 聚合（Python API；CLI 留 v1.3 第二轮）；`judge-provider-preflight` 新增 `--live` + `--confirm-i-have-real-key` 双标志契约（**任意组合下都不发任何网络请求**）；新增 `docs/V1_3_LIVE_TRANSPORT_DESIGN.md`（未来 `LiveAnthropicTransport` 仅设计）。**仍完全不接真实 LLM、不联网、不需要密钥**。
 
 ## 快速开始
 

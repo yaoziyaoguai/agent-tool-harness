@@ -695,6 +695,61 @@ git 或 artifact。本轮做"联网前的最后一道闸"。
 
 ---
 
+### v1.3 第一轮已落地：multi-advisory majority-vote + LiveTransport 设计 + preflight `--live` 双标志契约
+
+**根因**：v1.x 前三轮把 JudgeProvider 抽象、Composite 单 advisory、
+AnthropicCompatible offline skeleton、preflight 本地侧自检全部钉住。再
+往下要么真接 LLM（密钥 / 计费 / 网络 / 隐私一堆问题），要么把 `Composite`
+的"单 advisory" 升级成"多模型 majority vote"，让现有 deterministic
+baseline 能与未来多个 LLM advisory 形成稳定聚合契约——后者更安全，
+属于"同样不联网，但能给 v1.4 真正接 LLM 时铺好聚合管道"的最小步。
+
+**本轮范围（已落地）**：
+- `CompositeJudgeProvider.__init__` 现在同时接受 `advisory: JudgeProvider`
+  （v1.x 第一/二/三轮形态，向后兼容；输出仍走 `advisory_result` 字段）
+  与 `advisory: list[JudgeProvider]`（v1.3 新增；输出走
+  `advisory_results` / `vote_distribution` / `majority_passed` /
+  `agreement` 字段）。空列表 `__init__` 直接 `ValueError`，**绝不**
+  默默退化为全 error 路径。
+- `vote_distribution` 严格区分 `pass / fail / error / total` 四个桶；
+  **error advisory 不计入投票**——这是反"吞异常假成功"的关键路径。
+- `majority_passed`：pass 票多 → True；fail 票多 → False；平票或全 error
+  → `None`（无效投票）。`agreement = (majority_passed == det.passed)`，
+  `majority_passed is None` 时 `agreement` 也为 `None`。
+- `EvalRunner._metrics` 新增 `agreement is None → error += 1` 分支，
+  防止 `bool(None) == False` 静默把"无效投票"误算成"disagree"——
+  这是 v1.x 第一轮"advisory 错误不计入分歧"反吞异常约定的延伸。
+- `EvalRunner._invoke_dry_run_provider` extra-field 复制扩展为支持
+  `advisory_results / majority_passed / vote_distribution`；MarkdownReport
+  `_render_dry_run_provider` 同步渲染 majority/票数/per-advisory 摘要。
+- `judge-provider-preflight` 新增 `--live` + `--confirm-i-have-real-key`
+  **双标志契约**：单独 `--live` → `summary.live_optin_status =
+  "opt_in_incomplete"` + 引导 hint；同时两标志 → `"opted_in_no_transport"`
+  + 指向 `docs/V1_3_LIVE_TRANSPORT_DESIGN.md` 的 hint。**任意组合下
+  preflight 仍然不发任何网络请求**——`ready_for_live` 恒为 False。
+- 新增 `docs/V1_3_LIVE_TRANSPORT_DESIGN.md`：未来 `LiveAnthropicTransport`
+  契约（标准库 `http.client`、零依赖；4 个 env var；双标志 opt-in；
+  错误分类与脱敏；contract test 顺序），**仅设计，本轮不实现**。
+- 新增 7 条多 advisory 契约测试 `tests/test_composite_multi_advisory.py`：
+  majority pass / 与 det 一致 / 平票 None / 含 error advisory 不投票 /
+  全 error / 空 list ValueError / 单 advisory 模式向后兼容；新增 5 条
+  preflight `--live` 双标志测试（默认 disabled / 单 `--live` 不完整 /
+  完整 opt-in 仍无 transport / `--live` + socket banned 仍跑通 /
+  完整 opt-in + socket banned 仍跑通——后两条是 v1.4 真实 transport
+  落地前的安全网，一旦未来有人把"完整 opt-in 即触发网络"写死会立即崩）。
+
+**本轮范围外（仅 ROADMAP 备忘，**不**实现）**：
+- 真实 `LiveAnthropicTransport` 实现（标准库 `http.client` + ssl，零依
+  赖）。设计已就位，等 v1.4 按 6 条 contract test 顺序逐条实现。
+- 多 advisory 的 CLI 入口（如 `--judge-provider composite_multi
+  --judge-recording PATH1 --judge-recording PATH2`）。本轮多 advisory
+  仅暴露 Python API，CLI 留 v1.3 第二轮——避免一次引入太多变更面。
+- 多 advisory 在 `metrics.json` 上的 vote_distribution 聚合统计字段
+  （目前只在每条 entry 上）；v1.3 第二轮再做。
+- 真实 LLM judge 的 prompt 模板 / rubric / 成本上报。
+
+---
+
 ## 暂不做范围（永久或长期）
 - **自动改用户工具代码**：v1.0 之后才考虑，且永远默认 dry-run；
 - **跨语言工具支持**：Python 工具是 MVP；其他语言通过 MCP / HTTP / Shell

@@ -535,6 +535,29 @@ class MarkdownReport:
                     f"advisory={adv.get('provider')}/{adv.get('mode')}"
                     f"={adv.get('passed')}"
                 )
+            # v1.3 多 advisory：渲染 majority_passed + vote_distribution 概览，
+            # 让 reviewer 一眼看到投票结果。详情在 advisory_results[] 中（不在
+            # report 主表展开，避免信息过载；reviewer 需排查时看 judge_results.json）。
+            adv_list = entry.get("advisory_results")
+            if isinstance(adv_list, list) and adv_list:
+                vote = entry.get("vote_distribution") or {}
+                extras.append(
+                    f"majority_passed={entry.get('majority_passed')}; "
+                    f"votes pass={vote.get('pass')} fail={vote.get('fail')} "
+                    f"error={vote.get('error')} total={vote.get('total')}"
+                )
+                providers_summary = ",".join(
+                    "{}={}".format(
+                        a.get("provider"),
+                        (
+                            "error:" + str(a.get("error_code"))
+                            if "error_code" in a
+                            else a.get("passed")
+                        ),
+                    )
+                    for a in adv_list
+                )
+                extras.append(f"advisories=[{providers_summary}]")
             if extras:
                 line += " [" + "; ".join(extras) + "]"
             lines.append(line)

@@ -228,3 +228,154 @@ def test_cli_judge_provider_preflight_with_real_env_does_not_leak(
     assert data["summary"]["gitignore_safe"] is True
     assert data["summary"]["env_example_safe"] is True
     assert data["summary"]["ready_for_live"] is False  # 永远 False，本轮不开 live
+
+
+# ---------------------------------------------------------------------------
+# v1.3 第一轮新增：--live / --confirm-i-have-real-key 双标志契约测试
+# ---------------------------------------------------------------------------
+#
+# 这些测试钉死的边界（任何回归都会立即失败）：
+#
+# 1. 默认（不传两个 flag）：summary.live_optin_status == "disabled"，与
+#    v1.x 第三轮已落地的 7 条契约测试 100% 字节兼容；
+# 2. 只传 --live：summary.live_optin_status == "opt_in_incomplete"，
+#    必须有 actionable_hint 引导用户补 --confirm-i-have-real-key；
+# 3. 同时传 --live + --confirm-i-have-real-key：
+#    summary.live_optin_status == "opted_in_no_transport"；ready_for_live
+#    仍然为 False（v1.3 不实现真实 LiveTransport）；hint 必须明确指
+#    向 docs/V1_3_LIVE_TRANSPORT_DESIGN.md；
+# 4. **任何**组合下，**绝不**调 socket.socket——双标志齐备也不发网络。
+#    这是为了让 v1.4 真实 transport 实现时 "默认禁用" 这条契约不会被
+#    意外破坏。
+# ---------------------------------------------------------------------------
+
+
+def test_preflight_live_optin_default_disabled(tmp_path: Path) -> None:
+    """不传 --live / --confirm 时与 v1.x 第三轮完全一致：disabled。"""
+
+    config = AnthropicCompatibleConfig.from_env()
+    (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text(
+        "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
+    )
+    report = run_preflight(config, repo_root=tmp_path)
+    assert report.summary["live_optin_status"] == "disabled"
+    assert report.summary["live_intent"] is False
+    assert report.summary["live_confirmed"] is False
+    assert report.summary["ready_for_live"] is False
+
+
+def test_preflight_live_alone_is_opt_in_incomplete(tmp_path: Path) -> None:
+    """只传 --live 不传 --confirm → opt_in_incomplete + 引导 hint。"""
+
+    config = AnthropicCompatibleConfig.from_env()
+    (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text(
+        "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
+    )
+    report = run_preflight(
+        config,
+        repo_root=tmp_path,
+        live_intent=True,
+        live_confirmed=False,
+    )
+    assert report.summary["live_optin_status"] == "opt_in_incomplete"
+    assert report.summary["live_intent"] is True
+    assert report.summary["live_confirmed"] is False
+    # 必须有可行动 hint 提示用户补 --confirm-i-have-real-key。
+    joined = "\n".join(report.actionable_hints)
+    assert "--confirm-i-have-real-key" in joined
+
+
+def test_preflight_full_optin_still_no_transport(tmp_path: Path) -> None:
+    """两个 flag 都传 → opted_in_no_transport；hint 指向 V1_3 设计文档。"""
+
+    config = AnthropicCompatibleConfig.from_env()
+    (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text(
+        "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
+    )
+    report = run_preflight(
+        config,
+        repo_root=tmp_path,
+        live_intent=True,
+        live_confirmed=True,
+    )
+    assert report.summary["live_optin_status"] == "opted_in_no_transport"
+    assert report.summary["ready_for_live"] is False  # v1.3 永远 False
+    joined = "\n".join(report.actionable_hints)
+    assert "V1_3_LIVE_TRANSPORT_DESIGN.md" in joined
+
+
+def test_cli_preflight_live_flag_alone_does_not_open_socket(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """CLI 传 --live（不传 --confirm）+ socket.socket banned → 仍跑通且 opt_in_incomplete。"""
+
+    (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text(
+        "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
+    )
+
+    class _BannedSocket:
+        def __init__(self, *a, **kw):
+            raise RuntimeError("socket banned in v1.3 live-flag preflight test")
+
+    monkeypatch.setattr(socket, "socket", _BannedSocket)
+    out = tmp_path / "preflight_live"
+    rc = cli_main(
+        [
+            "judge-provider-preflight",
+            "--out", str(out),
+            "--repo-root", str(tmp_path),
+            "--live",
+        ]
+    )
+    assert rc == 0
+    import json as _json
+
+    data = _json.loads((out / "preflight.json").read_text(encoding="utf-8"))
+    assert data["summary"]["live_optin_status"] == "opt_in_incomplete"
+    assert data["summary"]["live_intent"] is True
+    assert data["summary"]["live_confirmed"] is False
+
+
+def test_cli_preflight_full_optin_still_no_socket(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """CLI 同时传 --live + --confirm-i-have-real-key + socket banned → 仍跑通；
+    summary.live_optin_status == opted_in_no_transport，ready_for_live=False。
+
+    本测试是 v1.4 真实 LiveTransport 落地前的"安全网"——一旦未来有人不
+    小心在 transport 默认值上把"完整 opt-in 即触发网络"写死，本测试会立
+    即崩（socket banned）。
+    """
+
+    (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text(
+        "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
+    )
+
+    class _BannedSocket:
+        def __init__(self, *a, **kw):
+            raise RuntimeError("socket banned in v1.3 full opt-in preflight test")
+
+    monkeypatch.setattr(socket, "socket", _BannedSocket)
+    out = tmp_path / "preflight_full_optin"
+    rc = cli_main(
+        [
+            "judge-provider-preflight",
+            "--out", str(out),
+            "--repo-root", str(tmp_path),
+            "--live",
+            "--confirm-i-have-real-key",
+        ]
+    )
+    assert rc == 0
+    import json as _json
+
+    data = _json.loads((out / "preflight.json").read_text(encoding="utf-8"))
+    assert data["summary"]["live_optin_status"] == "opted_in_no_transport"
+    assert data["summary"]["live_intent"] is True
+    assert data["summary"]["live_confirmed"] is True
+    assert data["summary"]["ready_for_live"] is False

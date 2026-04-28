@@ -195,6 +195,36 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="显式指定 .env.example 路径（覆盖 --repo-root 默认）。",
     )
+    # ``--live`` / ``--confirm-i-have-real-key`` 是 v1.3 第一轮新增的
+    # **双标志契约**：单独传 ``--live`` **不会**触发任何网络请求；必须同
+    # 时传 ``--confirm-i-have-real-key`` 才视为用户明确同意"未来"打开
+    # live 模式。**本轮即便两个 flag 都传，preflight 仍然不发任何网络
+    # 请求**——真正的 transport 留给 v1.4。设计目标：让用户跑了一条带
+    # ``--live`` 的命令但忘了 ``--confirm-i-have-real-key`` 时，artifact
+    # 里**显眼**地报错（``error_code=disabled_live_provider``），而不是默
+    # 默 fallback 到 fake；同时 contract test 钉住"双标志齐备时也仍然不
+    # 发网络"，避免未来真实 transport 实现时不小心提前触发。
+    preflight.add_argument(
+        "--live",
+        action="store_true",
+        default=False,
+        help=(
+            "声明用户**意图**未来打开 live 模式；本身**不**触发网络。"
+            "必须与 --confirm-i-have-real-key 同时使用才视为完全 opt-in。"
+        ),
+    )
+    preflight.add_argument(
+        "--confirm-i-have-real-key",
+        action="store_true",
+        default=False,
+        dest="confirm_i_have_real_key",
+        help=(
+            "二次确认：用户明确知道自己在使用真实 API key。**本轮**即便"
+            "两个 flag 都传，preflight 也不会发任何网络请求；只把 opt-in"
+            "状态记录到 preflight 报告中，便于 v1.4 真实 transport 落地"
+            "时复用同一套契约。"
+        ),
+    )
 
     return parser
 
@@ -251,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
                 repo_root=args.repo_root,
                 gitignore=args.gitignore,
                 env_example=args.env_example,
+                live=args.live,
+                confirm_i_have_real_key=args.confirm_i_have_real_key,
             )
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
@@ -740,6 +772,8 @@ def _judge_provider_preflight(
     repo_root: str,
     gitignore: str | None,
     env_example: str | None,
+    live: bool = False,
+    confirm_i_have_real_key: bool = False,
 ) -> int:
     """`judge-provider-preflight` 子命令实现。
 
@@ -750,6 +784,18 @@ def _judge_provider_preflight(
 
     artifact：`out/preflight.json` + `out/preflight.md`，绝不写入 api_key /
     base_url 字面值。
+
+    v1.3 第一轮新增 ``live`` / ``confirm_i_have_real_key`` 双标志契约：
+    - 任一为 False → preflight 走原有路径，``live_intent`` / ``live_confirmed``
+      均记为 False；
+    - 两个都为 True → 仍然**不**发任何网络请求（v1.3 不实现 LiveTransport），
+      但在 preflight 报告 ``summary.live_optin_status`` 中标记 ``opted_in_no_transport``；
+    - 只传 ``--live`` 不传 ``--confirm-i-have-real-key`` → 报告标记
+      ``opt_in_incomplete`` 并新增 actionable_hint，引导用户补齐二次确认。
+
+    这条 CLI 契约在 v1.4 真实 transport 实现时**直接复用**：那时只要在
+    `_provider_self_test` / 新增的 `_live_smoke()` 中读取 ``live_confirmed``
+    才决定是否真正发网络。
     """
 
     from .judges.preflight import (
@@ -765,6 +811,8 @@ def _judge_provider_preflight(
         repo_root=Path(repo_root),
         gitignore_path=Path(gitignore) if gitignore else None,
         env_example_path=Path(env_example) if env_example else None,
+        live_intent=live,
+        live_confirmed=confirm_i_have_real_key,
     )
     write_preflight_artifacts(report, out_dir)
     print(

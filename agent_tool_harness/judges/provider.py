@@ -289,54 +289,157 @@ class CompositeJudgeProvider:
     def __init__(
         self,
         deterministic: RuleJudgeProvider,
-        advisory: JudgeProvider,
+        advisory: JudgeProvider | list[JudgeProvider],
     ) -> None:
         # 显式参数命名让调用现场一眼看出谁是 ground truth；不允许位置参数颠倒。
+        # advisory 既可以是**单个** JudgeProvider（v1.x 第一轮形态，向后兼容），
+        # 也可以是 JudgeProvider 列表（v1.3 多 advisory majority-vote 形态）。
+        # 内部统一存成 `_advisories: list`，并用 `_single_advisory_mode` 布尔
+        # 区分输出 schema（单 advisory 仍走原 `advisory_result` 字段，避免破坏
+        # 已有 artifact / 测试 / report 渲染契约）。
         self._deterministic = deterministic
-        self._advisory = advisory
+        if isinstance(advisory, list):
+            if not advisory:
+                # 空列表是配置错误：让用户立即看到，而不是悄悄全部走 error 路径。
+                raise ValueError(
+                    "CompositeJudgeProvider 需要至少一个 advisory provider；"
+                    "传入空列表通常意味着 CLI 配置漏写，请检查。"
+                )
+            self._advisories: list[JudgeProvider] = list(advisory)
+            self._single_advisory_mode = False
+        else:
+            self._advisories = [advisory]
+            self._single_advisory_mode = True
 
     def judge(self, case: EvalSpec, run: AgentRunResult) -> ProviderJudgeResult:
         det_result = self._deterministic.judge(case, run)
-        # advisory 抛 MissingRecordingError / 其他异常都直接透传，由 EvalRunner
+        # 逐个调用 advisory；任何 advisory 抛异常都直接透传，由 EvalRunner
         # 的 _invoke_dry_run_provider 走结构化 error 路径，**不**在这里吞异常。
-        adv_result = self._advisory.judge(case, run)
-        agreement = bool(det_result.passed) == bool(adv_result.passed)
-        # extra 中 advisory_result / deterministic_result 仅含**已落到 artifact
-        # 的字段**（passed + provider/mode + 可选 rationale 等），不夹带原始
-        # JudgeResult 对象——避免 dataclass 直接进 json.dumps 出错，也防止
-        # 把 RuleJudge 的 checks 列表泄漏到 advisory 视图（语义会被误读）。
-        extra: dict[str, Any] = {
-            "agreement": agreement,
-            "deterministic_result": {
-                "provider": det_result.provider,
-                "mode": det_result.mode,
-                "passed": det_result.passed,
-            },
-            "advisory_result": {
+        adv_results = [adv.judge(case, run) for adv in self._advisories]
+
+        # 单 advisory 模式：保持 v1.x 第一轮 / 第二轮 / 第三轮 已有 schema 与
+        # EvalRunner._invoke_dry_run_provider 的 error_code 透传契约；不引入
+        # 任何新字段，避免破坏既有 artifact / 测试。
+        if self._single_advisory_mode:
+            adv_result = adv_results[0]
+            agreement = bool(det_result.passed) == bool(adv_result.passed)
+            extra: dict[str, Any] = {
+                "agreement": agreement,
+                "deterministic_result": {
+                    "provider": det_result.provider,
+                    "mode": det_result.mode,
+                    "passed": det_result.passed,
+                },
+                "advisory_result": {
+                    "provider": adv_result.provider,
+                    "mode": adv_result.mode,
+                    "passed": adv_result.passed,
+                    "rationale": adv_result.rationale,
+                    "confidence": adv_result.confidence,
+                    "rubric": adv_result.rubric,
+                },
+            }
+            for key in ("error_code", "error_message", "model"):
+                if key in adv_result.extra:
+                    extra[key] = adv_result.extra[key]
+            return ProviderJudgeResult(
+                inner=det_result.inner,
+                provider=self.name,
+                mode=self.mode,
+                rationale=adv_result.rationale,
+                confidence=adv_result.confidence,
+                rubric=adv_result.rubric,
+                extra=extra,
+            )
+
+        # 多 advisory 模式（v1.3）：聚合 vote_distribution + majority_passed。
+        # 设计原则：
+        # - 每条 advisory 都序列化到 ``advisory_results[]``（脱敏字段，不夹带
+        #   原始 dataclass）；
+        # - 错误（带 error_code 的 advisory）**不计入** vote_distribution，
+        #   单独算入 ``error`` 桶——避免"advisory 错误"被当成"advisory FAIL"
+        #   投票（这是反吞异常假成功的关键路径）；
+        # - majority_passed: pass 票多 → True；fail 票多 → False；平票或全
+        #   error → None（None 表示无效投票，EvalRunner 会按 None 处理为
+        #   "无 agreement 信号"，metrics 不会把它误算成 disagree）；
+        # - agreement = (majority_passed == deterministic.passed)，None 时
+        #   agreement 也为 None；
+        # - rationale/confidence/rubric 取**第一个非 error advisory** 的字段
+        #   作为 entry 顶层；详细多 provider rationale 完整保留在
+        #   ``advisory_results[]`` 中供 reviewer 排查。
+        serialized_advisories: list[dict[str, Any]] = []
+        pass_count = 0
+        fail_count = 0
+        error_count = 0
+        for adv_result in adv_results:
+            adv_entry: dict[str, Any] = {
                 "provider": adv_result.provider,
                 "mode": adv_result.mode,
                 "passed": adv_result.passed,
                 "rationale": adv_result.rationale,
                 "confidence": adv_result.confidence,
                 "rubric": adv_result.rubric,
+            }
+            for key in ("error_code", "error_message", "model"):
+                if key in adv_result.extra:
+                    adv_entry[key] = adv_result.extra[key]
+            serialized_advisories.append(adv_entry)
+            if "error_code" in adv_result.extra:
+                error_count += 1
+            elif adv_result.passed:
+                pass_count += 1
+            else:
+                fail_count += 1
+
+        if pass_count > fail_count:
+            majority_passed: bool | None = True
+        elif fail_count > pass_count:
+            majority_passed = False
+        else:
+            # 平票（含全 error）→ 无效；不强行赋值，避免误导 metrics。
+            majority_passed = None
+
+        agreement_multi: bool | None
+        if majority_passed is None:
+            agreement_multi = None
+        else:
+            agreement_multi = bool(det_result.passed) == bool(majority_passed)
+
+        # 选 rationale/confidence/rubric 顶层来源：第一个非 error advisory；
+        # 全 error 时退化为空字段（EvalRunner 仍会收到结构化 entry，error 走
+        # extra 中的 vote_distribution.error 计数 + provider_results 详情）。
+        first_non_error = next(
+            (a for a in adv_results if "error_code" not in a.extra),
+            None,
+        )
+        rationale = first_non_error.rationale if first_non_error else None
+        confidence = first_non_error.confidence if first_non_error else None
+        rubric = first_non_error.rubric if first_non_error else None
+
+        extra_multi: dict[str, Any] = {
+            "agreement": agreement_multi,
+            "majority_passed": majority_passed,
+            "vote_distribution": {
+                "pass": pass_count,
+                "fail": fail_count,
+                "error": error_count,
+                "total": len(adv_results),
             },
+            "deterministic_result": {
+                "provider": det_result.provider,
+                "mode": det_result.mode,
+                "passed": det_result.passed,
+            },
+            "advisory_results": serialized_advisories,
         }
-        # 透传 advisory 的脱敏 error_code / error_message / model 字段（如有）：
-        # 让 EvalRunner._invoke_dry_run_provider 在 advisory 走 error 路径时
-        # 仍能把 entry 渲染成结构化 ``entry.error``，而不是把"advisory 错误"
-        # 误算成"advisory 与 deterministic 一致 / 分歧"——这是反吞异常假成功
-        # 的关键链路。
-        for key in ("error_code", "error_message", "model"):
-            if key in adv_result.extra:
-                extra[key] = adv_result.extra[key]
         return ProviderJudgeResult(
             inner=det_result.inner,
             provider=self.name,
             mode=self.mode,
-            rationale=adv_result.rationale,
-            confidence=adv_result.confidence,
-            rubric=adv_result.rubric,
-            extra=extra,
+            rationale=rationale,
+            confidence=confidence,
+            rubric=rubric,
+            extra=extra_multi,
         )
 
 

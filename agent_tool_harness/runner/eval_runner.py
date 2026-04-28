@@ -478,8 +478,16 @@ class EvalRunner:
                 # 这里优先读 ``agreement``（Composite 路径），缺失时回落到
                 # ``agrees_with_deterministic``（直接挂 RecordedJudgeProvider
                 # 的路径）——保证两种 provider 都能产生有意义的分歧率。
+                # v1.3 多 advisory 模式下 ``agreement`` 可能为 ``None``
+                # （平票或全 error），此时**不计入**任何 agree/disagree 桶，
+                # 改记 ``error`` 桶——避免 ``bool(None) == False`` 被误算成
+                # disagree（这是反吞异常假成功的关键路径）。
                 if "agreement" in entry:
-                    is_agree = bool(entry["agreement"])
+                    raw_agreement = entry["agreement"]
+                    if raw_agreement is None:
+                        error += 1
+                        continue
+                    is_agree = bool(raw_agreement)
                 else:
                     is_agree = bool(entry.get("agrees_with_deterministic"))
                 if is_agree:
@@ -584,7 +592,18 @@ class EvalRunner:
         # 让 metrics.json::judge_disagreement 与 report.md 能直接消费——
         # 而不需要重新调用 provider 反推。这里只搬已知键，避免 provider 实现
         # 不小心把 raw API 响应等敏感字段（潜在 key/PII）泄漏到 artifact。
-        for key in ("agreement", "advisory_result", "deterministic_result", "model"):
+        # v1.3 多 advisory：新增 ``advisory_results`` (list)、``majority_passed``、
+        # ``vote_distribution`` 三个聚合字段；与单 advisory 字段并存（CLI 通常
+        # 二选一，不会同时出现）。
+        for key in (
+            "agreement",
+            "advisory_result",
+            "advisory_results",
+            "majority_passed",
+            "vote_distribution",
+            "deterministic_result",
+            "model",
+        ):
             if key in result.extra:
                 entry[key] = result.extra[key]
         return entry

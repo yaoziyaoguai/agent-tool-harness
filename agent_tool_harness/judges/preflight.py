@@ -251,10 +251,25 @@ def run_preflight(
     env_file: Path | None = None,
     gitignore_path: Path | None = None,
     env_example_path: Path | None = None,
+    live_intent: bool = False,
+    live_confirmed: bool = False,
 ) -> PreflightReport:
     """执行完整 preflight，返回结构化报告。
 
     所有路径默认相对 ``repo_root``；用户可以显式覆盖（便于测试 / monorepo）。
+
+    ``live_intent`` / ``live_confirmed`` 是 v1.3 第一轮新增的双标志契约
+    （详见 ``cli._judge_provider_preflight`` 的 docstring）：
+
+    - 两个都为 False（默认）：行为与 v1.x 第三轮完全一致，``summary.live_optin_status``
+      = ``"disabled"``；
+    - ``live_intent=True`` 且 ``live_confirmed=False``：``summary.live_optin_status``
+      = ``"opt_in_incomplete"``，并新增 hint 引导用户补 ``--confirm-i-have-real-key``；
+    - 两个都为 True：``summary.live_optin_status`` = ``"opted_in_no_transport"``，
+      表示用户已完整 opt-in，但 v1.3 不实现真实 transport，仍然不发任何
+      网络请求——这是为了让 v1.4 真实 transport 落地时 CLI 契约**零改动**。
+
+    注意：``ready_for_live`` 仍然恒为 False，因为 v1.3 不存在真实 transport。
     """
 
     report = PreflightReport()
@@ -290,16 +305,40 @@ def run_preflight(
             "请检查 _safe_message。"
         )
 
+    # 双标志状态机：opt-in 必须显式两次确认。
+    if live_intent and live_confirmed:
+        live_optin_status = "opted_in_no_transport"
+        hints.append(
+            "已完整 opt-in（--live + --confirm-i-have-real-key），但 v1.3 "
+            "不实现真实 LiveAnthropicTransport——本次 preflight 仍然没有"
+            "发任何网络请求。真实 transport 在 v1.4 落地，详见 "
+            "docs/V1_3_LIVE_TRANSPORT_DESIGN.md。"
+        )
+    elif live_intent and not live_confirmed:
+        live_optin_status = "opt_in_incomplete"
+        hints.append(
+            "你传了 --live 但未传 --confirm-i-have-real-key；这是双标志契"
+            "约设计的安全闸：再加一次 --confirm-i-have-real-key 才视为完"
+            "整 opt-in。即便完整 opt-in，v1.3 仍不会发任何网络请求。"
+        )
+    else:
+        live_optin_status = "disabled"
+
     safe_taxonomy = (
         report.provider_self_test["error_taxonomy_safe"]
         == report.provider_self_test["error_taxonomy_total"]
     )
     report.summary = {
-        "ready_for_live": False,  # 本轮永远 False；live 不在范围
+        "ready_for_live": False,  # 本轮永远 False；live transport 不在范围
         "config_complete": not report.config_status["missing_fields"],
         "gitignore_safe": report.gitignore_status["ignores_dotenv"],
         "env_example_safe": report.env_example_status["all_placeholders"],
         "error_taxonomy_safe": safe_taxonomy,
+        # v1.3 新增：双标志 opt-in 状态。值域：
+        # "disabled" | "opt_in_incomplete" | "opted_in_no_transport"。
+        "live_optin_status": live_optin_status,
+        "live_intent": live_intent,
+        "live_confirmed": live_confirmed,
     }
     report.actionable_hints = hints
     return report
