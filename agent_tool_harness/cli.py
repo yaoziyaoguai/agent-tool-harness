@@ -125,6 +125,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     analyze.add_argument("--out", required=True)
 
+    replay = subparsers.add_parser(
+        "replay-run",
+        help=(
+            "用 TranscriptReplayAdapter 重放一份已有 run 目录，跑一次完整 EvalRunner 闭环 "
+            "（不调 LLM / 不调 registry.execute；signal_quality=recorded_trajectory）。"
+        ),
+    )
+    replay.add_argument(
+        "--source-run",
+        required=True,
+        help="已有 run 目录（必须包含 tool_calls.jsonl / tool_responses.jsonl 之一，"
+             "建议同时含 transcript.jsonl 以重建 final_answer）",
+    )
+    replay.add_argument("--project", required=True)
+    replay.add_argument("--tools", required=True)
+    replay.add_argument("--evals", required=True)
+    replay.add_argument("--out", required=True)
+
     return parser
 
 
@@ -158,6 +176,14 @@ def main(argv: list[str] | None = None) -> int:
             return _promote_evals(args.candidates, args.out, force=args.force)
         if args.command == "analyze-artifacts":
             return _analyze_artifacts(args.run, args.tools, args.evals, args.out)
+        if args.command == "replay-run":
+            return _replay_run(
+                args.source_run,
+                args.project,
+                args.tools,
+                args.evals,
+                args.out,
+            )
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
         # 避免把内部 traceback 推给真实团队；他们应该得到一条直接告诉他们改哪个字段
@@ -464,6 +490,64 @@ def _analyze_artifacts(
     print(f"wrote {md_path}")
     eval_count = len([k for k, v in signals_by_eval.items() if v])
     print(f"signals: {signal_count} across {eval_count} eval(s)")
+    return 0
+
+
+def _replay_run(
+    source_run: str,
+    project_path: str,
+    tools_path: str,
+    evals_path: str,
+    out: str,
+) -> int:
+    """用 TranscriptReplayAdapter 把一份历史 run 跑成完整的新 EvalRunner 闭环。
+
+    架构边界：
+    - **负责**：装配 TranscriptReplayAdapter + EvalRunner，让用户能用一条命令
+      把任意历史 run 重新跑通 audit / judge / diagnose / report，得到一份新
+      的 9-artifact 目录，但 Agent 行为严格来自源 run（recorded_trajectory）。
+    - **不负责**：调用真实模型；调用真实工具（adapter 不调 registry.execute）；
+      校验源 run 的字段级 schema（只在 adapter 构造时校验关键文件存在）。
+
+    错误处理：
+    - 源目录不存在 / 缺关键 JSONL → ``TranscriptReplaySourceError``，由 ``main``
+      已有的 ``except FileNotFoundError`` 通道打印可行动 hint；
+    - tools/evals/project 加载失败 → 沿用 ConfigError 通道。
+
+    输出契约：
+    - ``--out`` 目录写完整 9 个 artifact（与 ``run`` 命令对齐）；
+    - ``metrics.json``/``report.md`` 顶部 ``signal_quality = recorded_trajectory``，
+      明确告诉读者"这次的 PASS/FAIL 是 trajectory 复刻，不是当前 Agent 决策"；
+    - stdout 打一行 JSON 摘要 ``{out_dir, metrics, source_run}``，便于 CI grep。
+    """
+
+    from agent_tool_harness.agents.transcript_replay_adapter import (
+        TranscriptReplayAdapter,
+    )
+
+    tools = load_tools(tools_path)
+    evals = load_evals(evals_path)
+    _warn_if_empty(tools, "tools", tools_path)
+    _warn_if_empty(evals, "evals", evals_path)
+
+    adapter = TranscriptReplayAdapter(source_run)
+    result = EvalRunner().run(
+        load_project(project_path),
+        tools,
+        evals,
+        adapter,
+        out,
+    )
+    print(
+        json.dumps(
+            {
+                "out_dir": result["out_dir"],
+                "metrics": result["metrics"],
+                "source_run": str(adapter.source_run_dir),
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 

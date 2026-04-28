@@ -17,6 +17,7 @@
 | 6 | `run --mock-path bad` | 跑一次 unhappy path 回放（**必跑**） | 同上，但 `passed=false` | `diagnosis.json` 的 `findings` + `tool_use_signals` |
 | 7 | `analyze-artifacts` | 离线复盘上一步 trace 信号 | `tool_use_signals.json` + `.md` 写出 | stderr `--run` / `--evals` 提示 |
 | 8 | 看 `report.md` + `tool_use_signals.md` | 真人解读 | Per-Eval Details 段含 trace 信号 | 回 raw `tool_calls.jsonl` / `tool_responses.jsonl` |
+| 9 *(可选, v0.3)* | `replay-run --source-run RUN` | 把上面的 run 当"录像带"deterministic 重放 | 新 `--out` 目录 9 个 artifact 全在；`metrics.signal_quality=recorded_trajectory` | 源目录缺 `tool_calls.jsonl` 时 stderr 给可行动 hint |
 
 ## 路径 A：runtime_debug example（推荐第一遍）
 
