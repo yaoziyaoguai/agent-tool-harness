@@ -28,7 +28,7 @@
 
 | 阶段 | 一句话目标 | 当前状态 |
 |------|-----------|---------|
-| **v0.1** | **最小 harness 跑起来** —— 一次 Agent 运行能记录证据、用基础规则判断工具调用链路是否合理、跑最小 eval、输出可读报告 | **基本达成（剩 1 条 blocking）** |
+| **v0.1** | **最小 harness 跑起来** —— 一次 Agent 运行能记录证据、用基础规则判断工具调用链路是否合理、跑最小 eval、输出可读报告 | **release-ready（3/3 blocking 闭环，commit `493f677`）** |
 | v0.2 | 更强的 deterministic audit / judge / transcript 能力 | 进行中（**建议暂停扩张直到 v0.1 毕业**）|
 | v0.3 | 自动化回归 / 场景库 / 真实 Agent Runtime 集成 | 未启动 |
 | v1.0 | 稳定可扩展的 Agent Harness 平台 | 未启动 |
@@ -99,8 +99,12 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
    commit `1aff4a6`，详见下文 §1）；
 5. ✅ **ONBOARDING.md 的 10 分钟接入路径在外部用户视角下完整走查并修订**
    （v0.1 blocking 2 — 已完成，详见下文 §2）；
-6. ❌ **v0.2 工作区改动妥善归档**，v0.1 基线干净，可作为对外 release 候选
-   （v0.1 blocking 3）。
+6. ✅ **v0.2 工作区改动妥善归档**，v0.1 基线干净，可作为对外 release 候选
+   （v0.1 blocking 3 — 已完成 commit `493f677`，详见下文 §3）。
+
+**v0.1 release-ready 状态**：上述 6 条毕业标准已全部达成（最后闭环 commit
+`493f677`）。下一步是 v0.1 release 决策（由项目所有者触发）；v0.2 路线在 v0.1
+正式标 release 前不启动新功能开发，仅允许文档层面引用与回溯。
 
 ### 非目标（v0.1 期间**严禁**做）
 
@@ -122,7 +126,7 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
 4. 给 strict xfail 文件再添加新的 case；
 5. 对 examples/runtime_debug 之外的真实业务符号做硬编码。
 
-### v0.1 当前 blocking issue（**只剩 1 条**）
+### v0.1 当前 blocking issue（**3/3 已闭环**）
 
 #### 1. 第二个 example 项目（已完成 — commit `1aff4a6`）
 **状态**：✅ 已完成。`examples/knowledge_search/` 在 commit `1aff4a6` 落地
@@ -236,9 +240,12 @@ v0.1 blocking 3 的归档凭证。
 ### v0.1 期间下一步只允许做什么
 
 按优先级（同时只允许 1 件）：
-1. 处理 v0.2 工作区改动（blocking 3，剩余唯一 v0.1 blocking）；
+1. ~~处理 v0.2 工作区改动（blocking 3）~~ — **已完成 commit `493f677`**；
 2. ~~写 `examples/<second-project>/`（blocking 1）~~ — **已完成 commit `1aff4a6`**；
 3. ~~外部用户视角走查 ONBOARDING（blocking 2）~~ — **已完成 commit `93a97a3` + `b533c91`**。
+
+3 条 blocking 全部闭环，v0.1 release-ready；下一步由项目所有者触发 release 决策，
+v0.2 milestone 在 release 之后才允许启动新功能（详见 §"v0.2"）。
 
 ---
 
