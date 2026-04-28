@@ -2,6 +2,45 @@ from __future__ import annotations
 
 from typing import Any
 
+# v1.5 第二轮：advisory 失败 → 可行动 suggested_fix 表。deterministic 静态映射，
+# **不**调 LLM、不拼真实 URL、不读真实 key；让 reviewer 直接在 report.md 里看到
+# "缺 recording 怎么补 / live transport 被禁如何打开 / 8 类 transport 错误如何排查"。
+# 未识别的 error_code 由 _render_one_advisory 走通用 fallback hint。
+_ADVISORY_SUGGESTED_FIX: dict[str, str] = {
+    "missing_recording": (
+        "在 --judge-recording / --judge-advisory 指向的 fixture 中补上对应 eval_id 的 "
+        "judgment（passed/rationale/confidence/rubric）；缺失不是 PASS。"
+    ),
+    "missing_config": (
+        "AnthropicCompatibleJudgeProvider 缺 4 个 env（_PROVIDER/_BASE_URL/_API_KEY/_MODEL）；"
+        "见 .env.example，**绝不**把真实 key 粘到 git/prompt/report。"
+    ),
+    "disabled_live_provider": (
+        "live transport 被显式禁用：CI / smoke 必走 --judge-fake-transport-fixture；"
+        "真实 live 仅当用户在自己环境主动传 --live --confirm-i-have-real-key 才启用。"
+    ),
+    "auth_error": (
+        "认证失败（已脱敏）；检查 env API_KEY 是否对当前 provider 有效，"
+        "**不**贴 key。"
+    ),
+    "rate_limited": (
+        "被限流（已脱敏）；降低并发或等待退避，不要在 prompt/log 里回填 "
+        "retry-after 长文本。"
+    ),
+    "network_error": (
+        "网络错误（已脱敏）；检查 base_url / 出口可达性，"
+        "不要把真实 url 拼进报告。"
+    ),
+    "timeout": "超时（已脱敏）；拉长 timeout 或检查 endpoint 健康度。",
+    "bad_response": (
+        "响应不可解析（已脱敏）；检查 provider 是否真为 Anthropic-compatible 接口。"
+    ),
+    "provider_error": (
+        "provider 未分类错误（已脱敏）；查看 judge_results.json 中 "
+        "error_code 与 model 字段定位。"
+    ),
+}
+
 
 class MarkdownReport:
     """生成面向 review 的 Markdown 报告。
@@ -561,7 +600,74 @@ class MarkdownReport:
             if extras:
                 line += " [" + "; ".join(extras) + "]"
             lines.append(line)
+            # v1.5 第二轮：多 advisory 模式下，主行只放投票概览；本块为每个 advisory
+            # 单独缩进展开 provider/passed/rationale/confidence/error/suggested_fix，
+            # 让 reviewer **不用打开 judge_results.json** 就能定位"是哪条 advisory
+            # 与 deterministic 分歧、为什么分歧、出错的 advisory 该怎么修"。
+            #
+            # 设计边界：
+            # - 仍然只读 JSON 字段，不重新评判；
+            # - error 条目必须显示 error_code + 脱敏 message + suggested_fix，
+            #   不允许 silent pass；suggested_fix 来自固定 deterministic 表，
+            #   不调 LLM、不拼真实 URL。
+            if isinstance(adv_list, list) and adv_list:
+                for adv_entry in adv_list:
+                    sub = self._render_one_advisory(adv_entry)
+                    if sub:
+                        lines.extend(sub)
         return lines
+
+    def _render_one_advisory(self, adv_entry: dict[str, Any]) -> list[str]:
+        """渲染单条 advisory 子项（v1.5 第二轮）。
+
+        本方法负责什么
+        --------------
+        把一条 advisory_results[i] 渲染成 1~2 行缩进 markdown 子条目：
+        正常路径输出 ``provider/mode/passed/confidence/rationale``；错误
+        路径输出 ``error_code/error_message/suggested_fix``。
+
+        本方法**不**负责什么
+        --------------------
+        - 不写真实 secret——所有字段都直接来自已脱敏的 JSON；
+        - 不重新评判、不调 LLM、不重组 advisory 结果；
+        - 不引入新依赖。
+
+        suggested_fix 表是 deterministic 静态映射，覆盖 v1.x 已落地的
+        error_code（missing_recording / missing_config / disabled_live_provider /
+        auth_error / rate_limited / network_error / timeout / bad_response /
+        provider_error）。未识别 error_code → 通用 hint，不会崩。
+        """
+
+        if not isinstance(adv_entry, dict):
+            return []
+        provider = adv_entry.get("provider", "?")
+        mode = adv_entry.get("mode", "?")
+        if "error_code" in adv_entry:
+            err_code = adv_entry["error_code"]
+            err_msg = adv_entry.get("error_message", "")
+            suggested = _ADVISORY_SUGGESTED_FIX.get(
+                err_code,
+                (
+                    "查看 judge_results.json::dry_run_provider 的对应 advisory "
+                    "条目获取脱敏字段；不要回填真实 key/url。"
+                ),
+            )
+            return [
+                f"  - advisory [{provider}/{mode}] error: {err_code} — {err_msg}",
+                f"    suggested_fix: {suggested}",
+            ]
+        passed = adv_entry.get("passed")
+        confidence = adv_entry.get("confidence")
+        rationale = adv_entry.get("rationale")
+        recording_ref = adv_entry.get("recording_ref")
+        bits = [f"passed={passed}"]
+        if confidence is not None:
+            bits.append(f"confidence={confidence}")
+        if rationale:
+            bits.append(f"rationale={rationale}")
+        if recording_ref:
+            bits.append(f"recording_ref={recording_ref}")
+        return [f"  - advisory [{provider}/{mode}] " + "; ".join(bits)]
 
     def _render_failure_attribution(self, diagnosis: dict[str, Any]) -> list[str]:
         """聚合所有 eval 的 finding，按 category 输出汇总。

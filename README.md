@@ -46,6 +46,10 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > v1.4 第二轮（**已合入 main，待发版**）：`run` 子命令新增 `--judge-provider anthropic_compatible_live` + `--live` / `--confirm-i-have-real-key` / `--judge-fake-transport-fixture` 三组旗标；新增 `examples/fake_transport_fixtures/runtime_debug.yaml` 示例 fixture；新增 6 条 CLI 契约测试（含 socket 禁用 + key/url 字面值泄漏扫描）。**CI 仍 0 联网；任何真实 live 必须由用户在自己环境配 env + 双标志 + 不传 fake fixture 才会触发**。
 >
 > v1.4 release notes：见 [RELEASE_NOTES_v1.4.md](RELEASE_NOTES_v1.4.md)（live-ready fake transport MVP）。
+>
+> v1.5 第一轮（**已合入 main，待发版**）：`run` 子命令新增 `--judge-advisory NAME:PATH` 可重复 flag，把 v1.3 多 advisory majority-vote Python API 接到 CLI；NAME 仅支持 `recorded` / `anthropic_compatible_offline` / `anthropic_compatible_fake`，**绝不**接受任何 live transport NAME；与 `--judge-provider` 互斥。新增 6 条契约测试。**CI 仍 0 联网；不需要真实密钥**。
+>
+> v1.5 第二轮（**已合入 main，待发版**）：MarkdownReport 多 advisory 可读性扩展——`report.md` 在 majority/votes 概览下为每条 advisory 输出 `provider/passed/rationale/confidence` 或 `error_code/suggested_fix` 缩进子条目，让 reviewer 不用打开 JSON 即可定位分歧与错误。`_ADVISORY_SUGGESTED_FIX` 静态映射覆盖 9 类 error_code。新增 6 条渲染契约测试。**仍是文档/可读性强化，不是真实 LLM Judge**。
 
 ## 快速开始
 

@@ -389,6 +389,22 @@ runs/<dir>` 写出两份 artifact，**纯本地、不联网、不读取真实 ke
 
 `TranscriptAnalyzer` 派生的失败归因（deterministic heuristic，**不是 LLM Judge**）。
 
+### v1.5 第二轮 report.md 多 advisory 渲染（关联 judge_results.json）
+
+`report.md → ## Dry-run JudgeProvider (advisory only)` 段在 v1.5 第二轮起，
+对每个 eval 的 multi-advisory 投票额外输出**缩进 sub-bullet**：
+
+- 正常 advisory：`provider/mode passed=... confidence=... rationale=...
+  recording_ref=...`；
+- 错误 advisory：`error_code: <slug> — <脱敏 message>` + `suggested_fix:
+  <静态 deterministic 提示>`，**绝不**写真实 key/url/Authorization。
+
+reviewer 因此不用打开 `judge_results.json` 即可定位"哪条 advisory 与
+deterministic 分歧 / 出错的 advisory 该怎么修"。`_ADVISORY_SUGGESTED_FIX`
+覆盖 9 类 error_code（missing_recording / missing_config /
+disabled_live_provider / 6 类 transport），未识别 → 通用 fallback hint。
+契约由 `tests/test_markdown_report_multi_advisory.py` 6 条测试钉死。
+
 字段（向后兼容字段保留）：
 
 - `results[*].eval_id`、`passed`。

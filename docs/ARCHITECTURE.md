@@ -365,6 +365,13 @@ tracing 新依赖**，所有 finding 都是 deterministic 启发式。
 - 顶层 **Failure Attribution** 段按 category 聚合所有 eval 的 finding，便于 PR
   review / 周会一眼看到本次 run 的主要痛点类别。
 - Methodology Caveats 显式声明"diagnosis 是 deterministic heuristic 不是 LLM Judge"。
+- **v1.5 第二轮**：`## Dry-run JudgeProvider (advisory only)` 段在多 advisory
+  投票下，主行只放 `majority_passed` + `vote_distribution`，每条 advisory
+  另起缩进 sub-bullet 输出 `provider/passed/rationale/confidence` 或
+  `error_code/error_message/suggested_fix`。`_ADVISORY_SUGGESTED_FIX` 是
+  deterministic 静态映射（9 类 error_code），**不**调 LLM、不拼真实 url/key；
+  reviewer 因此不用打开 `judge_results.json` 即可定位分歧与错误。契约由
+  `tests/test_markdown_report_multi_advisory.py` 6 条测试钉死。
 
 ## 扩展边界
 
