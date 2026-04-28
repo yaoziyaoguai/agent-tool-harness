@@ -294,6 +294,30 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # v1.6 第三项：audit-judge-prompts —— 启发式扫描 judge prompt + rubric 文本。
+    # 用户接入点：把准备发给 LLM judge 的 prompt 写到 yaml/json
+    # （顶层 ``prompts: [{id, prompt, rubric}]``），跑这个命令拿到
+    # ``audit_judge_prompts.json`` + ``.md``。**不**联网、**不**调 LLM。
+    audit_prompts = subparsers.add_parser(
+        "audit-judge-prompts",
+        help=(
+            "对 LLM judge prompt + rubric 跑启发式安全审计："
+            "**纯本地、不联网、不调 LLM**。检查 prompt 是否过短、缺 evidence 占位、"
+            "缺 PASS/FAIL rubric、缺 grounding、含 key 字面、引导泄漏 secret、"
+            "把 advisory 当 ground truth 等。"
+        ),
+    )
+    audit_prompts.add_argument(
+        "--prompts",
+        required=True,
+        help="输入 yaml/json 路径；顶层结构 {prompts: [{id, prompt, rubric}]}。",
+    )
+    audit_prompts.add_argument(
+        "--out",
+        required=True,
+        help="输出目录，将写入 audit_judge_prompts.json + audit_judge_prompts.md。",
+    )
+
     return parser
 
 
@@ -356,6 +380,8 @@ def main(argv: list[str] | None = None) -> int:
                 live=args.live,
                 confirm_i_have_real_key=args.confirm_i_have_real_key,
             )
+        if args.command == "audit-judge-prompts":
+            return _audit_judge_prompts(prompts=args.prompts, out=args.out)
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
         # 避免把内部 traceback 推给真实团队；他们应该得到一条直接告诉他们改哪个字段
@@ -493,6 +519,72 @@ def _audit_evals(evals_path: str, out: str) -> int:
     )
     _write_json(out_dir / "audit_evals.json", stamped)
     print(f"wrote {out_dir / 'audit_evals.json'}")
+    return 0
+
+
+def _audit_judge_prompts(prompts: str, out: str) -> int:
+    """v1.6 第三项 CLI 入口：对 judge prompt + rubric 跑启发式安全审计。
+
+    职责
+    ----
+    - 读取 ``--prompts`` 指向的 yaml/json 文件（顶层 ``prompts: [...]``）；
+    - 调用 :class:`JudgePromptAuditor` 跑 deterministic 规则；
+    - 写出 ``audit_judge_prompts.json``（带 schema_version + run_metadata）
+      与 ``audit_judge_prompts.md``（reviewer 可读）。
+
+    不负责
+    ------
+    - **不**调用任何 LLM；
+    - **不**修改输入 prompt；
+    - **不**对工具或 eval 做评估（这条管道与 ``audit-tools`` /
+      ``audit-evals`` 平级独立）。
+
+    artifact 排查路径
+    -----------------
+    - 输出目录下两个 artifact；critical/high finding 必须在合入新 prompt
+      前修掉，否则任何后续 LLM judge 都不可信。
+    """
+
+    from agent_tool_harness.audit.judge_prompt_auditor import (
+        JudgePromptAuditor,
+        render_markdown,
+    )
+
+    path = Path(prompts)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"audit-judge-prompts: input file not found: {prompts}\n"
+            "  Hint: 文件需要包含 yaml/json 顶层 mapping，键 prompts 为 list，"
+            "      每条 entry 至少含 id/prompt/rubric。"
+        )
+    text = path.read_text(encoding="utf-8")
+    if path.suffix in {".yaml", ".yml"}:
+        import yaml as _yaml
+
+        spec = _yaml.safe_load(text) or {}
+    else:
+        import json as _json
+
+        spec = _json.loads(text)
+
+    auditor = JudgePromptAuditor()
+    result = auditor.audit(spec)
+
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamped = stamp_artifact(
+        result,
+        run_metadata=make_run_metadata(
+            extra={"command": "audit-judge-prompts",
+                   "input_file": str(path)},
+        ),
+    )
+    _write_json(out_dir / "audit_judge_prompts.json", stamped)
+    (out_dir / "audit_judge_prompts.md").write_text(
+        render_markdown(result), encoding="utf-8"
+    )
+    print(f"wrote {out_dir / 'audit_judge_prompts.json'}")
+    print(f"wrote {out_dir / 'audit_judge_prompts.md'}")
     return 0
 
 

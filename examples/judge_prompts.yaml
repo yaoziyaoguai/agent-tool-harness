@@ -1,0 +1,27 @@
+# 示例：judge prompt + rubric 规格 fixture（v1.6）。
+#
+# 用途
+# ====
+# - 用作 ``audit-judge-prompts`` 的最小可跑 fixture；
+# - 演示用户应如何组织自己的 prompt 库以便走启发式审计；
+# - 既包含**故意触发规则**的反例（id=p1: 太短 + 缺占位 + 无 grounding），
+#   也包含一条**干净示例**（id=p2: 长度足够 + 引用 evidence_refs + rubric 含
+#   PASS/FAIL + 含 grounding），方便对比 finding 是否合理。
+#
+# 边界
+# ====
+# - 这只是文档/示例文件，**不**会被 EvalRunner 自动消费；
+# - audit 输出不写回本文件（audit 是 read-only）。
+prompts:
+  - id: p1
+    prompt: "judge it"
+    rubric: ""
+  - id: p2
+    prompt: |
+      Carefully review the agent's transcript and tool_calls referenced in
+      {evidence_refs}. Decide whether the evidence supports the verifiable_outcome.
+      Cite specific tool calls and tool responses to ground your judgment.
+    rubric: |
+      PASS if all required tools were called and the evidence supports the
+      verifiable_outcome; FAIL otherwise. Be explicit about which evidence
+      drove the decision.
