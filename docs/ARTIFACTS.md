@@ -261,6 +261,24 @@ RuleJudge 对每个 eval 的逐规则结果。
 - `suggested_fixes`：去重后的全部 suggested_fix 列表。
 - `what_to_check_next`：建议优先看的 raw artifact 路径列表。
 - `diagnosis_kind`：固定为 `"deterministic_heuristic"`，明确告知下游不是 LLM。
+- `tool_use_signals`（v0.2 第三轮新增）：list of trace-derived deterministic
+  signal，由 `TraceSignalAnalyzer` 直接消费 raw `tool_calls.jsonl` /
+  `tool_responses.jsonl` payload + `ToolSpec.output_contract` /
+  `when_not_to_use` 派生。**与 `findings` 正交并存**——前者来自 judge 规则，
+  本字段来自工具契约 + 调用模式。每条字段：
+  - `signal_type`：`tool_result_no_evidence` /
+    `tool_result_missing_next_action` /
+    `large_or_truncated_tool_response_without_guidance` /
+    `repeated_low_value_tool_call` /
+    `tool_selected_in_when_not_to_use_context` 之一；
+  - `severity`：`high` / `medium` / `info`；
+  - `evidence_refs`：指回 `tool_responses.jsonl#call_id=...` /
+    `tools.yaml#name=...` 等可 grep 锚点；
+  - `related_tool` / `related_eval`：信号关联对象；
+  - `why_it_matters` / `suggested_fix`：中文学习型解释 + 可行动建议。
+  阈值与边界详见 `agent_tool_harness/diagnose/trace_signal_analyzer.py`
+  顶层 docstring。空列表 `[]` 表示分析器没识别到模式异常（**不**等价于
+  "工具响应一定健康"——deterministic 启发式有边界）。
 
 排查指引：
 

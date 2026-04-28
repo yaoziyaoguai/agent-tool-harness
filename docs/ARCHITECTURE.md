@@ -251,6 +251,41 @@ tracing 新依赖**，所有 finding 都是 deterministic 启发式。
 - runtime 类 finding 出现时，analyzer 会主动跳过 `agent_tool_choice` 类 finding，
   避免对没机会真实选工具的 eval 错误归因。
 
+#### TraceSignalAnalyzer（v0.2 第三轮新增）
+
+`agent_tool_harness/diagnose/trace_signal_analyzer.py`。它与
+`TranscriptAnalyzer` **正交并存**：
+
+- TranscriptAnalyzer 主要消费 `judge.checks`（rule-derived），回答
+  "哪些规则失败了 → 归到哪个 category"；
+- TraceSignalAnalyzer 直接消费 raw `tool_calls.jsonl` /
+  `tool_responses.jsonl` payload + `ToolSpec.output_contract` /
+  `when_not_to_use`，回答 "工具是否兑现自己的契约 / 调用模式是否
+  浪费 / Agent 是否进入了工具自报的禁用场景"。
+
+输出落到每条 diagnosis 的 `tool_use_signals` 字段（与 `findings` 共存，
+**不替换**它），共 5 类 deterministic 信号：
+
+- `tool_result_no_evidence`：output_contract 声明返回 evidence 但响应缺/为空；
+- `tool_result_missing_next_action`：契约要 next_action 但响应缺；
+- `large_or_truncated_tool_response_without_guidance`：响应大或带截断
+  标记，且既无 next_action 也无 token_policy.truncation_guidance；
+- `repeated_low_value_tool_call`：同一 (tool_name, arguments) 调 ≥2 次；
+- `tool_selected_in_when_not_to_use_context`：工具的 when_not_to_use
+  关键词与 eval user_prompt 取交集 ≥2 个。
+
+边界声明（**重要**）：
+
+- 全部 deterministic 启发式，不调 LLM、不调 MCP、不重新执行工具；
+- 词袋启发式无法识别"用同义词改写禁用场景"——这类 case 仍由
+  strict xfail `tests/test_tool_design_audit_subtle_decoy_xfail.py`
+  钉住，等待 v0.3 transcript-based 样本或 LLM judge；
+- 阈值（如 `_LARGE_RESPONSE_CHAR_THRESHOLD = 2000` / 关键词命中 ≥2）
+  写在模块顶层常量，调整前必须重跑 `tests/test_trace_signal_analyzer.py`
+  的反向断言保护 `examples/runtime_debug` 不被误伤；
+- 提供 `analyze_run_dir(run_dir, tools=...)` helper 用于对历史 run
+  目录独立复盘——本轮**不**新增 `analyze-artifacts` CLI（v0.2 backlog）。
+
 ### reports
 
 `MarkdownReport` 聚合 audit、metrics、judge 和 diagnosis，输出 `report.md`。

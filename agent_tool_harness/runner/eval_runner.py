@@ -11,6 +11,7 @@ from agent_tool_harness.audit.tool_design_auditor import ToolDesignAuditor
 from agent_tool_harness.config.eval_spec import EvalSpec
 from agent_tool_harness.config.project_spec import ProjectSpec
 from agent_tool_harness.config.tool_spec import ToolSpec
+from agent_tool_harness.diagnose.trace_signal_analyzer import TraceSignalAnalyzer
 from agent_tool_harness.diagnose.transcript_analyzer import TranscriptAnalyzer
 from agent_tool_harness.judges.rule_judge import JudgeResult, RuleCheckResult, RuleJudge
 from agent_tool_harness.recorder.run_recorder import RunRecorder
@@ -62,12 +63,17 @@ class EvalRunner:
         eval_auditor: EvalQualityAuditor | None = None,
         judge: RuleJudge | None = None,
         analyzer: TranscriptAnalyzer | None = None,
+        trace_signal_analyzer: TraceSignalAnalyzer | None = None,
         report: MarkdownReport | None = None,
     ):
         self.tool_auditor = tool_auditor or ToolDesignAuditor()
         self.eval_auditor = eval_auditor or EvalQualityAuditor()
         self.judge = judge or RuleJudge()
         self.analyzer = analyzer or TranscriptAnalyzer()
+        # trace_signal_analyzer 在每次 run 中需要按 ToolSpec 列表重建索引；这里
+        # 允许调用方注入实例（测试可注入空实例），但实际 tools_by_name 索引在
+        # ``run`` 中再装配——避免构造期就必须知道 tools。
+        self._trace_signal_analyzer_override = trace_signal_analyzer
         self.report = report or MarkdownReport()
 
     def run(
@@ -89,6 +95,18 @@ class EvalRunner:
         # 把 adapter 自报的信号质量提前抓出来，无论后续 audit/adapter 走哪条分支，metrics
         # 与 report 都能稳定地告诉用户“这次 run 的 PASS/FAIL 信号是什么级别”。
         signal_quality = str(getattr(adapter, "SIGNAL_QUALITY", UNKNOWN))
+        # v0.2 第三轮：构造 trace-derived 信号分析器索引。这里同时按短名 / qualified
+        # name 注册 ToolSpec，让 mock_replay_adapter（短名）和未来真实 adapter
+        # （qualified name）都能命中契约 lookup。索引在每次 run 内只建一次，
+        # 后面在每条 eval diagnosis 后调用 analyzer.analyze_eval。
+        tools_by_name: dict[str, ToolSpec] = {}
+        for tool in tools:
+            tools_by_name[tool.name] = tool
+            if tool.qualified_name and tool.qualified_name != tool.name:
+                tools_by_name[tool.qualified_name] = tool
+        trace_analyzer = self._trace_signal_analyzer_override or TraceSignalAnalyzer(
+            tools_by_name
+        )
         # 先审计契约，再运行 Agent。这样即使运行失败，也能区分是工具/eval 设计问题
         # 还是 Agent tool-use 路径问题。
         audit_tools = self.tool_auditor.audit(tools)
@@ -144,12 +162,13 @@ class EvalRunner:
                 )
                 judge_results.append(judge_result.to_dict())
                 diagnoses.append(
-                    self.analyzer.analyze(
+                    self._diagnose(
                         case,
                         run_result,
                         judge_result,
-                        audit_eval_findings=audit_eval_findings_by_id.get(case.id),
-                        audit_tool_findings=audit_tool_findings_by_name,
+                        audit_eval_findings_by_id,
+                        audit_tool_findings_by_name,
+                        trace_analyzer,
                     )
                 )
             return self._write_artifacts(
@@ -190,12 +209,13 @@ class EvalRunner:
                 )
                 judge_results.append(judge_result.to_dict())
                 diagnoses.append(
-                    self.analyzer.analyze(
+                    self._diagnose(
                         case,
                         run_result,
                         judge_result,
-                        audit_eval_findings=audit_eval_findings_by_id.get(case.id),
-                        audit_tool_findings=audit_tool_findings_by_name,
+                        audit_eval_findings_by_id,
+                        audit_tool_findings_by_name,
+                        trace_analyzer,
                     )
                 )
                 continue
@@ -232,12 +252,13 @@ class EvalRunner:
                 )
                 judge_results.append(judge_result.to_dict())
                 diagnoses.append(
-                    self.analyzer.analyze(
+                    self._diagnose(
                         case,
                         run_result,
                         judge_result,
-                        audit_eval_findings=audit_eval_findings_by_id.get(case.id),
-                        audit_tool_findings=audit_tool_findings_by_name,
+                        audit_eval_findings_by_id,
+                        audit_tool_findings_by_name,
+                        trace_analyzer,
                     )
                 )
                 continue
@@ -245,12 +266,13 @@ class EvalRunner:
             judge_result = self.judge.judge(case, run_result)
             judge_results.append(judge_result.to_dict())
             diagnoses.append(
-                self.analyzer.analyze(
+                self._diagnose(
                     case,
                     run_result,
                     judge_result,
-                    audit_eval_findings=audit_eval_findings_by_id.get(case.id),
-                    audit_tool_findings=audit_tool_findings_by_name,
+                    audit_eval_findings_by_id,
+                    audit_tool_findings_by_name,
+                    trace_analyzer,
                 )
             )
 
@@ -389,6 +411,71 @@ class EvalRunner:
             "signal_quality": signal_quality,
             "signal_quality_note": describe(signal_quality),
         }
+
+    def _diagnose(
+        self,
+        case: EvalSpec,
+        run_result: AgentRunResult,
+        judge_result: JudgeResult,
+        audit_eval_findings_by_id: dict[str, list[dict[str, Any]]],
+        audit_tool_findings_by_name: dict[str, list[dict[str, Any]]],
+        trace_analyzer: TraceSignalAnalyzer,
+    ) -> dict[str, Any]:
+        """聚合 TranscriptAnalyzer + TraceSignalAnalyzer 的复盘输出。
+
+        架构边界：
+        - **负责**：在每条 eval 复盘点合成两类证据——rule-derived findings
+          （来自 TranscriptAnalyzer，消费 judge.checks）+ artifact-derived
+          tool_use_signals（来自 TraceSignalAnalyzer，消费 raw payload 与
+          ToolSpec.output_contract）。两类信号并存写入同一份 diagnosis 记录。
+        - **不负责**：不重新执行工具、不修改 judge 结果、不调 LLM。
+
+        为什么并存而不是合并：两层来源不同，证据语义不同。如果合并到一个
+        ``findings`` 列表，下游消费者会失去"信号属于规则失败 / 还是 contract
+        没满足"的区分。把 trace signals 放在新字段 ``tool_use_signals``，
+        旧字段 ``findings`` 完全不变，向后兼容（artifact_schema 保持
+        "只增不删"承诺）。
+
+        失败保全：trace_analyzer.analyze_eval 抛异常时不应让 diagnosis 整体
+        失败——这里捕获并塞入空列表 + 一条 info 信号，确保 diagnosis.json
+        不会因一条规则的 bug 缺失整个 eval 的复盘视图。
+        """
+
+        diagnosis = self.analyzer.analyze(
+            case,
+            run_result,
+            judge_result,
+            audit_eval_findings=audit_eval_findings_by_id.get(case.id),
+            audit_tool_findings=audit_tool_findings_by_name,
+        )
+        try:
+            signals = trace_analyzer.analyze_eval(
+                eval_id=case.id,
+                user_prompt=case.user_prompt,
+                tool_calls=run_result.tool_calls,
+                tool_responses=run_result.tool_responses,
+            )
+        except Exception as exc:  # noqa: BLE001
+            signals = [
+                {
+                    "signal_type": "signal_extraction_error",
+                    "severity": "info",
+                    "evidence_refs": [
+                        f"diagnosis.json#eval_id={case.id} stage=trace_signal_analyzer",
+                    ],
+                    "related_tool": None,
+                    "related_eval": case.id,
+                    "why_it_matters": (
+                        "TraceSignalAnalyzer 在本条 eval 上抛了异常；"
+                        "其他归因仍可信，但这条信号缺失。"
+                    ),
+                    "suggested_fix": (
+                        f"复盘 raw artifacts 后给 trace_signal_analyzer 提 issue；异常: {exc}"
+                    ),
+                }
+            ]
+        diagnosis["tool_use_signals"] = signals
+        return diagnosis
 
     def _runnable_by_eval(self, audit_evals: dict[str, Any]) -> dict[str, bool]:
         """从 EvalQualityAuditor 输出中提取执行闸门。

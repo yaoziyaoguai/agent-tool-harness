@@ -130,6 +130,22 @@ python -m ruff check .
 - ToolRegistry 对歧义短名不静默覆盖；
 - PythonToolExecutor 校验 required/type 并正确绑定单参数函数；
 - RuleJudge 拒绝空 root cause 和未引用具体 evidence 的答案。
+- TraceSignalAnalyzer（v0.2 第三轮新增，
+  `tests/test_trace_signal_analyzer.py`）覆盖 5 类 deterministic
+  trace 信号的**正向 + 反向**断言：
+  正向钉住"contract 缺 evidence/next_action / 大响应或截断无指引 /
+  同 args 重复调用 / when_not_to_use 词袋命中" 必须产生 signal；
+  反向钉住"contract 完整 / 响应小 / 不同 args / 关键词不命中" 必须
+  **不**产生 signal——避免阈值漂移误伤合法 spec。`_assert_signal_contract`
+  helper 钉死每条 signal 必带 7 字段（`signal_type` / `severity` /
+  `evidence_refs` / `related_tool` / `related_eval` / `why_it_matters`
+  / `suggested_fix`）。`test_analyze_run_dir_replays_signals_from_disk`
+  钉死磁盘 replay helper 与内存 analyzer 等价。
+  `tests/test_eval_runner_artifacts.py` 末尾 e2e 集成断言：good path
+  的 diagnosis 含空 `tool_use_signals: []`；bad path 必须包含
+  `tool_selected_in_when_not_to_use_context`——这条信号是
+  `examples/runtime_debug` bad 路径下能被 demo 数据自然触发的，
+  其余 4 类 demo 数据触发不到，由 unit test 覆盖。
 - loader 支持 tools/evals list root，并对重复 eval id、错误 entry 类型和错误字段类型报 ConfigError。
 - candidate 必须保留 candidate/review 语义：`from_tools` / `from_tests` 输出
   必须含 `review_status="candidate"` / `review_notes` (list) / `difficulty` /

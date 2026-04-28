@@ -29,3 +29,18 @@ def test_eval_runner_good_and_bad_paths_generate_required_artifacts(tmp_path):
     assert bad_judge["results"][0]["passed"] is False
     assert bad_diagnosis["results"][0]["first_tool"] == "tui_inspect_snapshot"
     assert bad_diagnosis["results"][0]["missing_required_tools"]
+
+    # v0.2 第三轮：runner 必须把 TraceSignalAnalyzer 输出落到每条 diagnosis 的
+    # ``tool_use_signals`` 字段；bad path 上 tui_inspect_snapshot 的
+    # when_not_to_use 与 user_prompt 至少命中两个关键词，应触发
+    # ``tool_selected_in_when_not_to_use_context``。这条断言钉死 runner 与
+    # analyzer 的集成不会被未来重构悄悄断开。good path 不应触发任何 signal——
+    # 反向断言保证 analyzer 没有退化为"任何 run 都报"的噪声源。
+    good_diagnosis = json.loads((tmp_path / "good" / "diagnosis.json").read_text())
+    assert "tool_use_signals" in good_diagnosis["results"][0]
+    assert good_diagnosis["results"][0]["tool_use_signals"] == []
+
+    bad_signals = bad_diagnosis["results"][0]["tool_use_signals"]
+    assert isinstance(bad_signals, list) and bad_signals
+    bad_signal_types = {s["signal_type"] for s in bad_signals}
+    assert "tool_selected_in_when_not_to_use_context" in bad_signal_types

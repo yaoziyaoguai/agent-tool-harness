@@ -379,6 +379,29 @@ class MarkdownReport:
             for ref in what_to_check:
                 block.append(f"    - {ref}")
 
+        # v0.2 第三轮新增：trace-derived tool-use 信号渲染。
+        # 这些信号来自 TraceSignalAnalyzer，是从 raw tool_responses payload + ToolSpec
+        # output_contract 复盘出来的"contract / 模式"层面证据，与上方 rule-derived
+        # findings 正交。展示时显式标注 source=trace，避免读者混淆。
+        signals = list(diag.get("tool_use_signals", []) or [])
+        if signals:
+            block.append("- Trace-derived tool-use signals (deterministic, from raw artifacts):")
+            for sig in signals:
+                stype = sig.get("signal_type", "<unknown>")
+                severity = sig.get("severity", "?")
+                related = sig.get("related_tool") or ""
+                related_text = f" (tool: `{related}`)" if related else ""
+                why = sig.get("why_it_matters", "")
+                block.append(
+                    f"    - [{severity}] **{stype}**{related_text} — {why}"
+                )
+                fix = sig.get("suggested_fix")
+                if fix:
+                    block.append(f"        - Suggested fix: {fix}")
+                refs = sig.get("evidence_refs", []) or []
+                if refs:
+                    block.append(f"        - Evidence: {', '.join(refs)}")
+
         block.append("- Next steps:")
         for hint in self._next_steps(status, missing, forbidden_hit, max_calls_hit, runtime_reason):
             block.append(f"    - {hint}")
