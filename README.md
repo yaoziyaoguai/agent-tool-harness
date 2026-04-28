@@ -29,6 +29,7 @@ v0.1 release-ready 摘要见 [`RELEASE_NOTES_v0.1.md`](RELEASE_NOTES_v0.1.md)（
 v0.2 release-ready 摘要见 [`RELEASE_NOTES_v0.2.md`](RELEASE_NOTES_v0.2.md)（trace-derived signals + analyze-artifacts CLI + TRY_IT product trial path）。
 v0.3 release-ready 摘要见 [`RELEASE_NOTES_v0.3.md`](RELEASE_NOTES_v0.3.md)（TranscriptReplayAdapter + replay-run CLI；deterministic recorded-trajectory replay）。
 v1.0 release-ready 摘要见 [`RELEASE_NOTES_v1.0.md`](RELEASE_NOTES_v1.0.md)（deterministic anti-decoy evidence grounding + grounding/decoy report 渲染 + run/replay/analyze 三段管线对齐）。
+v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（JudgeProvider abstraction + EvalRunner dry-run/recorded provider 集成；不接真实 LLM、不联网、不需要密钥）。
 
 ## 快速开始
 
