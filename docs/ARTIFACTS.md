@@ -242,11 +242,14 @@ RuleJudge 对每个 eval 的逐规则结果。
 *Writing effective tools for agents* 的失败分类，但 **不引入任何依赖**）：
 
 - `findings`：list of failure attribution，每条包含：
-  - `type`：finding 类型，当前共 11 类：
+  - `type`：finding 类型，当前共 12 类：
     `runtime_error` / `skipped_non_runnable` / `tool_error` / `weak_eval_definition` /
     `audit_signal_low` / `candidate_not_reviewed` / `forbidden_first_tool` /
     `redundant_tool_calls` / `no_evidence_grounding` / `missing_required_tool` /
-    `wrong_first_tool`。
+    `wrong_first_tool` / **`evidence_grounded_in_decoy_tool`**（v1.0 第一项新增，
+    deterministic anti-decoy：final_answer 引用的 evidence 全部来自非 required 工具
+    时触发；与 `must_use_evidence` 通过/失败正交，专门暴露"看似 grounded 实际走错
+    路"的 trajectory）。
   - `severity`：`high` / `medium` / `info`。
   - `category`：`tool_design` / `eval_definition` / `agent_tool_choice` / `runtime`，
     四类对齐 Anthropic 文章的失败来源分类，方便读者一眼看出"该改工具、改 eval、

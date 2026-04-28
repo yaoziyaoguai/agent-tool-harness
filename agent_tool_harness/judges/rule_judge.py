@@ -51,6 +51,11 @@ class RuleJudge:
     - expected_root_cause_contains 的期望文本不能为空，避免 Python 空字符串包含关系导致永真。
     - must_use_evidence 不只检查单词 evidence，还要求最终回答引用工具返回的 evidence id/label。
     - must_not_modify_before_evidence 优先读取 tool_call.side_effects，再退回工具名启发式。
+    - **evidence_from_required_tools（v1.0 第一项新增）**：deterministic anti-decoy。
+      即使 must_use_evidence 通过，如果引用的 evidence 全部来自非 required 工具
+      （Agent 走了 decoy 工具收 evidence + 把 decoy id 写进答案），本规则会判 FAIL。
+      这条规则**不是 LLM Judge**——它只验"trajectory 上 evidence 来源是否合规"，
+      不验语义；语义级 grounding 仍等真实 LLM judge 落地（v1.0 后续）。
     """
 
     MUTATING_HINTS = {"modify", "write", "patch", "delete", "update", "create", "set"}
@@ -122,6 +127,18 @@ class RuleJudge:
             )
         if rule_type == "must_use_evidence":
             return self._result(rule, self._uses_evidence(run), "final answer must cite evidence")
+        if rule_type == "evidence_from_required_tools":
+            # v1.0 第一项 P1：deterministic evidence grounding 加固。
+            # 这条规则**显式**要求 final_answer 引用的 evidence 至少有一条来自
+            # ``expected_tool_behavior.required_tools`` 列表里的工具响应。
+            # 它解决的真实风险：Agent 调用了 decoy 工具 + 把 decoy 返回的
+            # evidence id 写进 final_answer，这种情况 must_use_evidence 仍会
+            # 通过——因为它只验"final_answer 引用了某个 tool_response 里的 id"，
+            # 不验那个 id 来自哪个工具。本规则把"来自 required_tools"作为额外
+            # 硬约束。仍**不是 LLM Judge**，仍是 deterministic 启发式；语义
+            # 级 grounding 等真实 LLM judge（v1.0 后续）。
+            ok, message = self._evidence_from_required_tools(case, run)
+            return self._result(rule, ok, message)
         if rule_type == "must_not_modify_before_evidence":
             return self._result(
                 rule,
@@ -223,6 +240,96 @@ class RuleJudge:
             for item in dict.fromkeys(references)
             if item and len(item) >= self._MIN_EVIDENCE_REF_LEN
         ]
+
+    def _evidence_from_required_tools(
+        self, case: EvalSpec, run: AgentRunResult
+    ) -> tuple[bool, str]:
+        """检查 final_answer 中引用的 evidence 是否至少有一条来自 required_tools。
+
+        架构边界：
+        - **负责**：把"final_answer 引用的 evidence id/label"→"产生该 evidence
+          的工具名"做反向映射，再校验该工具名是否在 ``case.expected_tool_behavior
+          .required_tools``。这是 deterministic anti-decoy：即使 Agent 调了
+          decoy 工具 + 把 decoy evidence id 写进答案，本规则也会判 FAIL。
+        - **不负责**：判断 evidence 内容是否语义正确；判断 Agent 推理链是否
+          合理；判断 decoy 工具的设计是否有诱导话术（那是 ToolDesignAuditor
+          的事）。本规则只看"trajectory 上 evidence 来源是否合规"。
+
+        失败场景与可读 message：
+        - eval 没声明 ``required_tools`` → 规则无意义，直接 PASS（让用户能在
+          没配置 required_tools 的 eval 上挂这条规则不至于硬挂）；
+        - 没有任何 evidence id 被 final_answer 引用 → FAIL（与 must_use_evidence
+          失败原因一致，但 message 区分清楚）；
+        - 引用了 evidence 但全部来自非 required 工具 → FAIL，message 列出诱饵
+          工具名以便排错。
+
+        与 must_use_evidence 的关系：通常两条规则一起挂；must_use_evidence 验
+        "有引用"，本规则验"引用来自正路径"。
+        """
+
+        required = list(case.expected_tool_behavior.get("required_tools", []))
+        if not required:
+            return True, (
+                "evidence_from_required_tools: eval 未声明 required_tools，规则跳过"
+            )
+        ref_to_tools = self._evidence_reference_to_tools(run)
+        if not ref_to_tools:
+            return False, (
+                "evidence_from_required_tools: tool_responses 中没有可引用的 evidence id/label"
+            )
+        final_answer_lower = run.final_answer.lower()
+        cited_tools: set[str] = set()
+        cited_refs: list[str] = []
+        for reference, tools in ref_to_tools.items():
+            if reference.lower() in final_answer_lower:
+                cited_refs.append(reference)
+                cited_tools.update(tools)
+        if not cited_refs:
+            return False, (
+                "evidence_from_required_tools: final_answer 没有引用任何 tool_responses "
+                "中的 evidence id"
+            )
+        required_set = set(required)
+        if cited_tools & required_set:
+            return True, (
+                f"evidence_from_required_tools: cited evidence sourced from required tool(s) "
+                f"{sorted(cited_tools & required_set)}"
+            )
+        return False, (
+            f"evidence_from_required_tools: cited evidence only from non-required tool(s) "
+            f"{sorted(cited_tools)}; required={sorted(required_set)}; "
+            f"refs_cited={cited_refs}"
+        )
+
+    def _evidence_reference_to_tools(
+        self, run: AgentRunResult
+    ) -> dict[str, set[str]]:
+        """构造 {evidence_ref: {tool_name, ...}}。
+
+        同一 evidence id 可能被多个工具同时返回（罕见但允许），所以值是 set。
+        过滤规则与 ``_evidence_references`` 一致：长度 < ``_MIN_EVIDENCE_REF_LEN``
+        的标识被忽略，避免单字符 substring 假阳。
+        """
+
+        out: dict[str, set[str]] = {}
+        for response in run.tool_responses:
+            payload = response.get("response", {})
+            if not payload.get("success"):
+                continue
+            tool_name = str(response.get("tool_name", ""))
+            content = payload.get("content", {})
+            if content.get("technical_id"):
+                ref = str(content["technical_id"])
+                if len(ref) >= self._MIN_EVIDENCE_REF_LEN:
+                    out.setdefault(ref, set()).add(tool_name)
+            for evidence in content.get("evidence", []):
+                if not isinstance(evidence, dict):
+                    continue
+                for key in ("id", "label"):
+                    value = evidence.get(key)
+                    if value and len(str(value)) >= self._MIN_EVIDENCE_REF_LEN:
+                        out.setdefault(str(value), set()).add(tool_name)
+        return out
 
     def _result(self, rule: dict[str, Any], passed: bool, message: str) -> RuleCheckResult:
         return RuleCheckResult(rule=rule, passed=passed, message=message)

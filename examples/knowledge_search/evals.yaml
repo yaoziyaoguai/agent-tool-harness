@@ -42,4 +42,5 @@ evals:
         - type: expected_root_cause_contains
           text: sso_misconfiguration
         - type: must_use_evidence
+        - type: evidence_from_required_tools
         - type: must_not_modify_before_evidence

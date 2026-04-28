@@ -520,7 +520,80 @@ class TranscriptAnalyzer:
                         }
                     )
                     break
+
+        # v1.0 第一项：deterministic decoy evidence grounding 检测。
+        # 触发条件（必须全部满足，避免与 missing_required_tool / no_evidence_grounding 重复）：
+        # - eval 声明了 ``required_tools``；
+        # - final_answer 实际引用了至少一个 evidence id/label（短串过滤同 RuleJudge）；
+        # - 但被引用的 evidence 来源工具**全部不在** required_tools。
+        # 它解决的真实风险：Agent 调了诱饵工具 + 把诱饵 evidence id 写进 final_answer，
+        # 此时 must_use_evidence 仍会通过，但实际 evidence 链路是错的。本 finding
+        # 永远附带 evidence_refs 指向具体诱饵工具，方便排错。**这不是 LLM Judge**，
+        # 仍是 deterministic 启发式；语义级 grounding 等真实 LLM judge（v1.0 后续）。
+        if required:
+            decoy_finding = self._evidence_grounded_in_decoy_finding(case, run, required)
+            if decoy_finding:
+                out.append(decoy_finding)
         return out
+
+    def _evidence_grounded_in_decoy_finding(
+        self,
+        case: EvalSpec,
+        run: AgentRunResult,
+        required: list[str],
+    ) -> dict[str, Any] | None:
+        """构造 evidence_grounded_in_decoy_tool finding（若触发）。
+
+        通过反向索引 evidence id/label → tool_name；筛出 final_answer 实际引用的
+        ref，再看其来源工具集是否与 required_tools 完全不相交。
+        """
+
+        from agent_tool_harness.judges.rule_judge import RuleJudge
+
+        # 复用 RuleJudge 的反向索引避免逻辑漂移；analyzer 与 judge 必须用同一套
+        # "什么是合法 evidence ref"的定义，否则 judge 通过 / analyzer 又报 finding
+        # 会让真实用户产生信任危机。
+        ref_to_tools = RuleJudge()._evidence_reference_to_tools(run)
+        if not ref_to_tools:
+            return None
+        final_answer_lower = run.final_answer.lower()
+        cited_tools: set[str] = set()
+        cited_refs: list[str] = []
+        for reference, tools in ref_to_tools.items():
+            if reference.lower() in final_answer_lower:
+                cited_refs.append(reference)
+                cited_tools.update(tools)
+        if not cited_refs:
+            return None
+        required_set = set(required)
+        if cited_tools & required_set:
+            return None
+        return {
+            "type": "evidence_grounded_in_decoy_tool",
+            "severity": SEVERITY_HIGH,
+            "category": CATEGORY_AGENT_TOOL_CHOICE,
+            "evidence_refs": [
+                f"tool_responses.jsonl#eval_id={case.id} tools={sorted(cited_tools)}",
+                f"transcript.jsonl#eval_id={case.id} final_answer cites {cited_refs}",
+                f"evals.yaml#id={case.id} required_tools={sorted(required_set)}",
+            ],
+            "why_it_matters": (
+                f"final_answer 引用的 evidence 全部来自非 required 工具 "
+                f"{sorted(cited_tools)}，required_tools={sorted(required_set)}。"
+                "这是 deterministic anti-decoy 信号：Agent 可能调了诱饵工具收 evidence，"
+                "再把诱饵 evidence id 写进结论；must_use_evidence 仍会通过，但 evidence "
+                "来源不对。这是当前 deterministic 启发式能识别的最强 decoy 信号；语义级"
+                "grounding 仍等真实 LLM judge（v1.0 后续）。"
+            ),
+            "suggested_fix": (
+                "1) 在 evals.yaml 的 judge.rules 加 ``evidence_from_required_tools``，"
+                "把 deterministic anti-decoy 升为硬约束；"
+                f"2) 检查 tools.yaml 中诱饵工具 {sorted(cited_tools)} 的 description / "
+                "when_to_use 是否对 Agent 暗示能解决本任务；"
+                "3) 复盘 tool_calls.jsonl，确认 Agent 路径选择失败的真实根因。"
+            ),
+            "related_tool_or_eval": case.id,
+        }
 
     # ------------------------------------------------------------------ derive
     def _legacy_issues(self, findings: list[dict[str, Any]]) -> list[dict[str, str]]:
