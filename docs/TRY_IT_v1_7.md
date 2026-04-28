@@ -41,6 +41,7 @@ python -m agent_tool_harness.cli run \
 # 4) 把上一步当"录像带"deterministic 重放
 python -m agent_tool_harness.cli replay-run \
   --run runs/v17-run-bad \
+  --project examples/runtime_debug/project.yaml \
   --tools examples/runtime_debug/tools.yaml \
   --evals examples/runtime_debug/evals.yaml \
   --out runs/v17-replay
