@@ -223,7 +223,7 @@ python -m agent_tool_harness.cli run \
 
 ## Artifacts
 
-每次 `run` 都会生成：
+每次 `run` 都会生成（即"完整跑一次 eval"才会有 9 个产物）：
 
 - `transcript.jsonl`
 - `tool_calls.jsonl`
@@ -236,6 +236,11 @@ python -m agent_tool_harness.cli run \
 - `report.md`
 
 这些文件用于复盘 Agent 的真实事件链路。失败时先看 `tool_calls.jsonl` 和 `tool_responses.jsonl`，再看 `judge_results.json` 与 `diagnosis.json`。
+
+> 其它 subcommand 各自只写**一个**文件——它们不是 `run`，不会生成 9 件套：
+> `audit-tools` → `audit_tools.json`；`audit-evals` → `audit_evals.json`；
+> `generate-evals` → 你 `--out` 指定的 candidates YAML；`promote-evals` → 你
+> `--out` 指定的 evals YAML。CLI 在 stdout 会明确打印 `wrote <path>` 自报实际产物。
 
 `metrics.json` 和 `report.md` 顶部还会显示 `signal_quality`（默认值 `tautological_replay`），告诉你“本次 run 的 PASS/FAIL 信号到底是什么级别”。这是当前 MVP 与 Anthropic 文章方法论差距的显式标记，详见 `agent_tool_harness/signal_quality.py` 和 `docs/ROADMAP.md`。
 
