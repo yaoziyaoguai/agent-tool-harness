@@ -97,6 +97,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help="允许覆盖已存在的输出文件（默认禁止，避免冲掉手写正式 evals.yaml）",
     )
 
+    analyze = subparsers.add_parser(
+        "analyze-artifacts",
+        help=(
+            "对已有 run 目录做离线 trace-derived 信号复盘（deterministic 启发式，"
+            "不调用 LLM、不重跑 Agent、不重跑工具）。"
+        ),
+    )
+    analyze.add_argument(
+        "--run",
+        required=True,
+        help="已有 run 目录（包含 tool_calls.jsonl / tool_responses.jsonl 等 9 个 artifact）",
+    )
+    analyze.add_argument(
+        "--tools",
+        required=True,
+        help="tools.yaml —— 复盘需要 ToolSpec.output_contract / when_not_to_use 元数据",
+    )
+    analyze.add_argument(
+        "--evals",
+        required=False,
+        help=(
+            "evals.yaml（可选）—— 提供 user_prompt 才能触发 "
+            "tool_selected_in_when_not_to_use_context 信号；不传时只覆盖 contract / "
+            "重复调用类信号"
+        ),
+    )
+    analyze.add_argument("--out", required=True)
+
     return parser
 
 
@@ -128,6 +156,8 @@ def main(argv: list[str] | None = None) -> int:
             return _run(args.project, args.tools, args.evals, args.out, args.mock_path)
         if args.command == "promote-evals":
             return _promote_evals(args.candidates, args.out, force=args.force)
+        if args.command == "analyze-artifacts":
+            return _analyze_artifacts(args.run, args.tools, args.evals, args.out)
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
         # 避免把内部 traceback 推给真实团队；他们应该得到一条直接告诉他们改哪个字段
@@ -315,6 +345,184 @@ def _promote_evals(candidates_path: str, out: str, *, force: bool) -> int:
             )
     print(json.dumps(summary, ensure_ascii=False))
     return 0
+
+
+def _analyze_artifacts(
+    run_dir: str,
+    tools_path: str,
+    evals_path: str | None,
+    out: str,
+) -> int:
+    """对已有 run 目录做离线 trace-derived 信号复盘。
+
+    架构边界：
+    - **负责**：复用 :func:`agent_tool_harness.diagnose.trace_signal_analyzer.analyze_run_dir`
+      读取 ``tool_calls.jsonl`` / ``tool_responses.jsonl``，按 eval_id 分组得到
+      :class:`TraceSignalAnalyzer` 的 5 类 deterministic 信号，并把结果写到
+      ``--out`` 目录下的 ``tool_use_signals.json`` + ``tool_use_signals.md``。
+    - **不负责**：重新跑 Agent、重新调工具、调 LLM、写新的 judge 结论。本命令
+      只是 replay 已有 raw artifact + 工具/eval 元数据，把 deterministic 信号
+      派生出来；它**不是 LLM Judge**，**不是真实语义证明**。
+
+    为什么要这条 CLI（而不是只读 ``diagnosis.json`` 里的 ``tool_use_signals``）：
+    - ``diagnosis.json`` 是 ``run`` 命令在跑完时一次性写的；如果用户拿到一份
+      历史 run（例如同事丢过来的 ``runs/`` 目录、或者 v0.2 第三轮之前生成的
+      老 run），那份 ``diagnosis.json`` 里**根本没有**新的 ``tool_use_signals``
+      字段。本命令让用户只用 ``--run`` + ``--tools`` 就能离线把信号补出来。
+    - 让 trace 信号脱离 EvalRunner 独立存在，也方便 CI 把 "信号复盘" 做成
+      和 "Agent 跑通" 完全独立的步骤——前者在 nightly 里跑、后者每条 PR 跑。
+
+    错误处理（必须可行动，不允许吞异常假成功）：
+    - ``--run`` 路径不存在 / 不是目录 → CLIError；
+    - 该目录里两份 JSONL 都缺 → CLIError，并在 hint 里列出预期文件名；
+    - ``--tools`` 加载失败 → 统一走 ConfigError 通道（``main`` 已处理）；
+    - ``--evals`` 未传 → 写一条 stderr warning，提示
+      ``tool_selected_in_when_not_to_use_context`` 信号会被跳过；
+    - 复盘正常但 0 信号 → 仍输出 schema 完整的 JSON + Markdown，并打印
+      "0 signals" 提示，避免被误以为 CLI 失败。
+
+    输出契约：
+    - ``tool_use_signals.json`` —— ``stamp_artifact`` 包过的 dict，含
+      ``schema_version`` / ``run_metadata`` / 业务字段
+      ``analyzed_run`` / ``signals_by_eval`` / ``signal_count``。
+    - ``tool_use_signals.md`` —— 给人看的 Markdown，按 eval 分组列出信号，
+      每条带 severity / signal_type / related_tool / why_it_matters /
+      suggested_fix / evidence_refs。
+
+    扩展点（写在这里，本轮**不**实现）：
+    - 未来可以让本命令也并入 ``TranscriptAnalyzer`` 派生 finding，把
+      "rule-derived" 和 "trace-derived" 都放进同一份 analysis 文件；
+    - 也可以加 ``--diff PREV_RUN_DIR`` 做 run-to-run 信号变化对比。
+    """
+
+    from agent_tool_harness.diagnose.trace_signal_analyzer import analyze_run_dir
+
+    run_path = Path(run_dir)
+    if not run_path.exists() or not run_path.is_dir():
+        raise CLIError(
+            f"--run 指向的路径不存在或不是目录: {run_dir}\n"
+            "hint: 请传入 `agent-tool-harness run` 写出的 run 目录"
+            "（包含 tool_calls.jsonl / tool_responses.jsonl 等 9 个 artifact）。"
+        )
+    calls_path = run_path / "tool_calls.jsonl"
+    responses_path = run_path / "tool_responses.jsonl"
+    if not calls_path.exists() and not responses_path.exists():
+        raise CLIError(
+            f"--run 目录里既没有 tool_calls.jsonl 也没有 tool_responses.jsonl: {run_dir}\n"
+            "hint: 该目录看起来不是一份 harness run。请先用 `agent-tool-harness run` "
+            "生成 artifacts，再用本命令复盘。"
+        )
+
+    tools = load_tools(tools_path)
+    _warn_if_empty(tools, "tools", tools_path)
+
+    user_prompts_by_eval: dict[str, str] = {}
+    if evals_path:
+        evals = load_evals(evals_path)
+        for spec in evals:
+            user_prompts_by_eval[spec.id] = spec.user_prompt or ""
+    else:
+        print(
+            "warning: --evals 未传；tool_selected_in_when_not_to_use_context 信号"
+            "（依赖 user_prompt 词袋命中）将被跳过。如需该信号请补 --evals。",
+            file=sys.stderr,
+        )
+
+    signals_by_eval = analyze_run_dir(
+        run_path,
+        tools=tools,
+        user_prompts_by_eval=user_prompts_by_eval,
+    )
+    signal_count = sum(len(v) for v in signals_by_eval.values())
+
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "analyzed_run": str(run_path),
+        "signals_by_eval": signals_by_eval,
+        "signal_count": signal_count,
+        "analysis_kind": "trace_derived_deterministic_heuristic",
+        "analysis_kind_note": (
+            "本结果由 deterministic 启发式从已有 raw artifact 复盘而来，"
+            "不是 LLM Judge，不是语义级证明；同义词改写的诱饵仍可能漏。"
+        ),
+    }
+    stamped = stamp_artifact(
+        payload,
+        run_metadata=make_run_metadata(extra={"command": "analyze-artifacts"}),
+    )
+    json_path = out_dir / "tool_use_signals.json"
+    _write_json(json_path, stamped)
+
+    md_path = out_dir / "tool_use_signals.md"
+    md_path.write_text(
+        _render_trace_signals_markdown(run_path, signals_by_eval, signal_count),
+        encoding="utf-8",
+    )
+
+    print(f"wrote {json_path}")
+    print(f"wrote {md_path}")
+    eval_count = len([k for k, v in signals_by_eval.items() if v])
+    print(f"signals: {signal_count} across {eval_count} eval(s)")
+    return 0
+
+
+def _render_trace_signals_markdown(
+    run_dir: Path,
+    signals_by_eval: dict[str, list[dict]],
+    signal_count: int,
+) -> str:
+    """把 trace-derived signals 渲染成给人看的 Markdown。
+
+    设计边界：
+    - 只渲染信号本身，不重复 ``report.md`` 的其他段（avoid duplication）；
+    - 显式声明 deterministic / 非 LLM Judge 的方法论披露，避免下游误读；
+    - 没有信号时也输出完整骨架 + 一句"0 signals"，让 reviewer 一眼能确认
+      "分析跑过了，只是真没信号"，而不是误以为命令失败。
+    """
+
+    lines: list[str] = []
+    lines.append("# Trace-derived tool-use signals")
+    lines.append("")
+    lines.append(f"- analyzed run: `{run_dir}`")
+    lines.append(f"- signal count: **{signal_count}**")
+    lines.append(
+        "- analysis kind: `trace_derived_deterministic_heuristic` "
+        "(NOT an LLM Judge, NOT semantic proof)"
+    )
+    lines.append("")
+    if signal_count == 0:
+        lines.append(
+            "_No deterministic trace-derived signals fired. 这并不证明工具响应一定健康——"
+            "deterministic 启发式有边界（详见 `docs/ARCHITECTURE.md` Diagnose 段）。_"
+        )
+        lines.append("")
+        return "\n".join(lines)
+
+    for eval_id in sorted(signals_by_eval):
+        signals = signals_by_eval[eval_id]
+        if not signals:
+            continue
+        lines.append(f"## eval: `{eval_id}`")
+        lines.append("")
+        for sig in signals:
+            related = sig.get("related_tool")
+            related_part = f" (tool: `{related}`)" if related else ""
+            lines.append(
+                f"- [{sig.get('severity', '?')}] **{sig.get('signal_type', '?')}**"
+                f"{related_part}"
+            )
+            why = sig.get("why_it_matters")
+            if why:
+                lines.append(f"  - why: {why}")
+            fix = sig.get("suggested_fix")
+            if fix:
+                lines.append(f"  - suggested fix: {fix}")
+            refs = sig.get("evidence_refs") or []
+            if refs:
+                lines.append(f"  - evidence: {', '.join(refs)}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

@@ -311,6 +311,38 @@ RuleJudge 对每个 eval 的逐规则结果。
 
 ---
 
+## tool_use_signals.json / tool_use_signals.md（analyze-artifacts CLI 输出）
+
+由 `python -m agent_tool_harness.cli analyze-artifacts --run RUN_DIR --tools TOOLS_YAML
+[--evals EVALS_YAML] --out OUT_DIR` 写出，是离线 trace-derived 信号复盘的产物，
+**与 9 个 run artifact 是不同概念**：
+
+- `tool_use_signals.json` 字段：
+  - `schema_version` / `run_metadata`（其中 `extra.command="analyze-artifacts"`）；
+  - `analyzed_run`：传入的 run 目录路径；
+  - `signals_by_eval`：`{eval_id: [signal, ...]}`，每条 signal 字段与
+    `diagnosis.json` 的 `tool_use_signals` 完全一致（见上节）；
+  - `signal_count`：聚合计数；
+  - `analysis_kind`：固定为 `"trace_derived_deterministic_heuristic"`；
+  - `analysis_kind_note`：方法论披露——**不是 LLM Judge，不是语义级证明**。
+- `tool_use_signals.md`：给人看的 Markdown，按 eval 分组列 severity / why /
+  suggested fix / evidence；0 信号时仍输出完整骨架 + "No deterministic
+  trace-derived signals fired" 提示。
+
+为什么独立成 CLI 而不是只读 `diagnosis.json`：用户拿到一份历史 run（甚至是 v0.2
+第三轮之前生成的老 run），那份 `diagnosis.json` 里**根本没有**新的
+`tool_use_signals` 字段；本命令让用户只用 `--run` + `--tools` 就能离线把信号补出来。
+
+边界声明：
+
+- **不**调 LLM、**不**重跑 Agent、**不**重跑工具——纯 replay；
+- 不传 `--evals` 时 `tool_selected_in_when_not_to_use_context` 信号会被跳过
+  （依赖 `user_prompt`）；CLI 会写 stderr warning 提示；
+- 与 `report.md` 的 "Trace-derived tool-use signals" 段相同的信号定义和阈值
+  （详见 `agent_tool_harness/diagnose/trace_signal_analyzer.py` 顶层 docstring）。
+
+---
+
 ## 入口与扩展约束
 
 - 字段稳定性：本文档列出的字段是 MVP 阶段的事实约定；新增字段只能扩展、不能改名

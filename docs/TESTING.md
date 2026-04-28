@@ -146,6 +146,13 @@ python -m ruff check .
   `tool_selected_in_when_not_to_use_context`——这条信号是
   `examples/runtime_debug` bad 路径下能被 demo 数据自然触发的，
   其余 4 类 demo 数据触发不到，由 unit test 覆盖。
+- `analyze-artifacts` CLI（v0.2 第三轮后续小步，
+  `tests/test_cli_analyze_artifacts.py`）覆盖 5 条 e2e：bad run 复盘必须
+  触发 `tool_selected_in_when_not_to_use_context` 且字段契约完整；good
+  run 复盘必须 0 信号但 schema 完整；`--run` 不存在 → 退出码 2 且 stderr
+  含 hint；`--run` 目录无 JSONL → 退出码 2 且 stderr 列出预期文件；不传
+  `--evals` → stderr warning 且 when_not_to_use 信号被跳过——后两条钉死
+  "user_prompt 来源契约"，避免未来有人偷偷在 CLI 里塞默认 prompt 引入虚假信号。
 - loader 支持 tools/evals list root，并对重复 eval id、错误 entry 类型和错误字段类型报 ConfigError。
 - candidate 必须保留 candidate/review 语义：`from_tools` / `from_tests` 输出
   必须含 `review_status="candidate"` / `review_notes` (list) / `difficulty` /

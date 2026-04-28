@@ -284,7 +284,11 @@ tracing 新依赖**，所有 finding 都是 deterministic 启发式。
   写在模块顶层常量，调整前必须重跑 `tests/test_trace_signal_analyzer.py`
   的反向断言保护 `examples/runtime_debug` 不被误伤；
 - 提供 `analyze_run_dir(run_dir, tools=...)` helper 用于对历史 run
-  目录独立复盘——本轮**不**新增 `analyze-artifacts` CLI（v0.2 backlog）。
+  目录独立复盘，并通过 `analyze-artifacts` CLI 暴露给真实用户
+  （`agent_tool_harness/cli.py::_analyze_artifacts`，输出
+  `tool_use_signals.json` + `tool_use_signals.md`，详见
+  `docs/ARTIFACTS.md` 与 README "CLI 用法"段）。CLI 是离线 replay 工具，
+  **不**调 LLM、**不**重跑 Agent、**不**重跑工具、**不**替代 RuleJudge。
 
 ### reports
 

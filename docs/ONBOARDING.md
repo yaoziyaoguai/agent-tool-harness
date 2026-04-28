@@ -193,6 +193,25 @@ python -m agent_tool_harness.cli run \
 - Agent 调错工具 → 改 prompt / adapter 选择策略；
 - judge 太严或太松 → 在 `evals.yaml` 调 `judge.rules`。
 
+## 10) （可选）离线复盘已有 run 的 trace 信号
+
+如果你拿到一份历史 run 目录（同事丢过来的、或者比 v0.2 第三轮更早生成的老 run），
+那份 `diagnosis.json` 里可能没有新的 `tool_use_signals` 字段。可以用
+`analyze-artifacts` 离线复盘出来：
+
+```bash
+python -m agent_tool_harness.cli analyze-artifacts \
+  --run runs/demo-bad \
+  --tools examples/runtime_debug/tools.yaml \
+  --evals examples/runtime_debug/evals.yaml \
+  --out runs/demo-analysis
+```
+
+输出 `tool_use_signals.json` + `tool_use_signals.md`。**这是离线 replay 工具：
+不调 LLM、不重跑 Agent、不重跑工具**，只是把已有 raw artifact + 工具/eval 元数据
+喂给 `TraceSignalAnalyzer` 重算 5 类 deterministic 信号。详见
+[docs/ARTIFACTS.md](./ARTIFACTS.md) 中 `tool_use_signals.json` 段。
+
 ---
 
 ## 接下来

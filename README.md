@@ -223,6 +223,27 @@ python -m agent_tool_harness.cli run \
 > 在你自家的 eval 上跑 `--mock-path bad` 看到 PASS 通常说明你只写了 good
 > fixture——这是 ONBOARDING 走查里最常见的隐性断点。
 
+离线复盘已有 run 的 trace-derived signals（v0.2 第三轮新增 CLI）：
+
+```bash
+python -m agent_tool_harness.cli analyze-artifacts \
+  --run runs/demo-bad \
+  --tools examples/runtime_debug/tools.yaml \
+  --evals examples/runtime_debug/evals.yaml \
+  --out runs/demo-analysis
+```
+
+输出：
+- `tool_use_signals.json`（带 `schema_version` / `run_metadata` / `signals_by_eval` /
+  `analysis_kind=trace_derived_deterministic_heuristic`）；
+- `tool_use_signals.md`（按 eval 分组列 severity / why / suggested fix / evidence）。
+
+> 这条命令**只是** replay 已有 raw artifact，**不会**调 LLM、不会重跑 Agent、
+> 不会重跑工具。它复用 `TraceSignalAnalyzer` 5 类 deterministic 信号，目的是让
+> "拿到一份历史 run（甚至是 v0.2 第三轮之前生成的老 run）" 也能补出 trace 信号。
+> `--evals` 是可选的，但不传时 `tool_selected_in_when_not_to_use_context` 信号
+> 会被跳过（依赖 `user_prompt`）。
+
 ## Artifacts
 
 每次 `run` 都会生成（即"完整跑一次 eval"才会有 9 个产物）：
