@@ -262,15 +262,30 @@ provider_error`）+ `_safe_message` 模板化错误消息（绝不 echo raw exce
 不泄漏 / artifact 不泄漏 fake key/base_url / monkeypatch 禁 socket 仍跑通。
 详见 `docs/ROADMAP.md` v1.x 第二轮段、`.env.example` 占位符。
 
-**v1.x 第三轮**：新增 `agent_tool_harness/judges/preflight.py` +
+**v1.x 第三轮 / v1.4**：新增 `agent_tool_harness/judges/preflight.py` +
 `judge-provider-preflight` CLI —— 真实 LLM judge live **之前**的"本地侧
-最后一道闸"。**纯本地、不联网、不读取真实 key**：检查 4 项 env 字段齐全
-度 / `.gitignore` 是否忽略 `.env` / `.env.example` 是否仅含占位符 / 8
-类 error taxonomy message 用真实 key/base_url 做泄漏扫描。输出
-`preflight.json` + `preflight.md`，**绝不**写入 api_key / base_url 字面值。
-`summary.ready_for_live` **永远** `False`——live 仍属未来 milestone。
-契约由 `tests/test_judge_provider_preflight.py` 7 条测试钉死。详见
-`docs/ROADMAP.md` v1.x 第三轮段、`.env.example` 占位符。
+最后一道闸"。**纯本地、preflight 本身永远不联网、不读取真实 key 值**：
+检查 4 项 env 字段齐全度 / `.gitignore` 是否忽略 `.env` / `.env.example`
+是否仅含占位符 / 8 类 error taxonomy message 用真实 key/base_url 做泄漏
+扫描。输出 `preflight.json` + `preflight.md`，**绝不**写入 api_key /
+base_url 字面值。`summary.live_optin_status` 是四态（v1.4 起）：
+`disabled / opt_in_incomplete / opted_in_no_transport / live_ready`；只有
+四态全绿 + 双标志齐时 `ready_for_live=True`，否则 `False`。**preflight
+本身仍不联网**——`ready_for_live=True` 只是给真实用户的"前置条件全部通过"
+信号，真实 live HTTP 必须由用户在自己环境主动构造 `LiveAnthropicTransport
+(...,live_enabled=True, live_confirmed=True)` 触发（v1.4 已落地骨架与
+CLI 入口，详见 `docs/V1_4_LIVE_TRANSPORT_IMPLEMENTATION.md`）。契约由
+`tests/test_judge_provider_preflight.py` 13 条测试钉死。
+
+**v1.4 LiveAnthropicTransport + CLI live-ready 入口**：
+`agent_tool_harness/judges/provider.py::LiveAnthropicTransport` 是基于
+标准库 `http.client` 的真实 HTTPS transport 骨架；默认 `live_enabled=False
+or live_confirmed=False` → 立即抛 `disabled_live_provider`，不触碰 socket。
+`http_factory` 注入点让 19 条契约测试覆盖全部 HTTP / 异常路径，CI **绝不**
+真实联网。CLI `run --judge-provider anthropic_compatible_live` 装配：
+fake fixture > LiveAnthropicTransport(双标志) > 永远先过 `missing_config`
+硬检查；CI / smoke 用 `--judge-fake-transport-fixture PATH` 注入
+`FakeJudgeTransport`。详见 `docs/V1_4_LIVE_TRANSPORT_IMPLEMENTATION.md`。
 
 ### diagnose
 

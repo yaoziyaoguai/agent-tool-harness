@@ -113,14 +113,20 @@ LiveAnthropicTransport(
 | 传 `--live`                              | `live_enabled=True, live_confirmed=False` → DISABLED |
 | 传 `--live` + `--confirm-i-have-real-key`| `live_enabled=True, live_confirmed=True` → 走 transport（CI 用 fake_factory；用户自己环境用 stdlib） |
 
-`judge-provider-preflight` 的 `summary.live_optin_status` 三态值
-（`disabled / opt_in_incomplete / opted_in_no_transport`）覆盖了
-LiveAnthropicTransport 的前两条状态。第三条 `opted_in_no_transport` 在
-v1.3 是"无 transport 类"，v1.4 起 user 在自己环境中可以构造
-`LiveAnthropicTransport(config, live_enabled=True, live_confirmed=True)`
-让它真正生效——但**仍不会被 CLI 自动启用**：v1.4 不引入新的
-`--judge-provider anthropic_compatible_live` CLI 入口（避免一次性引入太多
-变更面），只暴露 Python API；CLI wiring 留 v1.4 第二轮。
+`judge-provider-preflight` 的 `summary.live_optin_status` 在 v1.4 起为
+**四态**：`disabled / opt_in_incomplete / opted_in_no_transport / live_ready`：
+
+- 前两态对应 LiveAnthropicTransport 的 `live_enabled=False` /
+  `live_confirmed=False`；
+- `opted_in_no_transport`：双标志齐但 4 项 safety check（config_complete /
+  gitignore_safe / env_example_safe / error_taxonomy_safe）至少一项未绿；
+- `live_ready`（v1.4 新增）：双标志齐 **且** 4 项全绿 →
+  `summary.ready_for_live=True`。**preflight 本身仍不联网**——这只是
+  "前置条件全绿"信号；真实 HTTP 必须由用户在自己环境主动构造
+  `LiveAnthropicTransport(..., live_enabled=True, live_confirmed=True)` 并
+  跑 `run --judge-provider anthropic_compatible_live --live
+  --confirm-i-have-real-key`（**不**传 `--judge-fake-transport-fixture`）
+  才会触发。CLI wiring 由 v1.4 第二轮提供（见下文）。
 
 V1.5+ 待做（仅备忘）
 ====================

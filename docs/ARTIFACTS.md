@@ -349,32 +349,41 @@ api_key 与 base_url），并把 provider 包在 `CompositeJudgeProvider` 里。
 "artifact 不泄漏 fake key/base_url"与"CLI monkeypatch 禁 socket 后仍跑通"
 两条不开网络硬约束。
 
-### v1.x 第三轮 judge-provider-preflight 输出（live readiness 本地侧自检）
+### judge-provider-preflight 输出（live readiness 本地侧自检；v1.4 已扩展为四态）
 
 CLI `python -m agent_tool_harness.cli judge-provider-preflight --out
-runs/<dir>` 写出两份 artifact，**纯本地、不联网、不读取真实 key**：
+runs/<dir>` 写出两份 artifact，**纯本地、不联网、不读取真实 key 值**：
 
 - `preflight.json`：结构化结果，schema 由 `PreflightReport` dataclass 锁
   死。顶层字段：`schema_version`（`"1.0.0-preflight"`）、`provider`、
-  `live_mode_enabled`（永远 `False`）、`config_status`（仅含 `*_set` 布
-  尔与 `missing_fields` KEY 名列表，**不**含值）、`gitignore_status`
-  （`gitignore_present` / `ignores_dotenv` / `hint`）、`env_example_status`
-  （`env_example_present` / `all_placeholders` / `non_placeholder_keys`
-  KEY 名 / `hint`）、`provider_self_test`（8 类 error taxonomy 全脱敏扫
-  描结果，含 `error_taxonomy_safe` 与 `error_taxonomy_total` 比值）、
-  `summary`（`ready_for_live` / `config_complete` / `gitignore_safe` /
-  `env_example_safe` / `error_taxonomy_safe` 五个布尔）、`actionable_hints`
-  （字符串列表）。
+  `live_mode_enabled`（恒 `False`，preflight **本身**永远不联网）、
+  `config_status`（仅含 `*_set` 布尔与 `missing_fields` KEY 名列表，**不**
+  含值）、`gitignore_status`、`env_example_status`、`provider_self_test`
+  （8 类 error taxonomy 全脱敏扫描）、`summary`（`ready_for_live` /
+  `config_complete` / `gitignore_safe` / `env_example_safe` /
+  `error_taxonomy_safe` / `live_optin_status` / `live_intent` /
+  `live_confirmed`）、`actionable_hints`。
 - `preflight.md`：人类可读摘要，按"通过 / 警告 / 行动项"分段。
 
-**关键安全约束**：本 artifact **绝不**包含 `api_key` / `base_url` /
-`model` 字面值。即使 env 已设置真实值，也只反映 `*_set` 布尔。`summary.
-ready_for_live` **永远** `False`——本轮不开 live；要 live 必须等未来
-`LiveAnthropicTransport` milestone 显式开关。
+**v1.4 起 `summary.live_optin_status` 是四态**：
+- `disabled`：默认；未传 `--live`；
+- `opt_in_incomplete`：传了 `--live` 但缺 `--confirm-i-have-real-key`；
+- `opted_in_no_transport`：双标志齐但 4 项 safety check 至少一项未绿（仍
+  保留 v1.3 字面值兼容）；
+- `live_ready`：双标志齐 **且** config_complete + gitignore_safe +
+  env_example_safe + error_taxonomy_safe **全绿** → `ready_for_live=True`。
+  **preflight 本身仍不联网**——这只是给真实用户的"前置条件全部通过"信号；
+  真实 live HTTP 仍需用户在自己环境主动构造 `LiveAnthropicTransport(...,
+  live_enabled=True, live_confirmed=True)` 并跑 `run --judge-provider
+  anthropic_compatible_live --live --confirm-i-have-real-key`（**不**传
+  `--judge-fake-transport-fixture`）才会触发。
 
-契约由 `tests/test_judge_provider_preflight.py` 的 7 条测试钉死，包括
-"artifact 不泄漏 fake key/base_url/model"与"CLI monkeypatch 禁 socket 后
-仍跑通"两条不开网络硬约束。
+**关键安全约束**：本 artifact **绝不**包含 `api_key` / `base_url` /
+`model` 字面值。即使 env 已设置真实值，也只反映 `*_set` 布尔。
+
+契约由 `tests/test_judge_provider_preflight.py` 的 13 条测试钉死，包括
+"artifact 不泄漏 fake key/base_url/model"、"CLI monkeypatch 禁 socket 后
+仍跑通"、"v1.4 live_ready 终态正向案例"三类不开网络硬约束。
 
 ## diagnosis.json
 

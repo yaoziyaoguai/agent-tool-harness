@@ -683,8 +683,8 @@ git 或 artifact。本轮做"联网前的最后一道闸"。
   `preflight.md` 任何路径下不含 fake key/base_url/model 字面值；
   CLI 在 `monkeypatch.setattr(socket, "socket", _BannedSocket)` 下仍跑通；
   CLI fake-env 跑后 artifact 不泄漏字面值且 summary 字段齐全。
-- `summary.ready_for_live` **永远** `False`——本轮不做 live；要 live 必须
-  等未来 `LiveAnthropicTransport` milestone 显式开关。
+- `summary.ready_for_live` 在 v1.x 第三轮**永远** `False`；v1.4 起改为
+  四态状态机，详见上方 v1.4 第一/二项与下方 v1.4 第二轮章节。
 
 **本轮范围外（仅 ROADMAP 备忘，**不**实现）**：
 - `--live` 显式开关 + 真实 ping（仍需脱敏 / 限定 request 体积 / 限定调用
@@ -725,8 +725,8 @@ baseline 能与未来多个 LLM advisory 形成稳定聚合契约——后者更
 - `judge-provider-preflight` 新增 `--live` + `--confirm-i-have-real-key`
   **双标志契约**：单独 `--live` → `summary.live_optin_status =
   "opt_in_incomplete"` + 引导 hint；同时两标志 → `"opted_in_no_transport"`
-  + 指向 `docs/V1_3_LIVE_TRANSPORT_DESIGN.md` 的 hint。**任意组合下
-  preflight 仍然不发任何网络请求**——`ready_for_live` 恒为 False。
+  + 指向设计文档的 hint。**任意组合下 preflight 仍然不发任何网络请求**——
+  本轮 `ready_for_live` 恒为 False（v1.4 起扩展为四态，详见 v1.4 章节）。
 - 新增 `docs/V1_3_LIVE_TRANSPORT_DESIGN.md`：未来 `LiveAnthropicTransport`
   契约（标准库 `http.client`、零依赖；4 个 env var；双标志 opt-in；
   错误分类与脱敏；contract test 顺序），**仅设计，本轮不实现**。
