@@ -26,6 +26,7 @@ Agent Tool Harness 目前是 **MVP**，与 Anthropic 文章方法论存在已知
 
 进度与能力边界以 `docs/ROADMAP.md` 为准；架构与失败归因以 `docs/ARCHITECTURE.md` 为准。
 v0.1 release-ready 摘要见 [`RELEASE_NOTES_v0.1.md`](RELEASE_NOTES_v0.1.md)（commit `0dcb8e7`）。
+v0.2 release-ready 摘要见 [`RELEASE_NOTES_v0.2.md`](RELEASE_NOTES_v0.2.md)（trace-derived signals + analyze-artifacts CLI + TRY_IT product trial path）。
 
 ## 快速开始
 
