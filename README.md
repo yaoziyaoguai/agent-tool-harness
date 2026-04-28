@@ -74,6 +74,30 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > 必须为 null + preflight 默认 `summary.ready_for_live` 必须 false。
 > v1.7 release notes：见 [RELEASE_NOTES_v1.7.md](RELEASE_NOTES_v1.7.md)。
 
+> **v2.0 Internal Trial Ready（已 release）**：v2.0 是主线终点，定位为
+> **公司内部小团队可以本地 clone / 安装 / 按 [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)
+> 端到端跑通**的离线优先 Agent Tool Evaluation Harness。第一次接入的内部
+> 团队请直接进入 [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md) +
+> [docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md](docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md)
+> 提交结构化反馈。
+>
+> v1.8 起 `project.yaml` 支持 advisory `pricing` + per-eval
+> `budget_cap`（max_tokens_total / max_cost_usd）；`runs/<dir>/llm_cost.json`
+> 顶层 `estimated_cost_usd` 永远 `null`，明细在 `totals.estimated_cost_usd`，
+> 永远是 advisory，**不是真实账单**。
+>
+> v1.9 起新增 `tests/test_docs_cli_schema_drift.py`（schema-driven CLI
+> 片段 drift 检查）+ `tests/test_internal_trial_readiness.py`（v2.0 边界
+> 防回归 + 文档诚实性 governance）。
+>
+> **v2.0 不包含**（属 v3.0+ backlog，**不是**企业级多租户 SaaS、**不是**
+> 真实托管 LLM Judge 自动评估服务）：真实 OpenAI/Anthropic live LLM
+> Judge 自动评估服务、MCP/HTTP/Shell executor、Web UI、自动 patch 用户工具、
+> 大规模 benchmark/leaderboard、托管平台计费。详见
+> `docs/ROADMAP.md` "v2.0 不包含" 段。
+>
+> v2.0 release notes：见 [RELEASE_NOTES_v2.0.md](RELEASE_NOTES_v2.0.md)。
+
 ## 快速开始
 
 > 第一次接入的团队请先看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；
