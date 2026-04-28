@@ -222,3 +222,110 @@ class MissingRecordingError(KeyError):
     通过"成为新的吞异常假成功路径。调用方应当 catch 它并决定 fail-fast
     或降级，而**不**应该在 provider 内部假成功。
     """
+
+
+class CompositeJudgeProvider:
+    """组合 deterministic baseline + advisory provider 的复合 provider（v1.x）。
+
+    本类负责什么
+    ------------
+    把 deterministic :class:`RuleJudgeProvider`（ground truth）与一个
+    advisory :class:`JudgeProvider`（当前实战只会是 :class:`RecordedJudgeProvider`，
+    未来可能是真实 LLM provider 的 dry-run 模式）**并列**调用，把两份结果都
+    序列化到返回的 ``ProviderJudgeResult.extra`` 里，附带一个布尔
+    ``agreement`` 字段标记两者 PASS/FAIL 是否一致——这是 v1.x 让用户在
+    不调真实模型的前提下就能拿到"deterministic vs advisory 分歧率"信号的
+    最小路径。
+
+    本类**不**负责什么
+    ------------------
+    - **不**让 advisory 覆盖 deterministic baseline。``inner`` 字段始终是
+      deterministic :class:`JudgeResult`；调用方（EvalRunner）拿到的
+      ``ProviderJudgeResult.passed`` 也是 deterministic PASS/FAIL。advisory
+      意见只能作为"旁路 metadata"消费，不能改写 ``judge_results.json::
+      results[].passed``——这是 v1.0 deterministic baseline 永远是 ground
+      truth 的政治红线。
+    - **不**调用任何外部 LLM / 网络 / 密钥。Composite 自身不开 socket；
+      只要传入的两个 sub-provider 都 deterministic + offline，Composite
+      也就 deterministic + offline——这一点由契约测试用 monkeypatch 替换
+      ``socket.socket`` 钉死。
+    - **不**在 advisory provider 抛 :class:`MissingRecordingError` 时静默
+      成 PASS。Composite 会把异常**透传**给上层，让 EvalRunner 的
+      ``_invoke_dry_run_provider`` 走结构化 ``error`` 路径，而不是把
+      "advisory 缺失"伪装成"advisory PASS"。
+
+    用户项目自定义入口
+    ------------------
+    - CLI: ``agent-tool-harness run --judge-provider composite
+      --judge-recording PATH``。
+    - Python: 直接构造 ``CompositeJudgeProvider(RuleJudgeProvider(),
+      RecordedJudgeProvider({...}))`` 并传给 ``EvalRunner(dry_run_provider=...)``。
+
+    artifacts 排查路径
+    ------------------
+    - ``judge_results.json::dry_run_provider.results[]``：每条 entry 含
+      ``provider="composite" / mode="composite" / passed=<deterministic> /
+      agrees_with_deterministic=true / advisory_result={...} /
+      deterministic_result={...} / agreement=<bool>``；
+      ``rationale/confidence/rubric`` 透传自 advisory；
+    - ``metrics.json::judge_disagreement``：聚合分歧率（在 EvalRunner 中
+      根据 dry_run_provider.results 计算）；
+    - ``report.md → ## Dry-run JudgeProvider (advisory only)`` 段会显式
+      渲染分歧条目，并保留 "DO NOT change deterministic pass/fail"
+      免责声明。
+
+    未来扩展点
+    ----------
+    - 把 ``RecordedJudgeProvider`` 换成真实 LLM provider 的 dry-run 模式
+      （``OpenAIJudgeProvider``、阿里云 Anthropic-compatible provider 等），
+      Composite 不需要任何改动。
+    - 支持多 advisory（list 形式）：聚合"多模型 majority vote vs deterministic"
+      分歧率——属于 v1.x 后续轮次。
+    """
+
+    name = "composite"
+    mode = "composite"
+
+    def __init__(
+        self,
+        deterministic: RuleJudgeProvider,
+        advisory: JudgeProvider,
+    ) -> None:
+        # 显式参数命名让调用现场一眼看出谁是 ground truth；不允许位置参数颠倒。
+        self._deterministic = deterministic
+        self._advisory = advisory
+
+    def judge(self, case: EvalSpec, run: AgentRunResult) -> ProviderJudgeResult:
+        det_result = self._deterministic.judge(case, run)
+        # advisory 抛 MissingRecordingError / 其他异常都直接透传，由 EvalRunner
+        # 的 _invoke_dry_run_provider 走结构化 error 路径，**不**在这里吞异常。
+        adv_result = self._advisory.judge(case, run)
+        agreement = bool(det_result.passed) == bool(adv_result.passed)
+        # extra 中 advisory_result / deterministic_result 仅含**已落到 artifact
+        # 的字段**（passed + provider/mode + 可选 rationale 等），不夹带原始
+        # JudgeResult 对象——避免 dataclass 直接进 json.dumps 出错，也防止
+        # 把 RuleJudge 的 checks 列表泄漏到 advisory 视图（语义会被误读）。
+        return ProviderJudgeResult(
+            inner=det_result.inner,
+            provider=self.name,
+            mode=self.mode,
+            rationale=adv_result.rationale,
+            confidence=adv_result.confidence,
+            rubric=adv_result.rubric,
+            extra={
+                "agreement": agreement,
+                "deterministic_result": {
+                    "provider": det_result.provider,
+                    "mode": det_result.mode,
+                    "passed": det_result.passed,
+                },
+                "advisory_result": {
+                    "provider": adv_result.provider,
+                    "mode": adv_result.mode,
+                    "passed": adv_result.passed,
+                    "rationale": adv_result.rationale,
+                    "confidence": adv_result.confidence,
+                    "rubric": adv_result.rubric,
+                },
+            },
+        )

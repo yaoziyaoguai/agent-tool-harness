@@ -326,3 +326,29 @@ python -m agent_tool_harness.cli run \
 - 最终误判为 UI rendering；
 - RuleJudge 判失败；
 - TranscriptAnalyzer 指出第一步工具错误、缺少关键工具和缺少 evidence。
+
+## v1.1 / v1.x JudgeProvider 集成测试边界
+
+`tests/test_judge_provider_skeleton.py`（v1.1 第一轮，6 条契约测试）+
+`tests/test_eval_runner_judge_provider.py`（v1.1 第二轮 6 条 + v1.x 第一轮
+新增 4 条 = 10 条集成测试）共 16 条钉死的边界：
+
+1. **deterministic 永远是 ground truth**：即使 RecordedJudgeProvider /
+   CompositeJudgeProvider 的 advisory 全部 PASS，`judge_results.json::
+   results[].passed` 仍由 `RuleJudge` 决定，绝不被 advisory 覆盖。
+2. **缺 recording 必须可见**：缺 fixture 时 entry 必含 `error.type=
+   missing_recording`，并被 `metrics.judge_disagreement.error` 计数 +1，
+   **绝不**静默 PASS——这是反"吞异常假成功"的硬约束。
+3. **CLI 缺路径必须可行动**：`--judge-provider {recorded,composite}` 缺
+   `--judge-recording` 时 exit 2 + actionable hint，**不**抛 traceback。
+4. **不开网络**：所有 provider（含 Composite 路径）在 judge 期间禁止开
+   socket；用 monkeypatch 替换 `socket.socket` 钉死。这是 v1.x 不接
+   真实 LLM、不联网的运行时保险丝。
+5. **字节兼容**：未配 dry-run provider 时 `judge_results.json` /
+   `metrics.json` 与 v1.0 完全一致——无 `dry_run_provider` /
+   `judge_disagreement` 字段。
+
+未来真实 LLM provider（OpenAI / Anthropic / 阿里云 Coding Plan
+Anthropic-compatible 等）落地时，这些边界仍要保留——错误信息脱敏
+（不打印真实 key / Authorization header / 完整请求体响应体）也将作为
+新增契约测试加入本文件。

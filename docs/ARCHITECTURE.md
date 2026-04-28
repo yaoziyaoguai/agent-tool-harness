@@ -229,16 +229,24 @@ runner 事件，并继续生成派生 artifacts。这样失败原因不会只停
 新增 `agent_tool_harness/judges/provider.py` 暴露 `JudgeProvider` Protocol +
 `RuleJudgeProvider`（透传 RuleJudge，`mode="deterministic"`）+
 `RecordedJudgeProvider`（in-process 字典 dry-run，`mode="dry_run"`）+
-`MissingRecordingError`。第二轮把 provider 接入 EvalRunner：可选
-`dry_run_provider` 注入；当配置时 `judge_results.json` 多顶层字段
-`dry_run_provider`（含 `schema_version + results[]`），CLI 增加
-`--judge-provider recorded --judge-recording PATH`，`report.md` 新段
-`## Dry-run JudgeProvider (advisory only)`。**deterministic baseline 永远是
-ground truth**——dry-run/recorded 结果绝不覆盖 `results[].passed`。
+`CompositeJudgeProvider`（v1.x 第一轮新增：把 deterministic + advisory 并列，
+透传 deterministic 给 `passed`，advisory 信息放进 `extra={agreement,
+deterministic_result, advisory_result}`）+ `MissingRecordingError`。第二轮把
+provider 接入 EvalRunner：可选 `dry_run_provider` 注入；当配置时
+`judge_results.json` 多顶层字段 `dry_run_provider`（含 `schema_version +
+results[]`），CLI 增加 `--judge-provider {recorded,composite}
+--judge-recording PATH`，`report.md` 新段
+`## Dry-run JudgeProvider (advisory only)`。Composite 路径下 `metrics.json`
+进一步多 `judge_disagreement = {schema_version, total, agree, disagree,
+error, disagreement_rate}` 顶层字段，**优先**按 `entry.agreement` 计数
+（advisory vs deterministic 真实分歧）。**deterministic baseline 永远是
+ground truth**——dry-run/recorded/composite 结果绝不覆盖 `results[].passed`。
 缺 recording / fixture 文件 / 顶层字段时 CLI 立即 exit 2 + 可行动 hint。
 契约由 `tests/test_judge_provider_skeleton.py` + `tests/test_eval_runner_judge_provider.py`
-共 12 条测试钉死。详见 `docs/ROADMAP.md` v1.1 段、`docs/ARTIFACTS.md`
-"judge_results.json::dry_run_provider" 段。
+共 16 条测试钉死（其中 v1.x 第一轮新增 4 条，含"Composite 路径 monkeypatch
+禁用 socket 后仍跑通"的不开网络硬约束）。详见 `docs/ROADMAP.md` v1.1 / v1.x
+段、`docs/ARTIFACTS.md` "judge_results.json::dry_run_provider" 段、
+仓库根 `.env.example` 未来真实 LLM provider 占位符。
 
 ### diagnose
 

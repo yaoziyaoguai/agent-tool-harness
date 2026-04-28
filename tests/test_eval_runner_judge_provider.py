@@ -235,3 +235,202 @@ def test_cli_recorded_with_malformed_fixture_returns_actionable_error(tmp_path, 
     assert rc == 2
     err = capsys.readouterr().err
     assert "judgments" in err
+
+
+# ---------------------------------------------------------------------------
+# v1.x CompositeJudgeProvider 集成测试
+# 边界说明：Composite 把 deterministic + recorded 并列调用。下面 4 条测试
+# 钉死的契约：
+#   - Composite 不覆盖 deterministic baseline；
+#   - judge_results.json 多带 advisory_result / agreement / disagreement 字段；
+#   - metrics.json::judge_disagreement 在 Composite 场景下必出现，且分歧率
+#     来自真实计数（不是硬编码）；
+#   - report.md 必须显示 disagreement 摘要与 advisory disclaimer；
+#   - Composite + 缺 recording → entry.error 必现，绝不静默假成功。
+# 这些是 v1.x 不接真实 LLM 仍能产出"未来 LLM judge vs deterministic 偏离"
+# 信号的核心边界。
+# ---------------------------------------------------------------------------
+
+
+def test_composite_provider_records_disagreement_without_overriding_baseline(tmp_path):
+    """钉死：Composite 写入 advisory_result + agreement + disagreement metrics。
+
+    fixture 故意让 advisory PASS、deterministic FAIL（bad path）；Composite
+    必须如实记录"两者分歧"，但不能改写 ``results[].passed``。
+    """
+
+    fixture = tmp_path / "rec.yaml"
+    fixture.write_text(
+        "judgments:\n"
+        "  runtime_input_boundary_regression:\n"
+        "    passed: true\n"
+        "    rationale: 'advisory thinks it is fine'\n"
+        "    confidence: 0.7\n"
+        "    rubric: 'evidence-grounded'\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "comp_run"
+    rc = _run_cli(
+        [
+            "run",
+            "--project", EXAMPLE_PROJECT,
+            "--tools", EXAMPLE_TOOLS,
+            "--evals", EXAMPLE_EVALS,
+            "--out", str(out),
+            "--mock-path", "bad",
+            "--judge-provider", "composite",
+            "--judge-recording", str(fixture),
+        ],
+        None,
+    )
+    assert rc == 0
+    judge = json.loads((out / "judge_results.json").read_text(encoding="utf-8"))
+    # deterministic baseline 不受 advisory 影响。
+    assert all(r["passed"] is False for r in judge["results"]), judge["results"]
+    entries = judge["dry_run_provider"]["results"]
+    assert entries
+    e = entries[0]
+    assert e["provider"] == "composite"
+    assert e["mode"] == "composite"
+    # Composite 内部：deterministic FAIL + advisory PASS → agreement=False。
+    assert e["passed"] is False  # ProviderJudgeResult.passed 透传 deterministic
+    assert e["deterministic_passed"] is False
+    assert e["agrees_with_deterministic"] is True  # provider_passed == deterministic
+    # advisory_result 子结构必出现，且 agreement 字段可见。
+    assert e["advisory_result"]["provider"] == "recorded"
+    assert e["advisory_result"]["passed"] is True
+    assert e["advisory_result"]["rationale"] == "advisory thinks it is fine"
+    assert e["agreement"] is False  # deterministic vs advisory 分歧
+    # metrics.json::judge_disagreement 必出现并反映真实计数。
+    metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+    dis = metrics["judge_disagreement"]
+    assert dis["total"] == 1
+    # Composite 路径下分歧率 = advisory vs deterministic（不是 provider_passed
+    # vs deterministic）。这里 advisory PASS + deterministic FAIL → disagree=1。
+    assert dis["agree"] == 0
+    assert dis["disagree"] == 1
+    assert dis["error"] == 0
+    assert dis["disagreement_rate"] == 1.0
+    # report 必须显示 advisory disclaimer 与 disagreement summary。
+    report = (out / "report.md").read_text(encoding="utf-8")
+    assert "Dry-run JudgeProvider (advisory only)" in report
+    assert "DO NOT change deterministic pass/fail" in report
+    assert "Disagreement summary" in report
+    # advisory 行必须能看到 advisory provider 标记，便于 reviewer 辨识。
+    assert "advisory=recorded/dry_run" in report
+
+
+def test_composite_provider_handles_missing_recording_as_error(tmp_path):
+    """钉死：Composite 配缺失 recording 时，entry.error 必现且 metrics 计入 error。
+
+    Composite 内部不能吞 MissingRecordingError；EvalRunner 必须捕获、
+    写结构化 error，metrics.judge_disagreement.error 计数 +1，绝不静默 PASS。
+    """
+
+    fixture = tmp_path / "rec.yaml"
+    fixture.write_text(
+        "judgments:\n"
+        "  some-other-eval:\n"
+        "    passed: true\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "comp_miss_run"
+    rc = _run_cli(
+        [
+            "run",
+            "--project", EXAMPLE_PROJECT,
+            "--tools", EXAMPLE_TOOLS,
+            "--evals", EXAMPLE_EVALS,
+            "--out", str(out),
+            "--mock-path", "bad",
+            "--judge-provider", "composite",
+            "--judge-recording", str(fixture),
+        ],
+        None,
+    )
+    assert rc == 0
+    judge = json.loads((out / "judge_results.json").read_text(encoding="utf-8"))
+    e = judge["dry_run_provider"]["results"][0]
+    assert e["provider"] == "composite"
+    assert "error" in e
+    assert e["error"]["type"] == "missing_recording"
+    # advisory error 不能伪装成 PASS：entry 不应有 ``passed`` 字段。
+    assert "passed" not in e
+    # deterministic baseline 不受影响。
+    assert all(r["passed"] is False for r in judge["results"])
+    metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+    dis = metrics["judge_disagreement"]
+    assert dis["total"] == 1
+    assert dis["error"] == 1
+    assert dis["agree"] == 0
+    assert dis["disagree"] == 0
+    # rate 在没有有效判定时应为 None（不是 0、不是 1）——避免被误读成"无分歧"。
+    assert dis["disagreement_rate"] is None
+
+
+def test_default_run_has_no_judge_disagreement_field(tmp_path):
+    """钉死：未配 dry-run provider 时 metrics.json 不出现 judge_disagreement。
+
+    防回归：未来若有人无条件挂上该字段，v1.0 metrics 消费者会被破坏。
+    """
+
+    out = tmp_path / "default_metrics"
+    rc = _run_cli(
+        [
+            "run",
+            "--project", EXAMPLE_PROJECT,
+            "--tools", EXAMPLE_TOOLS,
+            "--evals", EXAMPLE_EVALS,
+            "--out", str(out),
+            "--mock-path", "good",
+        ],
+        None,
+    )
+    assert rc == 0
+    metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+    assert "judge_disagreement" not in metrics
+
+
+def test_composite_provider_does_not_open_network_socket(tmp_path, monkeypatch):
+    """钉死：Composite 路径全程不开网络 socket。
+
+    用 monkeypatch 把 ``socket.socket`` 替成抛错版本——只要 Composite
+    或它包裹的 sub-provider 在 judge 期间动了网络，立即炸；这是"v1.x
+    不接真实 LLM、不联网"硬约束的运行时保险丝。
+    """
+
+    import socket
+
+    class _BannedSocket:
+        def __init__(self, *a, **kw):
+            raise RuntimeError("network socket forbidden in dry-run judge path")
+
+    fixture = tmp_path / "rec.yaml"
+    fixture.write_text(
+        "judgments:\n"
+        "  runtime_input_boundary_regression:\n"
+        "    passed: true\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "comp_no_net_run"
+    monkeypatch.setattr(socket, "socket", _BannedSocket)
+    rc = _run_cli(
+        [
+            "run",
+            "--project", EXAMPLE_PROJECT,
+            "--tools", EXAMPLE_TOOLS,
+            "--evals", EXAMPLE_EVALS,
+            "--out", str(out),
+            "--mock-path", "bad",
+            "--judge-provider", "composite",
+            "--judge-recording", str(fixture),
+        ],
+        None,
+    )
+    assert rc == 0
+    # 若 Composite 走过任何网络，monkeypatch 会让 socket 构造抛 RuntimeError；
+    # 由于 EvalRunner 会捕获 provider 异常写 entry.error，所以这里额外断言
+    # 没有 entry.error.type=provider_error，证明确实没人尝试开 socket。
+    judge = json.loads((out / "judge_results.json").read_text(encoding="utf-8"))
+    e = judge["dry_run_provider"]["results"][0]
+    assert "error" not in e, e

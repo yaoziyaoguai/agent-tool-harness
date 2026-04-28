@@ -151,7 +151,11 @@ class MarkdownReport:
         # v1.1 第二轮：dry-run JudgeProvider 旁路结果。仅当 judge_results.json
         # 包含 ``dry_run_provider`` 字段时才渲染该段，且**显式声明**这些结果
         # **不**改变 deterministic pass/fail。这一段只读字段，不二次评判。
-        dry_run_block = self._render_dry_run_provider(judge_results)
+        # v1.x 扩展：把 metrics.judge_disagreement 一并传入，让 Composite 场景下
+        # 能在 report 上方先看见"分歧率"概览，再看每条 entry 详情。
+        dry_run_block = self._render_dry_run_provider(
+            judge_results, disagreement=metrics.get("judge_disagreement")
+        )
         if dry_run_block:
             lines.extend(["", "## Dry-run JudgeProvider (advisory only)", ""])
             lines.extend(dry_run_block)
@@ -444,7 +448,10 @@ class MarkdownReport:
         return block
 
     def _render_dry_run_provider(
-        self, judge_results: dict[str, Any]
+        self,
+        judge_results: dict[str, Any],
+        *,
+        disagreement: dict[str, Any] | None = None,
     ) -> list[str]:
         """渲染 dry-run JudgeProvider 旁路结果（v1.1 第二轮）。
 
@@ -480,6 +487,21 @@ class MarkdownReport:
             ),
             "",
         ]
+        # v1.x：Composite provider 场景下先输出聚合分歧率，让 reviewer 一眼看到
+        # "如果未来接真实 LLM judge 大概会和 deterministic 偏离多少"。
+        # disagreement 来自 metrics.judge_disagreement；deterministic 字节兼容路径
+        # 不会出现该字段。
+        if disagreement:
+            rate = disagreement.get("disagreement_rate")
+            rate_text = "n/a" if rate is None else f"{rate:.2%}"
+            lines.append(
+                f"- Disagreement summary: total={disagreement.get('total')}, "
+                f"agree={disagreement.get('agree')}, "
+                f"disagree={disagreement.get('disagree')}, "
+                f"error={disagreement.get('error')}, "
+                f"disagreement_rate={rate_text}"
+            )
+            lines.append("")
         for entry in results:
             eval_id = entry.get("eval_id", "?")
             provider = entry.get("provider", "?")
@@ -505,6 +527,14 @@ class MarkdownReport:
             for key in ("rationale", "confidence", "rubric"):
                 if entry.get(key) is not None:
                     extras.append(f"{key}={entry[key]}")
+            # Composite 还会带 advisory_result 子字典；为了让读者能区分
+            # "deterministic 与 advisory 各自怎么判"，单独渲染 advisory 行。
+            adv = entry.get("advisory_result")
+            if isinstance(adv, dict):
+                extras.append(
+                    f"advisory={adv.get('provider')}/{adv.get('mode')}"
+                    f"={adv.get('passed')}"
+                )
             if extras:
                 line += " [" + "; ".join(extras) + "]"
             lines.append(line)

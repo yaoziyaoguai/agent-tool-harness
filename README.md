@@ -31,6 +31,8 @@ v0.3 release-ready 摘要见 [`RELEASE_NOTES_v0.3.md`](RELEASE_NOTES_v0.3.md)（
 v1.0 release-ready 摘要见 [`RELEASE_NOTES_v1.0.md`](RELEASE_NOTES_v1.0.md)（deterministic anti-decoy evidence grounding + grounding/decoy report 渲染 + run/replay/analyze 三段管线对齐）。
 v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（JudgeProvider abstraction + EvalRunner dry-run/recorded provider 集成；不接真实 LLM、不联网、不需要密钥）。
 
+> v1.x 第一轮（**未发布、未 tag**，已合入 main）：新增 `CompositeJudgeProvider` + `metrics.json::judge_disagreement` 分歧率统计 + `--judge-provider composite` CLI；仍**完全不接真实 LLM、不联网、不需要密钥**。未来真实 Anthropic-compatible（含阿里云 Coding Plan）provider 所需环境变量名见仓库根 [`.env.example`](.env.example)（当前 v1.x 不读取）。
+
 ## 快速开始
 
 > 第一次接入的团队请先看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；

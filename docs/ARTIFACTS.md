@@ -283,10 +283,46 @@ judgments:
     rubric: "..."        # 可选
 ```
 
-未来扩展点：真实 LLM provider（OpenAI / Anthropic）落地后会在
-`provider` / `mode` 字段加新值（如 `mode=live`），并 bump
-`PROVIDER_SCHEMA_VERSION` 到 `1.1.0` 正式版；当前 `1.1.0-skeleton`
-表示对外契约处于 stub 阶段，下游消费者应当按"只增不删"承诺解析。
+### v1.x CompositeJudgeProvider 路径（dry-run，仍不接真实 LLM）
+
+当 CLI 用 `--judge-provider composite --judge-recording PATH` 启动时，
+`dry_run_provider.results[]` 每条 entry 在 v1.1 第二轮基础上**额外**带：
+
+- `provider="composite"` / `mode="composite"`；
+- `passed`：与 deterministic baseline 一致（Composite 透传 deterministic，
+  `ProviderJudgeResult.passed` 不会被 advisory 改写）；
+- `deterministic_result`: `{provider, mode, passed}`；
+- `advisory_result`: `{provider, mode, passed, rationale, confidence, rubric}`；
+- `agreement`: bool，**真正**的 deterministic vs advisory 一致性；
+- `agrees_with_deterministic`: bool，由于 Composite 透传 deterministic，
+  恒为 `true`——分析"与 deterministic 是否分歧"应当读 `agreement`，
+  不要读这个字段。
+
+同时 `metrics.json` 多顶层字段 `judge_disagreement`：
+
+```jsonc
+{
+  "judge_disagreement": {
+    "schema_version": "1.1.0-skeleton",
+    "total": 1,         // dry_run_results 总条数
+    "agree": 0,         // advisory == deterministic 计数
+    "disagree": 1,      // advisory != deterministic 计数
+    "error": 0,         // 缺 recording / provider 异常计数（不计入分歧率）
+    "disagreement_rate": 1.0   // disagree / (agree + disagree); null 表示无有效判定
+  }
+}
+```
+
+`report.md` 的 `## Dry-run JudgeProvider (advisory only)` 段会先打印一条
+`Disagreement summary` 概览，再逐条列 `provider_passed / deterministic_passed
+/ agrees / advisory=...` 详情；`DO NOT change deterministic pass/fail`
+免责声明保留。
+
+**这是 dry-run / advisory，**未接真实 LLM judge，未来真实 provider 落地
+所需环境变量（`AGENT_TOOL_HARNESS_LLM_PROVIDER` /
+`AGENT_TOOL_HARNESS_LLM_BASE_URL` / `AGENT_TOOL_HARNESS_LLM_API_KEY` /
+`AGENT_TOOL_HARNESS_LLM_MODEL`）见仓库根 `.env.example`，当前 v1.x **完全
+不读取**这些变量。
 
 ## diagnosis.json
 

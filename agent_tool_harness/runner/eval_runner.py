@@ -352,6 +352,7 @@ class EvalRunner:
             skipped=skipped,
             errors=errors,
             signal_quality=signal_quality,
+            dry_run_results=dry_run_results,
         )
         judge_payload = {"results": judge_results}
         # v1.1 第二轮：仅在配置了 dry-run provider 且确实有结果时，才在
@@ -427,6 +428,7 @@ class EvalRunner:
         skipped: int = 0,
         errors: int = 0,
         signal_quality: str = UNKNOWN,
+        dry_run_results: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """计算运行统计。
 
@@ -436,12 +438,19 @@ class EvalRunner:
         `signal_quality` / `signal_quality_note` 是与 Anthropic 文章方法论差距的显式标记：
         当前 adapter 是 MockReplayAdapter 时，它会被写为 ``tautological_replay``，提醒读者
         PASS 不能被解读为“工具对真实 Agent 好用”。这是 MVP 阶段的诚实披露，不是评分。
+
+        v1.x 新增 ``judge_disagreement``：仅当配置了 dry-run JudgeProvider 时
+        出现，统计 advisory provider 与 deterministic baseline 的分歧情况
+        （total/agree/disagree/error/disagreement_rate）。**永远**不会改变
+        ``passed/failed`` 计数——deterministic baseline 仍是 ground truth；
+        分歧率只是诊断信号，让用户能定量看到"如果未来接真实 LLM judge，
+        会和当前 deterministic 偏离多少"。
         """
 
         passed = sum(1 for result in judge_results if result.get("passed"))
         failed = len(judge_results) - passed
         tool_calls = sum(len(result.tool_calls) for result in run_results)
-        return {
+        metrics: dict[str, Any] = {
             "total_evals": len(evals),
             "runnable_evals": len(evals) - skipped,
             "executed_evals": len(run_results),
@@ -453,6 +462,41 @@ class EvalRunner:
             "signal_quality": signal_quality,
             "signal_quality_note": describe(signal_quality),
         }
+        if dry_run_results:
+            # 只统计有 ``passed`` 字段的 entry——``error`` entry（缺 recording /
+            # provider 异常）独立计数，避免把异常伪装成"分歧"或"一致"。
+            agree = 0
+            disagree = 0
+            error = 0
+            for entry in dry_run_results:
+                if "error" in entry:
+                    error += 1
+                    continue
+                # Composite 透传 deterministic 给 ProviderJudgeResult.passed，
+                # 因此它的 ``agrees_with_deterministic`` 恒为 True；真实的
+                # advisory vs deterministic 分歧记录在 ``entry.agreement``。
+                # 这里优先读 ``agreement``（Composite 路径），缺失时回落到
+                # ``agrees_with_deterministic``（直接挂 RecordedJudgeProvider
+                # 的路径）——保证两种 provider 都能产生有意义的分歧率。
+                if "agreement" in entry:
+                    is_agree = bool(entry["agreement"])
+                else:
+                    is_agree = bool(entry.get("agrees_with_deterministic"))
+                if is_agree:
+                    agree += 1
+                else:
+                    disagree += 1
+            decided = agree + disagree
+            disagreement_rate = (disagree / decided) if decided else None
+            metrics["judge_disagreement"] = {
+                "schema_version": PROVIDER_SCHEMA_VERSION,
+                "total": len(dry_run_results),
+                "agree": agree,
+                "disagree": disagree,
+                "error": error,
+                "disagreement_rate": disagreement_rate,
+            }
+        return metrics
 
     def _invoke_dry_run_provider(
         self,
@@ -518,6 +562,14 @@ class EvalRunner:
             value = meta.get(key)
             if value is not None:
                 entry[key] = value
+        # v1.x CompositeJudgeProvider：把 ``extra`` 中的 advisory_result /
+        # deterministic_result / agreement 等结构化字段也写进 artifact，
+        # 让 metrics.json::judge_disagreement 与 report.md 能直接消费——
+        # 而不需要重新调用 provider 反推。这里只搬已知键，避免 provider 实现
+        # 不小心把 raw API 响应等敏感字段（潜在 key/PII）泄漏到 artifact。
+        for key in ("agreement", "advisory_result", "deterministic_result"):
+            if key in result.extra:
+                entry[key] = result.extra[key]
         return entry
 
     def _diagnose(

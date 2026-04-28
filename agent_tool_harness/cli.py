@@ -87,10 +87,11 @@ def _build_parser() -> argparse.ArgumentParser:
     # 真实外部调用——v1.1 第一轮明确不接 LLM。
     run.add_argument(
         "--judge-provider",
-        choices=["recorded"],
+        choices=["recorded", "composite"],
         default=None,
-        help="可选 dry-run judge provider；当前只支持 'recorded'，结果写入 "
-        "judge_results.json::dry_run_provider，不会覆盖 deterministic baseline。",
+        help="可选 dry-run judge provider；'recorded' 仅写 advisory，"
+        "'composite' 同时跑 deterministic + recorded 并输出 disagreement metrics。"
+        "结果写入 judge_results.json::dry_run_provider，不会覆盖 deterministic baseline。",
     )
     run.add_argument(
         "--judge-recording",
@@ -419,17 +420,21 @@ def _run(
       可行动错误并 exit 2。
     """
 
-    from agent_tool_harness.judges.provider import RecordedJudgeProvider
+    from agent_tool_harness.judges.provider import (
+        CompositeJudgeProvider,
+        RecordedJudgeProvider,
+        RuleJudgeProvider,
+    )
 
     tools = load_tools(tools_path)
     evals = load_evals(evals_path)
     _warn_if_empty(tools, "tools", tools_path)
     _warn_if_empty(evals, "evals", evals_path)
     dry_provider = None
-    if judge_provider == "recorded":
+    if judge_provider in ("recorded", "composite"):
         if not judge_recording:
             print(
-                "error: --judge-provider recorded 必须同时给 --judge-recording PATH",
+                f"error: --judge-provider {judge_provider} 必须同时给 --judge-recording PATH",
                 file=sys.stderr,
             )
             print(
@@ -439,7 +444,18 @@ def _run(
             )
             return 2
         recordings = _load_judge_recording(judge_recording)
-        dry_provider = RecordedJudgeProvider(recordings=recordings)
+        recorded = RecordedJudgeProvider(recordings=recordings)
+        if judge_provider == "composite":
+            # Composite 把 deterministic + advisory 并列：deterministic 仍是
+            # ground truth；advisory 只贡献 disagreement signal。这里**不**复用
+            # EvalRunner.judge 实例——为了让 provider 行为完全可被 contract test
+            # 复盘，每次 CLI 运行都用一个新鲜的 RuleJudgeProvider。
+            dry_provider = CompositeJudgeProvider(
+                deterministic=RuleJudgeProvider(),
+                advisory=recorded,
+            )
+        else:
+            dry_provider = recorded
     result = EvalRunner(dry_run_provider=dry_provider).run(
         load_project(project_path),
         tools,
