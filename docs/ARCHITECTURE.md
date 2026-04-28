@@ -223,6 +223,17 @@ runner 事件，并继续生成派生 artifacts。这样失败原因不会只停
 - `expected_root_cause_contains`
 - `must_use_evidence`
 - `must_not_modify_before_evidence`
+- `evidence_from_required_tools`（v1.0 第一项 deterministic anti-decoy）
+
+**v1.1 第一项受控启动：JudgeProvider abstraction skeleton**。
+新增 `agent_tool_harness/judges/provider.py` 暴露 `JudgeProvider` Protocol +
+`RuleJudgeProvider`（透传 RuleJudge，`mode="deterministic"`）+
+`RecordedJudgeProvider`（in-process 字典 dry-run，`mode="dry_run"`）+
+`MissingRecordingError`。本轮**不**改 EvalRunner、**不**改
+`judge_results.json` schema、**不**调任何外部 LLM / 网络——目的是让未来真实
+LLM judge 落地时只换 provider 实现，不破坏 v1.0 deterministic baseline。
+契约由 `tests/test_judge_provider_skeleton.py` 钉死（包括"两个 provider 都
+不能开网络 socket"）。详见 `docs/ROADMAP.md` v1.1 段。
 
 ### diagnose
 
