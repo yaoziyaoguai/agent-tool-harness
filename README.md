@@ -24,6 +24,7 @@ Agent Tool Harness 目前是 **MVP**，与 Anthropic 文章方法论存在已知
 - **真实 OpenAI/Anthropic adapter、MCP executor、HTTP/Shell executor、LLM Judge、from_transcripts/from_docs eval 生成、held-out 比较、Web UI 都属未来路线**。
 
 进度与能力边界以 `docs/ROADMAP.md` 为准；架构与失败归因以 `docs/ARCHITECTURE.md` 为准。
+v0.1 release-ready 摘要见 [`RELEASE_NOTES_v0.1.md`](RELEASE_NOTES_v0.1.md)（commit `0dcb8e7`）。
 
 ## 快速开始
 
