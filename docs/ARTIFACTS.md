@@ -353,3 +353,46 @@ RuleJudge 对每个 eval 的逐规则结果。
   Web UI、LLM Judge；它们都属未来路线，详见 `docs/ROADMAP.md`。
 - 想要"复制粘贴跑一遍"的最短试用路径（含 `analyze-artifacts` 离线复盘）→
   见 [`docs/TRY_IT.md`](./TRY_IT.md)。
+
+---
+
+## replay-run 产物（v0.3 新增 CLI）
+
+由 `python -m agent_tool_harness.cli replay-run --source-run RUN_DIR
+--project ... --tools ... --evals ... --out OUT_DIR` 写出。
+
+**与 9 个标准 run artifact 是同一套结构**——`replay-run` 把已有 run 当
+"录像带"deterministic 重放，输出目录里仍然是 `transcript.jsonl` /
+`tool_calls.jsonl` / `tool_responses.jsonl` / `metrics.json` /
+`audit_tools.json` / `audit_evals.json` / `judge_results.json` /
+`diagnosis.json` / `report.md` 一共 9 个 artifact，可以被 `analyze-artifacts`
+和任何下游分析继续消费。
+
+但有 4 处与原 run 不同的标记，方便复盘者识别"这是 replay 不是真实 run"：
+
+1. `metrics.json::signal_quality == "recorded_trajectory"`，
+   `signal_quality_note` 写明 "Trajectory replayed from a previously
+   recorded transcript; useful for regression but not a fresh Agent decision."
+2. `transcript.jsonl` 顶部第一条事件是
+   `{"role": "system", "type": "runner.replay_summary",
+   "metadata": {"source_run": "...", "source_tool_call_count": N,
+   "source_tool_response_count": N, "source_transcript_event_count": N,
+   "signal_quality": "recorded_trajectory"}}`
+3. 每条 `tool_call` / `tool_response` 都带
+   `replayed_from = {"source_run": "...", "source_timestamp": "..."}`，
+   并保留源的 `call_id`，让 call ↔ response 的关联与源 run 完全一致。
+4. 当源 run **缺**某条 eval 的记录时，`transcript.jsonl` 会写一条
+   `{"role": "system", "type": "runner.replay_warning"}` 事件，
+   `final_answer` 留空，`judge_results.json` 中该 eval deterministic FAIL——
+   绝**不**伪造 PASS。
+
+边界声明：
+
+- **不**调 LLM、**不**调 `registry.execute`、**不**发起任何外部副作用。
+  工具响应直接来自源 `tool_responses.jsonl`。重新执行 stateful 工具会让
+  trajectory 偏离原始证据，违背"录像带"语义。
+- 信号质量**不是** `real_agent`——历史 trajectory 不等于"当前模型对当前
+  工具集还会做出同样选择"。
+- 详细模块边界、未来扩展点（`--diff PREV_RUN` 等）见
+  `agent_tool_harness/agents/transcript_replay_adapter.py` 顶层 docstring
+  和 `docs/ROADMAP.md` v0.3 段。

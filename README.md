@@ -27,6 +27,7 @@ Agent Tool Harness 目前是 **MVP**，与 Anthropic 文章方法论存在已知
 进度与能力边界以 `docs/ROADMAP.md` 为准；架构与失败归因以 `docs/ARCHITECTURE.md` 为准。
 v0.1 release-ready 摘要见 [`RELEASE_NOTES_v0.1.md`](RELEASE_NOTES_v0.1.md)（commit `0dcb8e7`）。
 v0.2 release-ready 摘要见 [`RELEASE_NOTES_v0.2.md`](RELEASE_NOTES_v0.2.md)（trace-derived signals + analyze-artifacts CLI + TRY_IT product trial path）。
+v0.3 release-ready 摘要见 [`RELEASE_NOTES_v0.3.md`](RELEASE_NOTES_v0.3.md)（TranscriptReplayAdapter + replay-run CLI；deterministic recorded-trajectory replay）。
 
 ## 快速开始
 
@@ -246,6 +247,27 @@ python -m agent_tool_harness.cli analyze-artifacts \
 > "拿到一份历史 run（甚至是 v0.2 第三轮之前生成的老 run）" 也能补出 trace 信号。
 > `--evals` 是可选的，但不传时 `tool_selected_in_when_not_to_use_context` 信号
 > 会被跳过（依赖 `user_prompt`）。
+
+把已有 run 当"录像带"deterministic 重新跑一遍完整 EvalRunner 闭环（v0.3 新增 CLI）：
+
+```bash
+python -m agent_tool_harness.cli replay-run \
+  --source-run runs/demo-bad \
+  --project examples/runtime_debug/project.yaml \
+  --tools examples/runtime_debug/tools.yaml \
+  --evals examples/runtime_debug/evals.yaml \
+  --out runs/demo-replayed-bad
+```
+
+输出：与 `run` 命令一样的 9 个 artifact，但 `metrics.signal_quality =
+recorded_trajectory`，每条 `tool_call` / `tool_response` 都带
+`replayed_from = {source_run, source_timestamp}`，`transcript.jsonl` 顶部
+有一条 `runner.replay_summary` 事件标识本次为 replay。
+
+> `replay-run` 严格不调用 LLM、**不调用** `registry.execute`——工具响应
+> 直接来自源 `tool_responses.jsonl`。这是"录像带"的本意：重新执行 stateful
+> 工具会让 trajectory 偏离原始证据。详细边界见
+> `agent_tool_harness/agents/transcript_replay_adapter.py` 顶层 docstring。
 
 ## Artifacts
 

@@ -83,9 +83,10 @@
 ```python
 @pytest.mark.xfail(
     reason=(
-        "需要 TranscriptReplayAdapter 读取真实历史 transcript；"
-        "转正条件：replay adapter 进入 P0 当前范围，并有 fixture 覆盖 bad path。"
-    )
+        "Deterministic 词袋无法识别同义词改写的诱饵工具；"
+        "转正条件：拿到真实 transcript 样本库或接入 LLM judge（v1.0 路线）。"
+    ),
+    strict=True,
 )
 ```
 
