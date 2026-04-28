@@ -224,6 +224,70 @@ RuleJudge 对每个 eval 的逐规则结果。
 - 看哪条 check 失败 → 回到 `tool_calls.jsonl` / `tool_responses.jsonl` 找证据。
 - 不要把 runner 级失败误读为模型路径错误，先看 `transcript.jsonl` 的 runner_error。
 
+### 可选字段：`dry_run_provider`（v1.1 第二轮新增）
+
+只有当用户调 `run --judge-provider recorded --judge-recording PATH` 时
+才出现的旁路 metadata 段：
+
+```jsonc
+{
+  "results": [...],                    // v1.0 deterministic baseline，绝不被覆盖
+  "dry_run_provider": {
+    "schema_version": "1.1.0-skeleton",
+    "results": [
+      {
+        "eval_id": "...",
+        "provider": "recorded",        // 当前只有 rule / recorded；未来扩展 mock_llm 等
+        "mode": "dry_run",             // deterministic | dry_run | recorded
+        "schema_version": "1.1.0-skeleton",
+        "deterministic_passed": false, // 与上方 results[].passed 对比用
+        "passed": true,                // provider 自报；不会修改 results[].passed
+        "agrees_with_deterministic": false,
+        "rationale": "...",            // 可选，advisory 文本
+        "confidence": 0.9,             // 可选 [0,1]
+        "rubric": "..."                // 可选
+      },
+      {
+        "eval_id": "...",
+        "provider": "recorded",
+        "mode": "dry_run",
+        "schema_version": "1.1.0-skeleton",
+        "deterministic_passed": false,
+        "error": {                     // recording 缺失或 provider 异常
+          "type": "missing_recording", // 或 provider_error
+          "message": "..."
+        }
+      }
+    ]
+  }
+}
+```
+
+**关键约束（与 v1.0 兼容性挂钩）**：
+
+- 默认 `run` 不带 `--judge-provider` 时该字段**不存在**，与 v1.0 字节兼容；
+- `dry_run_provider.results[].passed` **不会**改写 `results[].passed`——
+  deterministic baseline 永远是 ground truth；
+- 缺 recording 时 entry 必含 `error` 字段，**绝不**伪造 `passed: true`；
+- `report.md` 在 `## Dry-run JudgeProvider (advisory only)` 段会显式声明
+  "DO NOT change deterministic pass/fail"。
+
+**fixture schema**（`--judge-recording` 接收的 yaml/json）：
+
+```yaml
+judgments:
+  <eval_id>:
+    passed: true|false   # 必填
+    rationale: "..."     # 可选
+    confidence: 0.9      # 可选 [0,1]
+    rubric: "..."        # 可选
+```
+
+未来扩展点：真实 LLM provider（OpenAI / Anthropic）落地后会在
+`provider` / `mode` 字段加新值（如 `mode=live`），并 bump
+`PROVIDER_SCHEMA_VERSION` 到 `1.1.0` 正式版；当前 `1.1.0-skeleton`
+表示对外契约处于 stub 阶段，下游消费者应当按"只增不删"承诺解析。
+
 ## diagnosis.json
 
 `TranscriptAnalyzer` 派生的失败归因（deterministic heuristic，**不是 LLM Judge**）。

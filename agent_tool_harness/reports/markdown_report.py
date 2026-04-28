@@ -148,6 +148,14 @@ class MarkdownReport:
             if item.get("tool_sequence"):
                 lines.append(f"  Tool sequence: {', '.join(item['tool_sequence'])}")
 
+        # v1.1 第二轮：dry-run JudgeProvider 旁路结果。仅当 judge_results.json
+        # 包含 ``dry_run_provider`` 字段时才渲染该段，且**显式声明**这些结果
+        # **不**改变 deterministic pass/fail。这一段只读字段，不二次评判。
+        dry_run_block = self._render_dry_run_provider(judge_results)
+        if dry_run_block:
+            lines.extend(["", "## Dry-run JudgeProvider (advisory only)", ""])
+            lines.extend(dry_run_block)
+
         # 顶层 Failure Attribution：把所有 eval 的 finding 按 category 聚合，让 review 者
         # 一眼看到“本次 run 主要是工具设计 / eval 定义 / Agent 工具选择 / runtime 哪类
         # 问题”。CI 也可以基于这块文本做 grep。诊断为 deterministic heuristic，详见上
@@ -434,6 +442,73 @@ class MarkdownReport:
             block.append(f"    - {hint}")
         block.append("")
         return block
+
+    def _render_dry_run_provider(
+        self, judge_results: dict[str, Any]
+    ) -> list[str]:
+        """渲染 dry-run JudgeProvider 旁路结果（v1.1 第二轮）。
+
+        本方法负责什么
+        --------------
+        - 读取 ``judge_results.json::dry_run_provider`` 数组，逐条渲染
+          provider/mode/passed/agrees_with_deterministic/rationale/
+          confidence/rubric/error 等字段；
+        - 在段首明确告知读者"这些结果**不**改变 deterministic pass/fail"。
+
+        本方法**不**负责什么
+        --------------------
+        - 不重新评判、不 merge 进 deterministic ``results``；
+        - 不调用任何 provider——所有渲染只读 JSON 字段；
+        - 不掩盖 provider error：若某条 entry 含 ``error``，照实显示
+          （recording 缺失等可行动错误必须可被读者看到，绝不静默 PASS）。
+
+        返回空列表表示 ``judge_results`` 中没有 ``dry_run_provider`` 字段，
+        ``render`` 会跳过整段标题——保持 v1.0 默认 report 字节兼容。
+        """
+
+        section = judge_results.get("dry_run_provider")
+        if not section:
+            return []
+        results = section.get("results", []) or []
+        if not results:
+            return []
+        schema_version = section.get("schema_version", "?")
+        lines: list[str] = [
+            (
+                f"_provider schema_version={schema_version}; results below are "
+                f"advisory and DO NOT change deterministic pass/fail._"
+            ),
+            "",
+        ]
+        for entry in results:
+            eval_id = entry.get("eval_id", "?")
+            provider = entry.get("provider", "?")
+            mode = entry.get("mode", "?")
+            line = f"- {eval_id} — provider={provider} mode={mode}"
+            if "error" in entry:
+                err = entry["error"]
+                err_type = err.get("type", "error")
+                err_msg = err.get("message", "")
+                lines.append(
+                    f"{line}; error={err_type}: {err_msg} (deterministic_passed="
+                    f"{entry.get('deterministic_passed')})"
+                )
+                continue
+            passed = entry.get("passed")
+            agrees = entry.get("agrees_with_deterministic")
+            line = (
+                f"{line}; provider_passed={passed}; "
+                f"deterministic_passed={entry.get('deterministic_passed')}; "
+                f"agrees={agrees}"
+            )
+            extras = []
+            for key in ("rationale", "confidence", "rubric"):
+                if entry.get(key) is not None:
+                    extras.append(f"{key}={entry[key]}")
+            if extras:
+                line += " [" + "; ".join(extras) + "]"
+            lines.append(line)
+        return lines
 
     def _render_failure_attribution(self, diagnosis: dict[str, Any]) -> list[str]:
         """聚合所有 eval 的 finding，按 category 输出汇总。

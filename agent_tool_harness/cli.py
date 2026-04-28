@@ -81,6 +81,22 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--evals", required=True)
     run.add_argument("--out", required=True)
     run.add_argument("--mock-path", choices=["good", "bad"], default="good")
+    # v1.1 第二轮：可选 dry-run JudgeProvider。默认 None 走纯 v1.0 路径，
+    # judge_results.json 字节兼容；若指定 ``recorded`` 必须同时给
+    # ``--judge-recording`` 路径。**不**支持 ``--judge-provider llm`` 等
+    # 真实外部调用——v1.1 第一轮明确不接 LLM。
+    run.add_argument(
+        "--judge-provider",
+        choices=["recorded"],
+        default=None,
+        help="可选 dry-run judge provider；当前只支持 'recorded'，结果写入 "
+        "judge_results.json::dry_run_provider，不会覆盖 deterministic baseline。",
+    )
+    run.add_argument(
+        "--judge-recording",
+        default=None,
+        help="recorded provider 的 judgment fixture 路径（json/yaml，schema 见 docs/ARTIFACTS.md）。",  # noqa: E501
+    )
 
     promote = subparsers.add_parser(
         "promote-evals",
@@ -174,7 +190,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "audit-evals":
             return _audit_evals(args.evals, args.out)
         if args.command == "run":
-            return _run(args.project, args.tools, args.evals, args.out, args.mock_path)
+            return _run(
+                args.project,
+                args.tools,
+                args.evals,
+                args.out,
+                args.mock_path,
+                judge_provider=args.judge_provider,
+                judge_recording=args.judge_recording,
+            )
         if args.command == "promote-evals":
             return _promote_evals(args.candidates, args.out, force=args.force)
         if args.command == "analyze-artifacts":
@@ -229,6 +253,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except CLIError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        # v1.1：dry-run JudgeProvider fixture 校验失败走这里。把可行动错误
+        # 直接打到 stderr，不暴露 traceback；exit 2 与其他配置错误一致。
+        print(f"error: {exc}", file=sys.stderr)
         return 2
     raise AssertionError(args.command)
 
@@ -322,12 +351,96 @@ def _audit_evals(evals_path: str, out: str) -> int:
     return 0
 
 
-def _run(project_path: str, tools_path: str, evals_path: str, out: str, mock_path: str) -> int:
+def _load_judge_recording(path_str: str) -> dict:
+    """读取 dry-run JudgeProvider 的 fixture 文件。
+
+    本函数负责什么
+    --------------
+    支持 yaml/json 两种格式（按扩展名分派）；要求顶层是 mapping，必须含
+    ``judgments`` 字段（``{eval_id: {passed, ...}}``）。若文件不存在 / 缺
+    ``judgments`` 字段 / 字段类型错误，抛 :class:`FileNotFoundError` 或
+    :class:`ValueError`，由 ``main`` 转成 CLI 友好错误——**绝不**返回空
+    dict 让 RecordedJudgeProvider 静默 PASS。
+
+    本函数**不**负责什么
+    --------------------
+    不验证 ``passed`` 字段类型 / 不补默认值——校验留给
+    :class:`RecordedJudgeProvider`，让上下游错误信息互不污染。
+    """
+
+    path = Path(path_str)
+    if not path.exists():
+        raise FileNotFoundError(f"judge recording fixture not found: {path_str}")
+    text = path.read_text(encoding="utf-8")
+    if path.suffix in {".yaml", ".yml"}:
+        import yaml
+
+        data = yaml.safe_load(text)
+    else:
+        data = json.loads(text)
+    if not isinstance(data, dict) or "judgments" not in data:
+        raise ValueError(
+            f"judge recording fixture {path_str} 缺少顶层字段 'judgments'；"
+            "schema 见 docs/ARTIFACTS.md。"
+        )
+    judgments = data["judgments"]
+    if not isinstance(judgments, dict):
+        raise ValueError(
+            f"judge recording fixture {path_str} 中 'judgments' 必须是 mapping，"
+            f"实际类型 {type(judgments).__name__}。"
+        )
+    return judgments
+
+
+def _run(
+    project_path: str,
+    tools_path: str,
+    evals_path: str,
+    out: str,
+    mock_path: str,
+    *,
+    judge_provider: str | None = None,
+    judge_recording: str | None = None,
+) -> int:
+    """CLI ``run`` 命令实现。
+
+    本函数负责什么
+    --------------
+    把 CLI 参数装配成 :class:`EvalRunner` 调用；当用户传 ``--judge-provider
+    recorded`` 时，从 ``--judge-recording`` 读取 dry-run judgment fixture，
+    构造 :class:`RecordedJudgeProvider` 注入 runner。**默认**不注入任何
+    provider，runner 走纯 v1.0 deterministic 路径。
+
+    本函数**不**负责什么
+    --------------------
+    - 不调真实 LLM API；``--judge-provider`` 当前只接受 ``recorded``。
+    - 不静默缺 fixture：若用户传了 ``--judge-provider recorded`` 但
+      ``--judge-recording`` 路径不存在或缺 ``judgments`` 字段，立即报
+      可行动错误并 exit 2。
+    """
+
+    from agent_tool_harness.judges.provider import RecordedJudgeProvider
+
     tools = load_tools(tools_path)
     evals = load_evals(evals_path)
     _warn_if_empty(tools, "tools", tools_path)
     _warn_if_empty(evals, "evals", evals_path)
-    result = EvalRunner().run(
+    dry_provider = None
+    if judge_provider == "recorded":
+        if not judge_recording:
+            print(
+                "error: --judge-provider recorded 必须同时给 --judge-recording PATH",
+                file=sys.stderr,
+            )
+            print(
+                "hint: fixture 是 yaml/json，根字段 judgments 是 "
+                "{eval_id: {passed, rationale, confidence, rubric}} 映射。",
+                file=sys.stderr,
+            )
+            return 2
+        recordings = _load_judge_recording(judge_recording)
+        dry_provider = RecordedJudgeProvider(recordings=recordings)
+    result = EvalRunner(dry_run_provider=dry_provider).run(
         load_project(project_path),
         tools,
         evals,

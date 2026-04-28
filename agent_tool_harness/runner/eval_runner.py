@@ -13,6 +13,12 @@ from agent_tool_harness.config.project_spec import ProjectSpec
 from agent_tool_harness.config.tool_spec import ToolSpec
 from agent_tool_harness.diagnose.trace_signal_analyzer import TraceSignalAnalyzer
 from agent_tool_harness.diagnose.transcript_analyzer import TranscriptAnalyzer
+from agent_tool_harness.judges.provider import (
+    PROVIDER_SCHEMA_VERSION,
+    JudgeProvider,
+    MissingRecordingError,
+    ProviderJudgeResult,
+)
 from agent_tool_harness.judges.rule_judge import JudgeResult, RuleCheckResult, RuleJudge
 from agent_tool_harness.recorder.run_recorder import RunRecorder
 from agent_tool_harness.reports.markdown_report import MarkdownReport
@@ -65,6 +71,7 @@ class EvalRunner:
         analyzer: TranscriptAnalyzer | None = None,
         trace_signal_analyzer: TraceSignalAnalyzer | None = None,
         report: MarkdownReport | None = None,
+        dry_run_provider: JudgeProvider | None = None,
     ):
         self.tool_auditor = tool_auditor or ToolDesignAuditor()
         self.eval_auditor = eval_auditor or EvalQualityAuditor()
@@ -75,6 +82,11 @@ class EvalRunner:
         # ``run`` 中再装配——避免构造期就必须知道 tools。
         self._trace_signal_analyzer_override = trace_signal_analyzer
         self.report = report or MarkdownReport()
+        # v1.1 第二轮：可选 dry-run JudgeProvider。**绝不**改变 deterministic
+        # baseline——`self.judge` 始终是 ground truth；这里写入的结果只作为旁路
+        # metadata 落到 ``judge_results.json::dry_run_provider``，让未来真实 LLM
+        # judge 落地时只换 provider 实现，不影响现有契约。None 表示走纯 v1.0 路径。
+        self.dry_run_provider = dry_run_provider
 
     def run(
         self,
@@ -135,6 +147,10 @@ class EvalRunner:
         judge_results = []
         diagnoses = []
         run_results = []
+        # v1.1 第二轮：dry_run_results 与 judge_results 一一对应（按 evals 顺序）；
+        # 当未配置 provider 时为空列表，意味着 ``judge_results.json`` 不会出现
+        # ``dry_run_provider`` 字段，与 v1.0 完全字节兼容。
+        dry_run_results: list[dict[str, Any]] = []
         skipped = 0
         errors = 0
         try:
@@ -161,6 +177,9 @@ class EvalRunner:
                     str(exc),
                 )
                 judge_results.append(judge_result.to_dict())
+                _dry = self._invoke_dry_run_provider(case, run_result, judge_result.passed)
+                if _dry is not None:
+                    dry_run_results.append(_dry)
                 diagnoses.append(
                     self._diagnose(
                         case,
@@ -183,6 +202,7 @@ class EvalRunner:
                 skipped=0,
                 errors=errors,
                 signal_quality=signal_quality,
+                dry_run_results=dry_run_results,
             )
 
         for case in evals:
@@ -208,6 +228,9 @@ class EvalRunner:
                     "EvalQualityAuditor marked this eval as not runnable.",
                 )
                 judge_results.append(judge_result.to_dict())
+                _dry = self._invoke_dry_run_provider(case, run_result, judge_result.passed)
+                if _dry is not None:
+                    dry_run_results.append(_dry)
                 diagnoses.append(
                     self._diagnose(
                         case,
@@ -251,6 +274,9 @@ class EvalRunner:
                     str(exc),
                 )
                 judge_results.append(judge_result.to_dict())
+                _dry = self._invoke_dry_run_provider(case, run_result, judge_result.passed)
+                if _dry is not None:
+                    dry_run_results.append(_dry)
                 diagnoses.append(
                     self._diagnose(
                         case,
@@ -265,6 +291,9 @@ class EvalRunner:
             run_results.append(run_result)
             judge_result = self.judge.judge(case, run_result)
             judge_results.append(judge_result.to_dict())
+            _dry = self._invoke_dry_run_provider(case, run_result, judge_result.passed)
+            if _dry is not None:
+                dry_run_results.append(_dry)
             diagnoses.append(
                 self._diagnose(
                     case,
@@ -288,6 +317,7 @@ class EvalRunner:
             skipped=skipped,
             errors=errors,
             signal_quality=signal_quality,
+            dry_run_results=dry_run_results,
         )
 
     def _write_artifacts(
@@ -304,6 +334,7 @@ class EvalRunner:
         skipped: int,
         errors: int,
         signal_quality: str = UNKNOWN,
+        dry_run_results: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """统一写最终 artifacts。
 
@@ -323,6 +354,17 @@ class EvalRunner:
             signal_quality=signal_quality,
         )
         judge_payload = {"results": judge_results}
+        # v1.1 第二轮：仅在配置了 dry-run provider 且确实有结果时，才在
+        # judge_results.json 顶层多加一个 ``dry_run_provider`` 数组——
+        # 没配置时字段不存在，与 v1.0 完全字节兼容（schema "只增不删"承诺）。
+        # 这里**绝不**用 dry-run 的 PASS/FAIL 覆盖 ``results[].passed``；
+        # ``results`` 永远是 deterministic ground truth，``dry_run_provider``
+        # 只是旁路 metadata 供 report.md / 用户复盘消费。
+        if dry_run_results:
+            judge_payload["dry_run_provider"] = {
+                "schema_version": PROVIDER_SCHEMA_VERSION,
+                "results": dry_run_results,
+            }
         diagnosis_payload = {"results": diagnoses}
         project_payload = {
             "name": project.name,
@@ -411,6 +453,72 @@ class EvalRunner:
             "signal_quality": signal_quality,
             "signal_quality_note": describe(signal_quality),
         }
+
+    def _invoke_dry_run_provider(
+        self,
+        case: EvalSpec,
+        run_result: AgentRunResult,
+        deterministic_passed: bool,
+    ) -> dict[str, Any] | None:
+        """调用 dry-run JudgeProvider 并把结果序列化成 artifact 子条目。
+
+        本方法负责什么
+        --------------
+        - 把 ``ProviderJudgeResult`` 转成可直接写入 ``judge_results.json::
+          dry_run_provider`` 的 dict；
+        - 显式记录 ``deterministic_passed``，让 artifact 读者一眼看出
+          provider 是否与 deterministic baseline 一致——但 provider 的
+          PASS/FAIL **绝不**会覆盖 ``results[].passed`` 字段；
+        - 捕获 :class:`MissingRecordingError` 等可行动错误，写成结构化
+          ``error`` 字段，**不**静默成 PASS（任何"recording 缺失就静默
+          通过"都是吞异常假成功反模式）。
+
+        本方法**不**负责什么
+        --------------------
+        - 不调用 deterministic RuleJudge；
+        - 不修改 ``self.judge`` 的输出；
+        - 不发起任何网络/外部 API 调用——这一点由 provider 实现自己保证，
+          v1.1 第一轮契约测试已钉死所有现存 provider 都不开 socket。
+
+        返回 ``None`` 表示未配置 dry-run provider；返回 dict 表示有结果
+        （含成功 / 失败两种）。
+        """
+
+        provider = self.dry_run_provider
+        if provider is None:
+            return None
+        entry: dict[str, Any] = {
+            "eval_id": case.id,
+            "provider": getattr(provider, "name", "unknown"),
+            "mode": getattr(provider, "mode", "unknown"),
+            "schema_version": PROVIDER_SCHEMA_VERSION,
+            "deterministic_passed": deterministic_passed,
+        }
+        try:
+            result: ProviderJudgeResult = provider.judge(case, run_result)
+        except MissingRecordingError as exc:
+            entry["error"] = {
+                "type": "missing_recording",
+                "message": str(exc),
+            }
+            return entry
+        except Exception as exc:  # noqa: BLE001 - dry-run 不应阻塞 deterministic 主路径。
+            entry["error"] = {
+                "type": "provider_error",
+                "message": str(exc),
+                "traceback": traceback.format_exc(limit=5),
+            }
+            return entry
+        entry["passed"] = result.passed
+        entry["agrees_with_deterministic"] = bool(result.passed) == bool(
+            deterministic_passed
+        )
+        meta = result.metadata()
+        for key in ("rationale", "confidence", "rubric"):
+            value = meta.get(key)
+            if value is not None:
+                entry[key] = value
+        return entry
 
     def _diagnose(
         self,
