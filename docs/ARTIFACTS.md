@@ -351,3 +351,5 @@ RuleJudge 对每个 eval 的逐规则结果。
   自定义 ToolSpec.executor 控制行为，不通过修改 artifact 写入流程介入。
 - 不在范围内：本文档不描述真实 LLM transcript schema、MCP/HTTP/Shell executor 行为、
   Web UI、LLM Judge；它们都属未来路线，详见 `docs/ROADMAP.md`。
+- 想要"复制粘贴跑一遍"的最短试用路径（含 `analyze-artifacts` 离线复盘）→
+  见 [`docs/TRY_IT.md`](./TRY_IT.md)。

@@ -30,6 +30,8 @@ v0.1 release-ready 摘要见 [`RELEASE_NOTES_v0.1.md`](RELEASE_NOTES_v0.1.md)（
 ## 快速开始
 
 > 第一次接入的团队请先看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；
+> 想直接复制粘贴跑一遍 v0.2 完整闭环（含 `analyze-artifacts`）请看
+> [docs/TRY_IT.md](docs/TRY_IT.md)；
 > 常见坏配置对照表见 [examples/bad_configs/README.md](examples/bad_configs/README.md)。
 >
 > 下面命令统一使用 `python -m`，假设你**已经激活当前项目的虚拟环境**

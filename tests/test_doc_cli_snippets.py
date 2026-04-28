@@ -53,6 +53,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DOC_PATHS = [
     REPO_ROOT / "README.md",
     REPO_ROOT / "docs" / "ONBOARDING.md",
+    # v0.2 product trial 路径文档：用户最直接的"复制粘贴跑一遍"入口，必须
+    # 与 argparse 严格对齐——一旦 drift，新用户在第一遍试用就会被卡住。
+    REPO_ROOT / "docs" / "TRY_IT.md",
 ]
 
 # 我们关心的 CLI 调用前缀。``python -m agent_tool_harness.cli`` 是文档统一的

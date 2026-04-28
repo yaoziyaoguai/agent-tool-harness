@@ -216,6 +216,7 @@ python -m agent_tool_harness.cli analyze-artifacts \
 
 ## 接下来
 
+- 想直接复制粘贴跑一遍 v0.2 完整闭环（含 `analyze-artifacts`）→ [`docs/TRY_IT.md`](./TRY_IT.md)。
 - 想接真实 LLM？写一个 `AgentAdapter` 子类挂上去。**不要修改核心框架去耦合某家 SDK。**
 - 想看常见错误对照？读 `examples/bad_configs/README.md`。
 - 想知道哪些路线尚未实现？读 [docs/ROADMAP.md](./ROADMAP.md)。
