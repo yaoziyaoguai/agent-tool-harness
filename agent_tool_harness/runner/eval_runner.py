@@ -404,7 +404,14 @@ class EvalRunner:
         )
         # v1.6 第二项：聚合 dry_run_results 写 llm_cost.json。即使
         # dry_run_results 为 None 也生成空 totals，统一 reviewer 心智。
-        llm_cost = build_llm_cost_artifact(dry_run_results)
+        # v1.8 第一项：把 project.pricing / project.budget 传给 cost_tracker，
+        # 让 advisory-only estimated_cost_usd 与 per-eval budget cap 在
+        # llm_cost.json 中显式可见。pricing/budget 任一缺省都不影响其它字段。
+        llm_cost = build_llm_cost_artifact(
+            dry_run_results,
+            pricing=getattr(project, "pricing", None) or None,
+            budget=getattr(project, "budget", None) or None,
+        )
         recorder.write_json(
             "llm_cost.json", stamp_artifact(llm_cost, run_metadata=run_metadata)
         )
