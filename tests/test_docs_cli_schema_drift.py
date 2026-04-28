@@ -62,6 +62,7 @@ DOCS_TO_SCAN = [
     REPO_ROOT / "docs" / "TRY_IT.md",
     REPO_ROOT / "docs" / "TRY_IT_v1_7.md",
     REPO_ROOT / "docs" / "ONBOARDING.md",
+    REPO_ROOT / "docs" / "INTERNAL_TRIAL.md",
 ]
 
 # 多行 shell snippet 起手匹配；含可选 ``\\`` 续行。

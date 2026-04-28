@@ -44,6 +44,7 @@ DOCS_TO_SCAN = [
     REPO_ROOT / "docs" / "TRY_IT.md",
     REPO_ROOT / "docs" / "TRY_IT_v1_7.md",
     REPO_ROOT / "docs" / "ONBOARDING.md",
+    REPO_ROOT / "docs" / "INTERNAL_TRIAL.md",
 ]
 
 CLI_SNIPPET_RE = re.compile(

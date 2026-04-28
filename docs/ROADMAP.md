@@ -32,7 +32,7 @@
 | **v0.2** | 更强的 deterministic audit / judge / transcript 能力 | **已 release（commit `9acd788`，tag `v0.2`）** —— 已合入 4 轮：第一轮 ToolDesignAuditor 语义信号（commit `5016660`）；第二轮 actionable principle metadata + report 渲染（commit `6a0c6ff`）；第三轮 trace-derived deterministic tool-use 信号（commit `6fc4e7c`）+ analyze-artifacts 离线复盘 CLI（commit `761e53e`）+ TRY_IT 完整试用闭环文档化（commit `cc70868`）。本阶段**仍是 deterministic 启发式**，不接真实 LLM judge / MCP / HTTP / Shell / Web UI / 真实 Agent runtime——这些属 v0.3+。详见 `RELEASE_NOTES_v0.2.md`。|
 | v0.3 | 自动化回归 / 场景库 / 真实 Agent Runtime 集成 | **第一项受控启动** —— `TranscriptReplayAdapter` + `replay-run` CLI 已合入，把已有 run 当"录像带"deterministic 重放；signal_quality 升至 `recorded_trajectory`；不接真实 LLM/MCP/HTTP/Shell/Web UI。下一步：`RuleJudge.must_use_evidence` non-substring 升级 / decoy 真实样本库（待 owner 触发）。|
 | v1.0 | 稳定可扩展的 Agent Harness 平台 | **第一项受控启动** —— `RuleJudge.evidence_from_required_tools` deterministic anti-decoy 规则 + `TranscriptAnalyzer.evidence_grounded_in_decoy_tool` finding 已合入；`examples/runtime_debug` 与 `examples/knowledge_search` evals.yaml 加挂新规则。仍**不是** LLM Judge / 真实 Agent runtime / MCP / HTTP / Shell / Web UI。 |
-| **v2.0（主线终点）** | **可安全接入真实 Anthropic-compatible LLM Judge 的离线优先 Agent Tool Evaluation Harness** | **进行中** —— v1.x 系列正在按 retry/backoff、cost、prompt audit、product-hardening、pricing/budget、CLI snippet drift 顺序逐步收敛；详见下面 "v2.0 终点定义" 段。 |
+| **v2.0（主线终点）** | **v2.0 Internal Trial Ready —— 公司内部小团队可以本地 clone / 安装 / 按 TRY_IT 端到端跑通的离线优先 Agent Tool Evaluation Harness** | **进行中** —— v1.x 系列正在按 retry/backoff、cost、prompt audit、product-hardening、pricing/budget、CLI snippet drift 顺序逐步收敛；详见下面 "v2.0 终点定义" 段。 |
 
 ## v2.0 终点定义（主线唯一终点，避免无限滚版本）
 
@@ -40,15 +40,21 @@
 > backlog"，本 ROADMAP 不再排期，只在 backlog 节作为长期备忘。
 
 ### v2.0 一句话定位
-**可安全接入真实 Anthropic-compatible LLM Judge 的离线优先 Agent Tool
-Evaluation Harness**。"离线优先"是身份，不是阶段；任何真实 live 路径
-都只能通过强 opt-in 出现在 smoke / 用户本地 fixture，CI 默认永远不联
-网、不读真实 key。
+**v2.0 Internal Trial Ready：公司内部一个小团队可以本地 clone / 安装 /
+按 TRY_IT 端到端跑通，用自己的 `project.yaml` / `tools.yaml` /
+`evals.yaml` 接入，并清楚知道哪些能力是 deterministic / offline /
+fake / dry-run，哪些能力仍未实现的离线优先 Agent Tool Evaluation
+Harness**。
+
+> **v2.0 不是企业级平台**。任何"看起来像产品 SaaS"的能力都不在 v2.0
+> 范围。v2.0 的成功标准是"内部 5-10 人小团队能在本地把它跑起来 + 接
+> 自己的工具 + 看懂 artifact 并提改进反馈"，而不是"企业级用户 / 多租户 /
+> 真实 LLM judge 全自动评估服务"。
 
 ### v2.0 完成标准（必须全部达成才能 release v2.0）
 
-用户拿自己的 `project.yaml` / `tools.yaml` / `evals.yaml`，在本地能完
-成下面这条完整闭环：
+内部小团队 reviewer 拿自己的 `project.yaml` / `tools.yaml` /
+`evals.yaml`，在本地能完成下面这条完整闭环：
 
 1. **`audit-tools`**：检查 tool design 5 类原则 + 语义重叠/decoy 信号；
 2. **`generate-evals`**：从 tools 自动生成候选 eval；
@@ -58,39 +64,43 @@ Evaluation Harness**。"离线优先"是身份，不是阶段；任何真实 liv
    / metrics / report / diagnosis / judge_results / llm_cost；
 6. **`replay-run`**：把已有 run 当"录像带"deterministic 重放；
 7. **`analyze-artifacts`**：离线复盘 trace 信号；
-8. **`report.md` 阅读**：含 Cost Summary / Failure attribution /
-   Per-Eval Details / grounding 子场景；
-9. **deterministic RuleJudge baseline**：包括 must_use_evidence /
-   evidence_from_required_tools / no_evidence_grounding 等 anti-decoy；
-10. **recorded / mock / composite judge**：三种 judge provider 可
+8. **`judge-provider-preflight`**：live readiness 自检 + 默认 not ready；
+9. **`audit-judge-prompts`**：judge prompt 启发式安全审计；
+10. **`pricing` / `budget` cap**：在 `project.yaml` 显式声明价格表与
+    per-eval budget cap，advisory cost 与 budget exceeded 状态在
+    `llm_cost.json` + `report.md::Cost Summary` 中可见；
+11. **`report.md` + 9+ artifact 阅读**：含 Cost Summary / Failure
+    attribution / Per-Eval Details / grounding 子场景，reviewer 能
+    清楚分辨哪些能力是 deterministic / offline / fake / dry-run；
+12. **deterministic RuleJudge baseline**：包括 must_use_evidence /
+    evidence_from_required_tools / no_evidence_grounding 等 anti-decoy；
+13. **recorded / mock / composite judge**：三种 judge provider 可
     deterministic 切换，advisory-only 数据全程 advisory-only；
-11. **Anthropic-compatible provider preflight**：
-    `judge-provider-preflight` 给可行动 hint，默认 not ready；
-12. **强 opt-in 真实 live judge smoke**：用户在本地显式 opt-in 后能跑
-    一次端到端 retry → cost → audit 链路，CI 默认禁用；
-13. **key no-leak**：任何 artifact / 文档 / 测试 / git 都不出现 sk-
+14. **强 opt-in 真实 live judge smoke**（**仅本地**）：用户在本地显式
+    opt-in 后能跑一次端到端 retry → cost → audit 链路，CI 默认禁用；
+15. **key no-leak**：任何 artifact / 文档 / 测试 / git 都不出现 sk-
     key、Authorization Bearer、完整请求体、完整响应体、base_url 敏感
     query、HTTP/SDK 原始异常长文本；
-14. **预算 / 重试 / 错误分类 / 成本记录**：
-    pricing config + per-eval-budget cap + retry/backoff governance +
-    error taxonomy + `llm_cost.json`，advisory-only 措辞守住；
-15. **TRY_IT 文档闭环**：`docs/TRY_IT.md` + `docs/TRY_IT_v1_7.md`（或
-    后续 v1_x）端到端可复制粘贴跑通。
+16. **TRY_IT + INTERNAL_TRIAL 文档闭环**：`docs/TRY_IT.md` +
+    `docs/TRY_IT_v1_7.md` + `docs/INTERNAL_TRIAL.md` 端到端可复制粘贴
+    跑通；包含反馈模板（`docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md`）。
 
 ### v2.0 **不**包含的能力（一律进 v3.0+ / future backlog，**不**在主线排期）
 
 | 能力 | 为什么不在 v2.0 |
 |------|----------------|
+| **企业级平台 / 生产级 SaaS** | v2.0 定位是内部试用，不是产品化服务 |
 | Web UI | 范围外；本 harness 是 CLI + artifact 优先，UI 是另一个独立 surface |
 | MCP executor | 真实执行器需要独立安全模型 + 长期维护，不属于 evaluation harness 核心 |
 | HTTP / Shell executor | 同上；任何真实执行器都进 v3.0+ |
 | 自动修复用户工具（auto-patch） | v0.1 起就明确范围外；永远默认 dry-run |
 | 大规模 benchmark / leaderboard | 需要独立 dataset 治理 + 长期维护 |
-| 多租户服务 / SaaS | 需要独立账号 / 计费 / 审计体系 |
+| 多租户服务 / SaaS 计费 | 需要独立账号 / 计费 / 审计体系 |
 | 企业权限系统（RBAC / SSO） | 需要独立合规体系 |
+| 真实 LLM Judge 自动评估服务 | v2.0 只支持本地强 opt-in live smoke，不做托管服务 |
 
 > 这些能力如果某天确有用户真实需求，独立开新仓库或新 milestone（v3.0+）
-> 处理；本主线 ROADMAP 只到 v2.0 为止。
+> 处理；本主线 ROADMAP 只到 v2.0 Internal Trial Ready 为止。
 
 ---
 
