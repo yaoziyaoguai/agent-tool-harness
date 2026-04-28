@@ -28,6 +28,7 @@ Agent Tool Harness 目前是 **MVP**，与 Anthropic 文章方法论存在已知
 v0.1 release-ready 摘要见 [`RELEASE_NOTES_v0.1.md`](RELEASE_NOTES_v0.1.md)（commit `0dcb8e7`）。
 v0.2 release-ready 摘要见 [`RELEASE_NOTES_v0.2.md`](RELEASE_NOTES_v0.2.md)（trace-derived signals + analyze-artifacts CLI + TRY_IT product trial path）。
 v0.3 release-ready 摘要见 [`RELEASE_NOTES_v0.3.md`](RELEASE_NOTES_v0.3.md)（TranscriptReplayAdapter + replay-run CLI；deterministic recorded-trajectory replay）。
+v1.0 release-ready 摘要见 [`RELEASE_NOTES_v1.0.md`](RELEASE_NOTES_v1.0.md)（deterministic anti-decoy evidence grounding + grounding/decoy report 渲染 + run/replay/analyze 三段管线对齐）。
 
 ## 快速开始
 
