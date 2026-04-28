@@ -503,6 +503,21 @@ grounding/decoy 场景作为 sample 基线（keyword-only / id-not-cited / decoy
 decoy 的能力，与本轮的 trajectory 级 anti-decoy 是不同维度。两者互补，xfail
 转正条件不变（真实 trajectory 聚合 / 真实 LLM judge）。
 
+### v1.0 release-readiness backlog（小 P1 / P2）
+
+- ✅ **CLI flag 体验一致性（小 P1，已落地）**：`replay-run` 现接受
+  `--run` 作为 `--source-run` 的别名，与 `analyze-artifacts --run` 一致；
+  防回归测试在 `tests/test_transcript_replay_adapter.py::test_replay_cli_accepts_run_alias`。
+- ✅ **TRY_IT v1.0 步骤（小 P1，已落地）**：新增第 10 步指引用户读 `report.md`
+  的 grounding bullet；新增 "三类目录关系（run / replay / analysis）" 段。
+- ✅ **ARTIFACTS 三类目录关系（小 P1，已落地）**：在 `docs/ARTIFACTS.md`
+  写明 run/replay-run/analyze-artifacts 输出的承接关系与不可变历史性质。
+- ⏳ **P2（仅备忘，本轮不实现）**：`replay-run` 自动从 `metrics.json::run_metadata`
+  解析 project/tools/evals 路径，省掉手填 4 个 `--*` 参数。前置条件：先在
+  `RunRecorder` 写出阶段持久化原始路径（属新功能字段，不是 bug-fix）。
+- ⏳ **P2（仅备忘，本轮不实现）**：真实 LLM Judge / MCP / HTTP / Shell 适配器
+  / Web UI / 生产级语义评估 / 自动 patch（属 v1.x / v2 backlog，详见底部"暂不做范围"）。
+
 ---
 
 ## 暂不做范围（永久或长期）

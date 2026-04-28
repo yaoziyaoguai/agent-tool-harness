@@ -134,9 +134,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     replay.add_argument(
         "--source-run",
+        "--run",
+        dest="source_run",
         required=True,
         help="已有 run 目录（必须包含 tool_calls.jsonl / tool_responses.jsonl 之一，"
-             "建议同时含 transcript.jsonl 以重建 final_answer）",
+             "建议同时含 transcript.jsonl 以重建 final_answer）。"
+             "为统一 CLI 体验，本参数同时接受 --run 别名（与 analyze-artifacts 一致）。",
     )
     replay.add_argument("--project", required=True)
     replay.add_argument("--tools", required=True)

@@ -366,12 +366,37 @@ RuleJudge 对每个 eval 的逐规则结果。
 - 想要"复制粘贴跑一遍"的最短试用路径（含 `analyze-artifacts` 离线复盘）→
   见 [`docs/TRY_IT.md`](./TRY_IT.md)。
 
+## 三类目录关系（run / replay-run / analyze-artifacts）
+
+CLI 当前对外有三种"输出目录"，承接关系如下；任何一步**不**会修改前一步目录里
+的文件，前一步目录可作为不可变历史保留：
+
+```
+run --out runs/A          (signal_quality=tautological_replay)
+   │  9 个 artifact，含 transcript / tool_calls / tool_responses / diagnosis / report
+   ▼
+replay-run --run runs/A --out runs/B   (signal_quality=recorded_trajectory，
+   │                                    --source-run 与 --run 同义)
+   │  从 A 重放出新一份完整 9 个 artifact，PASS/FAIL 由当前规则重新评判，
+   │  但 Agent 行为严格来自 A 的 transcript（不调 LLM、不调真实工具）
+   ▼
+analyze-artifacts --run runs/{A|B} --out runs/C
+   │  离线 trace 信号复盘：写出 tool_use_signals.json + tool_use_signals.md，
+   │  与 run/replay 的 9 个 artifact 正交（不重新评判，只对 raw payload 做
+   │  contract / 模式层信号挖掘）
+```
+
+为什么把这三件事拆成独立 CLI：保证每一步都能在没有真实 LLM / 真实工具的环境里
+deterministic 复盘；让 CI / PR review / 离线 incident postmortem 都能复用同一套
+artifact 而不必重跑 Agent。
+
 ---
 
 ## replay-run 产物（v0.3 新增 CLI）
 
-由 `python -m agent_tool_harness.cli replay-run --source-run RUN_DIR
---project ... --tools ... --evals ... --out OUT_DIR` 写出。
+由 `python -m agent_tool_harness.cli replay-run --run RUN_DIR
+--project ... --tools ... --evals ... --out OUT_DIR` 写出（`--source-run` 是同义
+别名，与 `analyze-artifacts --run` 体验一致）。
 
 **与 9 个标准 run artifact 是同一套结构**——`replay-run` 把已有 run 当
 "录像带"deterministic 重放，输出目录里仍然是 `transcript.jsonl` /

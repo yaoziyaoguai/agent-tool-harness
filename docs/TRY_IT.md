@@ -17,7 +17,8 @@
 | 6 | `run --mock-path bad` | 跑一次 unhappy path 回放（**必跑**） | 同上，但 `passed=false` | `diagnosis.json` 的 `findings` + `tool_use_signals` |
 | 7 | `analyze-artifacts` | 离线复盘上一步 trace 信号 | `tool_use_signals.json` + `.md` 写出 | stderr `--run` / `--evals` 提示 |
 | 8 | 看 `report.md` + `tool_use_signals.md` | 真人解读 | Per-Eval Details 段含 trace 信号 | 回 raw `tool_calls.jsonl` / `tool_responses.jsonl` |
-| 9 *(可选, v0.3)* | `replay-run --source-run RUN` | 把上面的 run 当"录像带"deterministic 重放 | 新 `--out` 目录 9 个 artifact 全在；`metrics.signal_quality=recorded_trajectory` | 源目录缺 `tool_calls.jsonl` 时 stderr 给可行动 hint |
+| 9 *(可选, v0.3)* | `replay-run --run RUN`（亦接受 `--source-run`） | 把上面的 run 当"录像带"deterministic 重放 | 新 `--out` 目录 9 个 artifact 全在；`metrics.signal_quality=recorded_trajectory` | 源目录缺 `tool_calls.jsonl` 时 stderr 给可行动 hint |
+| 10 *(v1.0)* | 看 `report.md` 里的 **Failure attribution** + **Per-Eval Details** 中的 grounding bullet | 验证 v1.0 deterministic anti-decoy + grounding 子场景区分 | bad path 的 `no_evidence_grounding` 必须额外打印 "Tool returned evidence ([...]) but final_answer did not cite any id/label"；decoy grounding 路径必须打印 "Cited evidence ... from non-required tool(s) ..." | 直接 `cat runs/.../report.md`；如缺 grounding bullet 检查 `diagnosis.json` 中 finding 的 `cited_refs`/`available_evidence_refs` 字段是否被 analyzer 写入 |
 
 ## 路径 A：runtime_debug example（推荐第一遍）
 
@@ -132,5 +133,26 @@ evals 换成 KB 检索域同样跑得通。
 
 - 想知道每个 artifact 字段含义 → [`docs/ARTIFACTS.md`](./ARTIFACTS.md)；
 - 想接自己的项目 → [`docs/ONBOARDING.md`](./ONBOARDING.md) §1-9；
-- 想知道哪些路线还没做 → [`docs/ROADMAP.md`](./ROADMAP.md) v0.2 / v0.3 段；
+- 想知道哪些路线还没做 → [`docs/ROADMAP.md`](./ROADMAP.md) v0.2 / v0.3 / v1.0 段；
 - 想了解测试纪律 → [`docs/TESTING.md`](./TESTING.md)。
+
+## 三类目录关系（run / replay / analysis）
+
+`agent-tool-harness` 当前对外有三种"输出目录"，承接关系如下；同一份 `report.md`
+能通过这条管线被反复复盘：
+
+```
+run --out runs/A          (signal_quality=tautological_replay)
+   │  9 个 artifact，含 transcript/tool_calls/tool_responses/diagnosis/report
+   ▼
+replay-run --run runs/A --out runs/B   (signal_quality=recorded_trajectory)
+   │  从 A 重放出新一份完整 9 个 artifact，PASS/FAIL 由当前规则重新评判，
+   │  但 Agent 行为严格来自 A 的 transcript（不调 LLM、不调真实工具）
+   ▼
+analyze-artifacts --run runs/{A|B} --out runs/C
+   │  离线 trace 信号复盘：写出 tool_use_signals.json + tool_use_signals.md，
+   │  与 run/replay 的 9 个 artifact 正交（不重新评判，只对 raw payload 做
+   │  contract / 模式层信号挖掘）
+```
+
+任何一步**不**会修改前一步目录里的文件——前一步目录可作为不可变历史保留。

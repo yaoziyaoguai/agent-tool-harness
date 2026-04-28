@@ -239,3 +239,25 @@ def test_replay_cli_full_smoke(tmp_path, capsys):
     for artifact in EvalRunner.REQUIRED_ARTIFACTS:
         assert (out / artifact).exists(), f"missing {artifact}"
     assert "recorded_trajectory" in captured.out
+
+
+def test_replay_cli_accepts_run_alias(tmp_path, capsys):
+    """CLI: replay-run 必须接受 ``--run`` 作为 ``--source-run`` 的别名。
+
+    模拟边界：用户从 ``analyze-artifacts --run`` 复制粘贴到 ``replay-run``。
+    历史上 replay-run 只暴露 ``--source-run``，造成 CLI 体验不一致；本断言钉死
+    别名兼容，防止后续重构静默删别名（删别名不是 bug-fix，是契约破坏）。
+    """
+    source = _make_source_run(tmp_path, "good")
+    out = tmp_path / "cli_alias_out"
+    rc = main([
+        "replay-run",
+        "--run", str(source),
+        "--project", "examples/runtime_debug/project.yaml",
+        "--tools", "examples/runtime_debug/tools.yaml",
+        "--evals", "examples/runtime_debug/evals.yaml",
+        "--out", str(out),
+    ])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "recorded_trajectory" in captured.out
