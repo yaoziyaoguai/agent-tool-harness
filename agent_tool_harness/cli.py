@@ -141,6 +141,34 @@ def _build_parser() -> argparse.ArgumentParser:
         "或 ``raise_error`` 是 8 类 error taxonomy slug。给了此参数 → 用 "
         "FakeJudgeTransport 替换 LiveAnthropicTransport，**绝不**触发真实 HTTP。",
     )
+    # v1.5 第一轮：多 advisory CLI 入口。复用 CompositeJudgeProvider 已有的
+    # ``advisory: list[...]`` 多模型 majority-vote 形态，让用户可以用一个或多个
+    # ``--judge-advisory NAME:PATH`` 把多份 dry-run advisory 同时挂到 deterministic
+    # baseline 之下。可重复出现：每条解析成一个 advisory provider，按顺序进入
+    # ``advisory_results[]`` / 投票 / 多数表决。
+    #
+    # 设计边界（避免被误用为"真实 LLM"）：
+    # - **不**新增任何会真实联网的 NAME；当前只支持三种本地 deterministic 形式：
+    #   ``recorded:PATH`` / ``anthropic_compatible_offline:PATH`` /
+    #   ``anthropic_compatible_fake:PATH``。需要真实 LLM 仍然走 v1.4 的
+    #   ``--judge-provider anthropic_compatible_live`` 单 advisory 路径。
+    # - 与 ``--judge-provider`` **互斥**：避免"既单 advisory 又多 advisory"歧义；
+    #   同时给两者 → exit 2 + 提示。
+    # - advisory 错误**不计入**投票（CompositeJudgeProvider 已实现 error 桶），
+    #   保持反"吞异常假成功"约定。
+    run.add_argument(
+        "--judge-advisory",
+        action="append",
+        default=None,
+        dest="judge_advisory",
+        metavar="NAME:PATH",
+        help="可重复。注册一条多 advisory：NAME 取 recorded / "
+        "anthropic_compatible_offline / anthropic_compatible_fake，PATH 为对应 "
+        "fixture 文件。多个 ``--judge-advisory`` 触发 CompositeJudgeProvider 的 "
+        "多 advisory majority-vote 路径，结果写 judge_results.json::dry_run_provider "
+        "的 advisory_results / vote_distribution / majority_passed。**绝不**联网："
+        "本 flag 不接受任何 live transport NAME。与 --judge-provider 互斥。",
+    )
 
     promote = subparsers.add_parser(
         "promote-evals",
@@ -305,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
                 live=args.live,
                 confirm_i_have_real_key=args.confirm_i_have_real_key,
                 judge_fake_transport_fixture=args.judge_fake_transport_fixture,
+                judge_advisory=args.judge_advisory,
             )
         if args.command == "promote-evals":
             return _promote_evals(args.candidates, args.out, force=args.force)
@@ -520,6 +549,7 @@ def _run(
     live: bool = False,
     confirm_i_have_real_key: bool = False,
     judge_fake_transport_fixture: str | None = None,
+    judge_advisory: list[str] | None = None,
 ) -> int:
     """CLI ``run`` 命令实现。
 
@@ -573,7 +603,24 @@ def _run(
     _warn_if_empty(tools, "tools", tools_path)
     _warn_if_empty(evals, "evals", evals_path)
     dry_provider = None
-    if judge_provider in ("recorded", "composite", "anthropic_compatible_offline"):
+    # v1.5 第一轮：multi-advisory 入口与 --judge-provider 互斥。先做 mutual-exclusion
+    # 校验，避免两条路径同时被装配出歧义。
+    if judge_advisory and judge_provider:
+        print(
+            "error: --judge-advisory 与 --judge-provider 互斥；"
+            "多 advisory 走 --judge-advisory 重复传递，单 advisory / live 走 --judge-provider。",
+            file=sys.stderr,
+        )
+        return 2
+    if judge_advisory:
+        advisories = _build_judge_advisories(judge_advisory)
+        if advisories is None:
+            return 2
+        dry_provider = CompositeJudgeProvider(
+            deterministic=RuleJudgeProvider(),
+            advisory=advisories,
+        )
+    elif judge_provider in ("recorded", "composite", "anthropic_compatible_offline"):
         if not judge_recording:
             print(
                 f"error: --judge-provider {judge_provider} 必须同时给 --judge-recording PATH",
@@ -648,6 +695,110 @@ def _run(
         )
     )
     return 0
+
+
+def _build_judge_advisories(specs: list[str]):
+    """v1.5 第一轮：把 ``--judge-advisory NAME:PATH`` 列表装配成 advisory provider 列表。
+
+    本函数负责什么
+    --------------
+    - 解析每条 ``NAME:PATH`` 字面量；NAME 取 ``recorded`` /
+      ``anthropic_compatible_offline`` / ``anthropic_compatible_fake``；
+    - 按 NAME 装配对应的 advisory provider；
+    - PATH 为对应 fixture 文件（recorded/offline 走 ``_load_judge_recording``；
+      fake 走 ``_load_fake_transport_fixture`` + ``FakeJudgeTransport``）。
+
+    本函数**不**负责什么
+    --------------------
+    - **不**接受任何会真实联网的 NAME；live transport 永远只能走 v1.4 的
+      ``--judge-provider anthropic_compatible_live`` 单 advisory 路径，避免
+      "多 advisory 同时多份 live HTTP" 这种不安全的隐性入口；
+    - 不静默：解析失败 / 未知 NAME / fixture 缺失 → 打印可行动错误并返回
+      ``None``，由调用方 ``return 2``。
+
+    用户项目自定义入口
+    ------------------
+    在 CI / smoke 中重复 ``--judge-advisory recorded:fixtures/r1.yaml
+    --judge-advisory anthropic_compatible_fake:fixtures/fake.yaml``，
+    即可让多份 dry-run advisory 共同投票，结果落到
+    ``judge_results.json::dry_run_provider.advisory_results[]`` /
+    ``vote_distribution`` / ``majority_passed``。
+
+    artifacts 排查路径
+    ------------------
+    - ``judge_results.json::dry_run_provider.vote_distribution`` 区分
+      ``pass / fail / error / total``，error advisory 不计票；
+    - ``majority_passed`` 平票或全 error → ``None``（无效投票），
+      MarkdownReport 会显式渲染为 ``inconclusive``。
+
+    MVP / 未来扩展点
+    ---------------
+    - 只接 v1.x 已落地的三种本地 advisory，**不**新增 ``llm`` /
+      ``http`` / ``mcp`` 入口；这些留 v2.x。
+    - 未来可考虑 ``NAME:PATH#alias=...`` 语法给同一 NAME 多份 fixture 命名，
+      方便在 advisory_results[] 里区分；本轮保持最小可用。
+    """
+
+    from agent_tool_harness.judges.provider import (
+        AnthropicCompatibleConfig,
+        AnthropicCompatibleJudgeProvider,
+        FakeJudgeTransport,
+        RecordedJudgeProvider,
+    )
+
+    allowed = {"recorded", "anthropic_compatible_offline", "anthropic_compatible_fake"}
+    advisories: list = []
+    for spec in specs:
+        if ":" not in spec:
+            print(
+                f"error: --judge-advisory 期望 NAME:PATH，收到 {spec!r}",
+                file=sys.stderr,
+            )
+            print(
+                f"hint: NAME 必须是 {sorted(allowed)} 之一；PATH 为 fixture 文件路径。",
+                file=sys.stderr,
+            )
+            return None
+        name, path_str = spec.split(":", 1)
+        name = name.strip()
+        path_str = path_str.strip()
+        if name not in allowed:
+            print(
+                f"error: --judge-advisory 未知 NAME {name!r}（spec={spec!r}）",
+                file=sys.stderr,
+            )
+            print(
+                f"hint: 允许 {sorted(allowed)}；live HTTP 走 "
+                "--judge-provider anthropic_compatible_live。",
+                file=sys.stderr,
+            )
+            return None
+        if not path_str:
+            print(
+                f"error: --judge-advisory {name} 缺 PATH（spec={spec!r}）",
+                file=sys.stderr,
+            )
+            return None
+        if name == "recorded":
+            recordings = _load_judge_recording(path_str)
+            advisories.append(RecordedJudgeProvider(recordings=recordings))
+        elif name == "anthropic_compatible_offline":
+            recordings = _load_judge_recording(path_str)
+            cfg = AnthropicCompatibleConfig.from_env()
+            advisories.append(
+                AnthropicCompatibleJudgeProvider(config=cfg, offline_fixture=recordings)
+            )
+        else:  # anthropic_compatible_fake
+            fake_data = _load_fake_transport_fixture(path_str)
+            cfg = AnthropicCompatibleConfig.from_env()
+            transport = FakeJudgeTransport(
+                responses=fake_data.get("responses"),
+                raise_error=fake_data.get("raise_error"),
+            )
+            advisories.append(
+                AnthropicCompatibleJudgeProvider(config=cfg, transport=transport)
+            )
+    return advisories
 
 
 def _load_fake_transport_fixture(path: str) -> dict:
