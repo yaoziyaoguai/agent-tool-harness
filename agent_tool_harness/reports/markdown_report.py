@@ -83,11 +83,15 @@ class MarkdownReport:
         audit_evals: dict[str, Any],
         judge_results: dict[str, Any],
         diagnosis: dict[str, Any],
+        llm_cost: dict[str, Any] | None = None,
     ) -> str:
         """渲染一次 run 的 Markdown 摘要。
 
         report 是派生视图，不负责重新判定成败。这里会展示 skipped/error 指标，是为了让用户
         一眼区分“Agent 判断失败”和“runner/adapter 执行链路异常”，但最终复盘仍应回到 JSONL。
+
+        v1.6 第二项：``llm_cost`` 是来自 :mod:`reports.cost_tracker` 的聚合 dict；
+        若调用方没传则不渲染 Cost Summary 段——保持 v1.5 字节兼容。
         """
 
         low_score_tools = ", ".join(
@@ -199,6 +203,14 @@ class MarkdownReport:
             lines.extend(["", "## Dry-run JudgeProvider (advisory only)", ""])
             lines.extend(dry_run_block)
 
+        # v1.6 第二项：LLM Cost Summary。advisory-only，不是真实账单。
+        # 永远显式声明 deterministic / advisory 边界——这是治理硬约束：
+        # 任何"看起来是真实成本"的字段都不能省略上下文。
+        cost_block = self._render_cost_summary(llm_cost)
+        if cost_block:
+            lines.extend(["", "## Cost Summary (advisory-only, deterministic)", ""])
+            lines.extend(cost_block)
+
         # 顶层 Failure Attribution：把所有 eval 的 finding 按 category 聚合，让 review 者
         # 一眼看到“本次 run 主要是工具设计 / eval 定义 / Agent 工具选择 / runtime 哪类
         # 问题”。CI 也可以基于这块文本做 grep。诊断为 deterministic heuristic，详见上
@@ -228,6 +240,7 @@ class MarkdownReport:
                 "- judge_results.json",
                 "- diagnosis.json",
                 "- report.md",
+                "- llm_cost.json",
                 "",
                 "字段说明详见 [docs/ARTIFACTS.md](../docs/ARTIFACTS.md)。",
             ]
@@ -668,6 +681,48 @@ class MarkdownReport:
         if recording_ref:
             bits.append(f"recording_ref={recording_ref}")
         return [f"  - advisory [{provider}/{mode}] " + "; ".join(bits)]
+
+    def _render_cost_summary(self, llm_cost: dict[str, Any] | None) -> list[str]:
+        """渲染 ``llm_cost.json`` 摘要。
+
+        负责什么：把 :func:`reports.cost_tracker.build_llm_cost_artifact` 的
+        totals + cost_unknown_reasons 翻译成 reviewer 可读的 bullet。
+        显式声明"advisory-only / 不是真实账单"，避免被误用作报账依据。
+
+        不负责什么：不渲染逐 eval 明细——明细在 ``llm_cost.json``；报告
+        只展示 totals + 原因桶，保持 5 行内容内可扫完。
+        """
+        if not llm_cost:
+            return []
+        totals = llm_cost.get("totals") or {}
+        if not totals.get("advisory_count"):
+            return []
+        tokens_in = totals.get('tokens_in', 0)
+        tokens_out = totals.get('tokens_out', 0)
+        est = (
+            llm_cost.get('estimated_cost_usd')
+            or 'unknown (no price table; see schema)'
+        )
+        lines = [
+            f"- Advisories observed: {totals.get('advisory_count', 0)}",
+            f"- Advisories with token usage: {totals.get('with_usage_count', 0)}",
+            f"- Tokens (input / output): {tokens_in} / {tokens_out}",
+            f"- Retry count total: {totals.get('retry_count_total', 0)}",
+            f"- Errored advisories: {totals.get('error_count', 0)}",
+            f"- Estimated cost: {est}",
+        ]
+        reasons = llm_cost.get("cost_unknown_reasons") or []
+        if reasons:
+            lines.append("- Cost-unknown reasons:")
+            for entry in reasons:
+                lines.append(
+                    f"  - {entry.get('reason')} (count={entry.get('count', 0)})"
+                )
+        lines.append(
+            "- 注意：本段为 deterministic 复盘，不是真实账单；"
+            "详见 llm_cost.json 与 docs/ARTIFACTS.md。"
+        )
+        return lines
 
     def _render_failure_attribution(self, diagnosis: dict[str, Any]) -> list[str]:
         """聚合所有 eval 的 finding，按 category 输出汇总。

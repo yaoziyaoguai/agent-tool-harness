@@ -21,6 +21,7 @@ from agent_tool_harness.judges.provider import (
 )
 from agent_tool_harness.judges.rule_judge import JudgeResult, RuleCheckResult, RuleJudge
 from agent_tool_harness.recorder.run_recorder import RunRecorder
+from agent_tool_harness.reports.cost_tracker import build_llm_cost_artifact
 from agent_tool_harness.reports.markdown_report import MarkdownReport
 from agent_tool_harness.signal_quality import UNKNOWN, describe
 from agent_tool_harness.tools.registry import ToolRegistry
@@ -60,6 +61,10 @@ class EvalRunner:
         "judge_results.json",
         "diagnosis.json",
         "report.md",
+        # v1.6 第二项：LLM 成本聚合 artifact。永远生成（即使没配 dry-run
+        # provider 也写出空 totals），让 reviewer "找不到 artifact" vs
+        # "找到 artifact 但 totals 全 0" 两种状态可区分。
+        "llm_cost.json",
     ]
 
     def __init__(
@@ -397,6 +402,12 @@ class EvalRunner:
         recorder.write_json(
             "diagnosis.json", stamp_artifact(diagnosis_payload, run_metadata=run_metadata)
         )
+        # v1.6 第二项：聚合 dry_run_results 写 llm_cost.json。即使
+        # dry_run_results 为 None 也生成空 totals，统一 reviewer 心智。
+        llm_cost = build_llm_cost_artifact(dry_run_results)
+        recorder.write_json(
+            "llm_cost.json", stamp_artifact(llm_cost, run_metadata=run_metadata)
+        )
         recorder.write_text(
             "report.md",
             self.report.render(
@@ -406,6 +417,7 @@ class EvalRunner:
                 audit_evals=audit_evals,
                 judge_results=judge_payload,
                 diagnosis=diagnosis_payload,
+                llm_cost=llm_cost,
             ),
         )
         return {
@@ -415,6 +427,7 @@ class EvalRunner:
             "audit_evals": audit_evals,
             "judge_results": judge_payload,
             "diagnosis": diagnosis_payload,
+            "llm_cost": llm_cost,
             "artifacts": self.REQUIRED_ARTIFACTS,
             "run_metadata": run_metadata,
         }
@@ -603,6 +616,11 @@ class EvalRunner:
             "vote_distribution",
             "deterministic_result",
             "model",
+            # v1.6 第一/二项：retry/backoff 治理证据 + token usage 透传，
+            # 让 ``llm_cost.json`` 与 ``report.md`` 能直接消费而不需要反推。
+            "attempts_summary",
+            "retry_count",
+            "usage",
         ):
             if key in result.extra:
                 entry[key] = result.extra[key]
