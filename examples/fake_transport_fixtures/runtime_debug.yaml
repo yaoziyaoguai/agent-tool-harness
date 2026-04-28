@@ -1,0 +1,28 @@
+# Fake transport fixture for ``--judge-fake-transport-fixture``（v1.4 第二轮）
+#
+# 用途
+# ----
+# 让 ``--judge-provider anthropic_compatible_live`` 在 CI / smoke 中走 fake
+# transport，**绝不**真实联网；可用来覆盖 Anthropic-compatible advisory 的
+# 成功路径与 8 类 error taxonomy 的脱敏路径。
+#
+# 顶层字段（二选一，互斥）：
+# - ``responses``：``{eval_id: {passed, rationale, confidence, rubric}}``
+#   模拟"transport 拿到合法 200 响应"，provider 把其包装成 advisory 结果；
+# - ``raise_error``：``<error_taxonomy_slug>``，例如 ``auth_error`` /
+#   ``rate_limited`` / ``timeout`` / ``network_error`` / ``bad_response`` /
+#   ``provider_error``，模拟 transport 抛 _FakeTransportError，让 provider
+#   走脱敏错误路径。
+#
+# 注意
+# ----
+# - **不要**在此文件出现真实 API key、Authorization header、真实 base_url、
+#   完整请求体响应体；本 fixture 永远只是 deterministic mock。
+# - eval_id 必须与你 ``--evals`` 中的 spec id 对齐，否则 transport 会按
+#   ``bad_response`` 分类（这本身也是契约的一部分）。
+responses:
+  runtime_input_boundary_regression:
+    passed: true
+    rationale: "fake transport advisory：deterministic baseline 仍是 ground truth；本字段仅用于 smoke 验证 advisory 写入路径。"
+    confidence: 0.5
+    rubric: "v1.4 fake_transport smoke fixture"

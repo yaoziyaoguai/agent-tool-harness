@@ -87,19 +87,59 @@ def _build_parser() -> argparse.ArgumentParser:
     # 真实外部调用——v1.1 第一轮明确不接 LLM。
     run.add_argument(
         "--judge-provider",
-        choices=["recorded", "composite", "anthropic_compatible_offline"],
+        choices=[
+            "recorded",
+            "composite",
+            "anthropic_compatible_offline",
+            "anthropic_compatible_live",
+        ],
         default=None,
         help="可选 dry-run judge provider；'recorded' 仅写 advisory，"
         "'composite' 同时跑 deterministic + recorded 并输出 disagreement metrics，"
         "'anthropic_compatible_offline' 用 AnthropicCompatibleJudgeProvider 的 "
         "offline_fixture 模式（**不联网、不读真实 key、不调真实模型**）并由 "
         "CompositeJudgeProvider 包裹。"
+        "'anthropic_compatible_live' 装配 LiveAnthropicTransport，**默认 disabled**："
+        "必须同时传 --live + --confirm-i-have-real-key 且 4 个 env var 完整才进入 "
+        "live-ready 分支；任一缺失则 advisory 全部返回 disabled_live_provider 或 "
+        "missing_config 错误（脱敏）。CI / smoke 应走 --judge-fake-transport-fixture "
+        "注入 fake transport，绝不真实联网。"
         "结果写入 judge_results.json::dry_run_provider，不会覆盖 deterministic baseline。",
     )
     run.add_argument(
         "--judge-recording",
         default=None,
         help="recorded provider 的 judgment fixture 路径（json/yaml，schema 见 docs/ARTIFACTS.md）。",  # noqa: E501
+    )
+    # v1.4 第二轮：把 preflight 的双标志契约同步到 ``run``。anthropic_compatible_live
+    # 必须**双标志齐备 + env 完整**才尝试 live；任一缺失则 advisory 走脱敏错误路径，
+    # 让用户在 judge_results.json 里**显眼**看到 disabled_live_provider，而不是默默
+    # fallback 成 PASS。CI / smoke 永远不该传这两个 flag——本 CLI 不会因为传了它们
+    # 就自动调网络，但仍是契约上"用户已知情同意"的边界。
+    run.add_argument(
+        "--live",
+        action="store_true",
+        default=False,
+        help="anthropic_compatible_live 专用：声明意图打开 live。必须与 "
+        "--confirm-i-have-real-key 同时使用才视为完整 opt-in。",
+    )
+    run.add_argument(
+        "--confirm-i-have-real-key",
+        action="store_true",
+        default=False,
+        dest="confirm_i_have_real_key",
+        help="anthropic_compatible_live 专用二次确认。**仅** opt-in 完整 + env "
+        "完整 + 未注入 fake transport 时才会真实联网（v1.4 把代码骨架放好了，"
+        "但 CI / smoke 永远走 fake）。",
+    )
+    run.add_argument(
+        "--judge-fake-transport-fixture",
+        default=None,
+        dest="judge_fake_transport_fixture",
+        help="anthropic_compatible_live 专用 smoke 注入：YAML/JSON 文件，根字段 "
+        "``responses`` 是 ``{eval_id: {passed, rationale, confidence, rubric}}`` "
+        "或 ``raise_error`` 是 8 类 error taxonomy slug。给了此参数 → 用 "
+        "FakeJudgeTransport 替换 LiveAnthropicTransport，**绝不**触发真实 HTTP。",
     )
 
     promote = subparsers.add_parser(
@@ -262,6 +302,9 @@ def main(argv: list[str] | None = None) -> int:
                 args.mock_path,
                 judge_provider=args.judge_provider,
                 judge_recording=args.judge_recording,
+                live=args.live,
+                confirm_i_have_real_key=args.confirm_i_have_real_key,
+                judge_fake_transport_fixture=args.judge_fake_transport_fixture,
             )
         if args.command == "promote-evals":
             return _promote_evals(args.candidates, args.out, force=args.force)
@@ -474,6 +517,9 @@ def _run(
     *,
     judge_provider: str | None = None,
     judge_recording: str | None = None,
+    live: bool = False,
+    confirm_i_have_real_key: bool = False,
+    judge_fake_transport_fixture: str | None = None,
 ) -> int:
     """CLI ``run`` 命令实现。
 
@@ -486,16 +532,38 @@ def _run(
 
     本函数**不**负责什么
     --------------------
-    - 不调真实 LLM API；``--judge-provider`` 当前只接受 ``recorded``。
-    - 不静默缺 fixture：若用户传了 ``--judge-provider recorded`` 但
-      ``--judge-recording`` 路径不存在或缺 ``judgments`` 字段，立即报
-      可行动错误并 exit 2。
+    - 不调真实 LLM API；``anthropic_compatible_live`` 只在用户**显式**传
+      ``--live --confirm-i-have-real-key`` + 4 个 env var 完整 + **未**注入
+      ``--judge-fake-transport-fixture`` 时才把 ``LiveAnthropicTransport``
+      接到真实 HTTPSConnection；任一前置缺失则 advisory 走脱敏错误路径，
+      ``judge_results.json`` 里**显眼**报 ``disabled_live_provider`` /
+      ``missing_config``，绝不静默 PASS。
+    - 不静默缺 fixture：``recorded`` / ``composite`` /
+      ``anthropic_compatible_offline`` 缺 ``--judge-recording`` 立即 exit 2。
+    - 不在 CI / smoke 联网：smoke 必须传 ``--judge-fake-transport-fixture``，
+      此时构造 :class:`FakeJudgeTransport`，绝不触碰任何 socket。
+
+    用户项目自定义入口
+    ------------------
+    - 用 fake transport 做 deterministic 烟测：写一个 fixture YAML，
+      ``responses: {eval_id: {passed: bool, rationale: str, ...}}`` 或
+      ``raise_error: <error_taxonomy_slug>``，传给 ``--judge-fake-transport-fixture``。
+    - 真实 live：在自己环境配 4 个 env var，传 ``--live --confirm-i-have-real-key``，
+      **不**传 ``--judge-fake-transport-fixture``。
+
+    artifacts 排查路径
+    ------------------
+    ``judge_results.json::dry_run_provider`` 中 ``provider="anthropic_compatible"``
+    的 entries：``mode`` 区分 ``offline_fixture`` / ``fake_transport`` / ``live``；
+    失败时 ``error.code`` 走 8 类稳定 taxonomy。
     """
 
     from agent_tool_harness.judges.provider import (
         AnthropicCompatibleConfig,
         AnthropicCompatibleJudgeProvider,
         CompositeJudgeProvider,
+        FakeJudgeTransport,
+        LiveAnthropicTransport,
         RecordedJudgeProvider,
         RuleJudgeProvider,
     )
@@ -519,10 +587,6 @@ def _run(
             return 2
         recordings = _load_judge_recording(judge_recording)
         if judge_provider == "anthropic_compatible_offline":
-            # 从环境变量读 anthropic-compatible 配置；本路径**不**联网、
-            # **不**读真实 key（缺 key/model 时 provider 会返回 missing_config
-            # 脱敏错误，而不是抛异常或静默 PASS）。CompositeJudgeProvider 包裹
-            # 让 disagreement metrics 与其他 provider 的视图保持一致。
             cfg = AnthropicCompatibleConfig.from_env()
             advisory = AnthropicCompatibleJudgeProvider(
                 config=cfg, offline_fixture=recordings
@@ -539,6 +603,37 @@ def _run(
             )
         else:
             dry_provider = RecordedJudgeProvider(recordings=recordings)
+    elif judge_provider == "anthropic_compatible_live":
+        # v1.4 第二轮新增分支。装配顺序：
+        #   1. 优先看 --judge-fake-transport-fixture：给了就用 FakeJudgeTransport
+        #      （绝不联网，CI / smoke 走这条路）；
+        #   2. 否则用 LiveAnthropicTransport(live_enabled=args.live,
+        #      live_confirmed=args.confirm_i_have_real_key)。双标志缺一 →
+        #      transport.send 立即抛 disabled_live_provider，provider 把它脱敏
+        #      成 advisory 错误；env 不全 → AnthropicCompatibleJudgeProvider 自己
+        #      在 send 之前就走 missing_config 路径；只有"双标志齐 + env 完整 +
+        #      未注入 fake"才有资格调真实 HTTPSConnection（v1.4 仍**不**在 CI
+        #      / smoke 中执行这条路径）。
+        cfg = AnthropicCompatibleConfig.from_env()
+        if judge_fake_transport_fixture:
+            fake_data = _load_fake_transport_fixture(judge_fake_transport_fixture)
+            transport = FakeJudgeTransport(
+                responses=fake_data.get("responses"),
+                raise_error=fake_data.get("raise_error"),
+            )
+        else:
+            transport = LiveAnthropicTransport(
+                config=cfg,
+                live_enabled=live,
+                live_confirmed=confirm_i_have_real_key,
+            )
+        advisory = AnthropicCompatibleJudgeProvider(
+            config=cfg, transport=transport
+        )
+        dry_provider = CompositeJudgeProvider(
+            deterministic=RuleJudgeProvider(),
+            advisory=advisory,
+        )
     result = EvalRunner(dry_run_provider=dry_provider).run(
         load_project(project_path),
         tools,
@@ -553,6 +648,63 @@ def _run(
         )
     )
     return 0
+
+
+def _load_fake_transport_fixture(path: str) -> dict:
+    """加载 ``--judge-fake-transport-fixture`` 指定的 fixture。
+
+    本函数负责什么
+    --------------
+    解析用户给的 yaml/json 文件，校验顶层结构合法性。允许两类：
+
+    - ``responses: {eval_id: {passed, rationale, confidence, rubric}}``：
+      正常返回路径；
+    - ``raise_error: <error_taxonomy_slug>``：模拟 transport 抛错路径，
+      用于 smoke 验证 8 类错误是否都能被 provider 脱敏。
+
+    本函数**不**负责什么
+    --------------------
+    - 不校验 ``responses`` 内部字段细节——provider/transport 自己会按
+      contract 走脱敏路径；
+    - 不静默：缺文件 / 坏 yaml → 立即抛 FileNotFoundError / ConfigError，
+      由 ``main`` 的 ConfigError 兜底打印可行动错误。
+
+    用户项目自定义入口
+    ------------------
+    复制 ``examples/fake_transport_fixtures/runtime_debug.yaml`` 修改即可。
+    """
+
+    from pathlib import Path
+
+    data = _read_yaml_or_json(Path(path))
+    if not isinstance(data, dict):
+        raise ConfigError(
+            f"--judge-fake-transport-fixture 顶层必须是 mapping：{path}"
+        )
+    if "responses" not in data and "raise_error" not in data:
+        raise ConfigError(
+            f"--judge-fake-transport-fixture 必须含 responses 或 raise_error 字段：{path}"
+        )
+    return data
+
+
+def _read_yaml_or_json(path):
+    """根据扩展名加载 YAML/JSON。供 fake transport fixture 使用。
+
+    与 :func:`_load_judge_recording` 不同：本函数不强制顶层字段（让
+    ``_load_fake_transport_fixture`` 自己做语义校验）。
+    """
+
+    import json as _json
+
+    import yaml as _yaml  # type: ignore
+
+    if not path.exists():
+        raise FileNotFoundError(f"fixture not found: {path}")
+    text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() == ".json":
+        return _json.loads(text)
+    return _yaml.safe_load(text)
 
 
 def _promote_evals(candidates_path: str, out: str, *, force: bool) -> int:

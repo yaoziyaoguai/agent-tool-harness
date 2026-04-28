@@ -147,3 +147,32 @@ V1.5+ 待做（仅备忘）
 - 真正打开 live 必须由用户主动构造 `LiveAnthropicTransport(...,
   live_enabled=True, live_confirmed=True)` 并注入到
   `AnthropicCompatibleJudgeProvider`——v1.4 不为你做这一步。
+
+---
+
+## v1.4 第二轮补充：CLI 入口 + fake transport smoke fixture
+
+v1.4 第二轮在 `agent_tool_harness/cli.py::run` 子命令上把第一项的 transport
+骨架接上 CLI：
+
+- `--judge-provider anthropic_compatible_live`：选择 live 路由；
+- `--live` + `--confirm-i-have-real-key`：与 preflight 同语义的双标志；
+- `--judge-fake-transport-fixture PATH`：注入 `FakeJudgeTransport`，
+  CI / smoke 走这条路径**绝不**真实联网。
+
+装配优先级：
+
+1. 给了 `--judge-fake-transport-fixture` → 用 `FakeJudgeTransport`
+   （读 fixture 中的 `responses` 或 `raise_error`）；
+2. 否则用 `LiveAnthropicTransport(live_enabled=args.live,
+   live_confirmed=args.confirm_i_have_real_key)`；
+3. AnthropicCompatibleJudgeProvider 在调 transport **之前**还会做硬性
+   config 检查：`api_key` 或 `model` 缺一即 `missing_config`，**所有路径都先过这关**。
+
+示例 fixture：`examples/fake_transport_fixtures/runtime_debug.yaml`。
+契约测试：`tests/test_cli_anthropic_compatible_live.py`（6 条，含
+socket 禁用 + 全文件 key/url 字面值泄漏扫描）。
+
+CLI smoke 输出位置：`runs/v14-cli-preflight-check`、
+`runs/v14-cli-live-disabled`、`runs/v14-cli-fake-bad`、`runs/v14-cli-bad`、
+`runs/v14-cli-analysis`。
