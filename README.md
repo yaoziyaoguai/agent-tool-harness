@@ -290,7 +290,7 @@ python -m agent_tool_harness.cli run \
 
    ```bash
    python -m agent_tool_harness.cli promote-evals \
-     --candidates runs/generate-evals/eval_candidates.from_tools.yaml \
+     --candidates runs/generated/eval_candidates.from_tools.yaml \
      --out evals.promoted.yaml
    # 默认禁止覆盖；如确实要覆盖加 --force
    ```

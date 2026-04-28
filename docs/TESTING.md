@@ -26,6 +26,19 @@
   钉住 `ToolDesignAuditor` 不能识别语义诱饵工具的能力 gap。详见 `docs/ROADMAP.md`
   的 “xfail 测试” 章节与转正条件。
 
+## 接入文档 vs CLI 一致性测试
+
+`tests/test_doc_cli_snippets.py` 静态扫描 `README.md` / `docs/ONBOARDING.md`
+里的所有 ` ```bash ` 代码块，对每一条 `python -m agent_tool_harness.cli ...`
+命令调用真实 `argparse` 校验。它的目标不是格式 lint，而是发现"文档命令缺
+必填参数 / 写错 choices / 写错 subcommand 名"这种**新用户照抄第一步就崩**的
+真实 bug——v0.1 收口期间的 ONBOARDING §3 `generate-evals` 缺 `--project` /
+`--source` 就是被这条测试钉住的同类问题。
+
+新增接入文档时请把路径加进 `DOC_PATHS`；新增 / 修改 CLI 参数时请同步更新文档
+代码块——不要改弱 `_build_parser()` 的 `required` 约束去"让坏文档也能跑"，
+那等于默许文档继续误导用户。
+
 ## signal_quality 测试纪律
 
 `tests/test_signal_quality.py` 锁定框架级信号质量披露契约：

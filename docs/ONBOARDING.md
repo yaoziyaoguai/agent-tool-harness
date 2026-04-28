@@ -68,9 +68,15 @@ python -m agent_tool_harness.cli audit-tools \
 
 ```bash
 python -m agent_tool_harness.cli generate-evals \
+  --project your/project.yaml \
   --tools your/tools.yaml \
+  --source tools \
   --out runs/onboarding-generated/eval_candidates.from_tools.yaml
 ```
+
+> ⚠️ `--project` 和 `--source` 都是必填项；省略会被 argparse 直接拒收。
+> `--source tools` 表示从 `tools.yaml` 推导候选（生产路径）；如果想从 pytest
+> 测试名/docstring 推导，改 `--source tests` 并加 `--tests <pytest 目录>`。
 
 输出是**候选**：每条带 `review_status: "candidate"` / `review_notes` /
 `difficulty` / `runnable: false`。文件顶层还会带 `warnings` 字段（empty_input /

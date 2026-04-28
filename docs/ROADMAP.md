@@ -158,7 +158,16 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
   写脚本批量改而绕过 review——已加"如何把候选转成 accepted（具体怎么做）"小节并
   显式禁止 `sed` 批量替换；
 - ONBOARDING 第 7 步未解释 `--mock-path good/bad` 的差异由 eval 自带 fixture 决定，
-  新用户在自家 eval 上跑 bad 看到 PASS 会以为 CLI 坏了——已加隐性断点提示。
+  新用户在自家 eval 上跑 bad 看到 PASS 会以为 CLI 坏了——已加隐性断点提示；
+- ONBOARDING §3 `generate-evals` 命令缺 `--project` / `--source`，新用户第 3 步
+  会被 argparse 直接拒收（`error: the following arguments are required: --project,
+  --source`）——已补全两个必填参数 + 加 `--source tools` 释义；同步根因修复：
+  把 `cli.main` 内的 parser 构造抽成 `_build_parser()`，并新增
+  `tests/test_doc_cli_snippets.py` 静态扫描所有接入文档代码块，对每条命令真实
+  调用 `argparse` 校验，未来再有此类 doc/CLI drift 会被 CI 当场钉住；
+- README "候选 eval 审核流程" 中 `promote-evals` 示例引用了
+  `runs/generate-evals/...` 路径，与同份 README 快速开始里写到 `runs/generated/...`
+  的输出路径不一致——已统一为 `runs/generated/...`，避免新用户复制下来命令找不到文件。
 
 **仍未做**（必须在真实新人身上验证）：找一位没看过本项目的同事按修订后 ONBOARDING
 跑一遍并记录卡点。文档自审无法替代真人走查。

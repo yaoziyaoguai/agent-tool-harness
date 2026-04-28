@@ -32,19 +32,29 @@ class CLIError(SystemExit):
         self.message = message
 
 
-def main(argv: list[str] | None = None) -> int:
-    """CLI 入口。
+def _build_parser() -> argparse.ArgumentParser:
+    """构造 CLI argparse 解析器。
 
-    CLI 只负责参数解析和模块编排，不把任何 demo 项目逻辑写进命令实现。
+    架构边界：
+    - **负责**：把所有 subcommand + 必填/可选参数集中声明在一处，作为"CLI 接口
+      的唯一事实来源"。`main()` 调它来解析 argv；测试也调它来验证 README /
+      docs/ONBOARDING.md 里的 ``python -m agent_tool_harness.cli ...`` 片段
+      和真实 CLI 完全一致。
+    - **不负责**：执行任何业务（loader / runner / writer 都由 ``main`` 路由），
+      也不做参数语义校验（例如 ``--source tests`` 必须配 ``--tests``）——
+      这类组合校验由 ``main`` 在拿到 args 后用 ``CLIError`` 显式报错，避免和
+      argparse 内部行为耦合。
 
-    错误处理边界：
-    - 用户配置错误（坏路径、坏 YAML、duplicate eval id 等）会被 ConfigError 捕获并以
-      可行动信息打印到 stderr，退出码 2。这是“真实用户最常见的接入失败面”——
-      框架不应该把 Python traceback 直接抛给他们。
-    - tools/evals 为空时，CLI 会在 stderr 写一条警告，但不强制 hard fail；这给真实团队
-      在 audit 阶段查看“空配置如何被报告呈现”的余地。run 命令仍允许继续，但报告会显示
-      0 eval / 0 工具，方便诊断。
-    - --source tests 必须搭配 --tests，否则给出明确提示而非 argparse 的内部异常。
+    为什么单独抽出来：
+    - v0.1 收口期间真人 onboarding 走查发现 ``docs/ONBOARDING.md §3`` 给出的
+      ``generate-evals`` 命令缺 ``--project`` / ``--source``，新用户第 3 步直接
+      被 argparse 拒收。根因是仓库没有任何测试把"文档命令"和"真实 parser"对齐，
+      只能靠人工同步。把 parser 抽出后，``tests/test_doc_cli_snippets.py`` 可以
+      静态扫描所有 markdown bash block，对每条命令调一次 ``parse_args``——drift
+      会立刻被测试钉住，不再漏到真实用户面前。
+
+    扩展点：新增 subcommand / 新参数请只在本函数内追加，并同步更新 README +
+    docs/ONBOARDING.md 的命令片段；test_doc_cli_snippets 会兜底验证一致性。
     """
 
     parser = argparse.ArgumentParser(prog="agent-tool-harness")
@@ -87,6 +97,25 @@ def main(argv: list[str] | None = None) -> int:
         help="允许覆盖已存在的输出文件（默认禁止，避免冲掉手写正式 evals.yaml）",
     )
 
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI 入口。
+
+    CLI 只负责参数解析和模块编排，不把任何 demo 项目逻辑写进命令实现。
+
+    错误处理边界：
+    - 用户配置错误（坏路径、坏 YAML、duplicate eval id 等）会被 ConfigError 捕获并以
+      可行动信息打印到 stderr，退出码 2。这是“真实用户最常见的接入失败面”——
+      框架不应该把 Python traceback 直接抛给他们。
+    - tools/evals 为空时，CLI 会在 stderr 写一条警告，但不强制 hard fail；这给真实团队
+      在 audit 阶段查看“空配置如何被报告呈现”的余地。run 命令仍允许继续，但报告会显示
+      0 eval / 0 工具，方便诊断。
+    - --source tests 必须搭配 --tests，否则给出明确提示而非 argparse 的内部异常。
+    """
+
+    parser = _build_parser()
     args = parser.parse_args(argv)
     try:
         if args.command == "audit-tools":
