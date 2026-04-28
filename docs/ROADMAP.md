@@ -29,7 +29,7 @@
 | 阶段 | 一句话目标 | 当前状态 |
 |------|-----------|---------|
 | **v0.1** | **最小 harness 跑起来** —— 一次 Agent 运行能记录证据、用基础规则判断工具调用链路是否合理、跑最小 eval、输出可读报告 | **已 release（commit `2161193`，tag `v0.1`）** |
-| **v0.2** | 更强的 deterministic audit / judge / transcript 能力 | **启动中** —— 第一阶段聚焦 ToolDesignAuditor 语义信号（候选 A 已第一轮落地，commit `5016660`）；第二阶段补 actionable principle metadata 与 report 渲染（commit `6a0c6ff`）；**第三轮** trace-derived deterministic tool-use 信号已合入（contract 兑现 / 重复调用 / when_not_to_use 词袋启发式）。本阶段**仍是 deterministic 启发式**，不接真实 LLM judge / MCP / HTTP / Shell / Web UI / 真实 Agent runtime——这些属 v0.3+。|
+| **v0.2** | 更强的 deterministic audit / judge / transcript 能力 | **release-readiness 评审中** —— 已合入 4 轮：第一轮 ToolDesignAuditor 语义信号（commit `5016660`）；第二轮 actionable principle metadata + report 渲染（commit `6a0c6ff`）；第三轮 trace-derived deterministic tool-use 信号（commit `6fc4e7c`）+ analyze-artifacts 离线复盘 CLI（commit `761e53e`）+ TRY_IT 完整试用闭环文档化（commit `cc70868`）。本阶段**仍是 deterministic 启发式**，不接真实 LLM judge / MCP / HTTP / Shell / Web UI / 真实 Agent runtime——这些属 v0.3+。**release tag / RELEASE_NOTES_v0.2 由 owner 触发**，本表只反映工程进度。|
 | v0.3 | 自动化回归 / 场景库 / 真实 Agent Runtime 集成 | 未启动 |
 | v1.0 | 稳定可扩展的 Agent Harness 平台 | 未启动 |
 
