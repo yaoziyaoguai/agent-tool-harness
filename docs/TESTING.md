@@ -164,7 +164,8 @@ python -m ruff check .
   (6) 报告必须包含顶层 **Failure Attribution** 段、`Root cause hypothesis`、
   `What to check next`、以及"deterministic heuristic"措辞——防止 diagnosis 被
   误传成"真实根因"或"LLM Judge 输出"。
-- `tests/test_p1b_promote_warnings_schema.py` 钉住第八阶段 P1B 三组根因边界：
+- `tests/test_p1b_promote_warnings_schema.py` 钉住 v0.1 收口期的 P1B 三组根因边界（promote-evals
+  闭环 + candidate writer warnings + artifact schema_version 一致性）：
   (1) **promote-evals 硬约束**——promoter 必须只搬运 `review_status="accepted"`
   + `runnable=true` + `initial_context` 非空 + `verifiable_outcome.expected_root_cause`
   非空 + `judge.rules` 非空的候选；needs_review / rejected / runnable=false /

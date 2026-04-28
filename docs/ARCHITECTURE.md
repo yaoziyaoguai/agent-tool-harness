@@ -93,7 +93,9 @@ generate-evals --source tools|tests
 
 CLI **不提供**交互式 reviewer，但 P1B 已落地非交互 promoter；它只做"已审核条目
 机械搬运 + 硬约束二次校验"，不做 audit、不改 prompt、不替人决定，也不 fallback
-（任何缺字段都拒绝该候选并写明 reason）。完整能力边界见 `docs/ROADMAP.md` 第八阶段。
+（任何缺字段都拒绝该候选并写明 reason）。完整能力边界见 `docs/ROADMAP.md` 中
+"v0.1 — 最小 harness 跑起来" 一节关于 candidate review / promote-evals 的说明，以及
+v0.2 backlog 中标注为"P1B"的 promoter 根因约束。
 
 ## 模块职责
 

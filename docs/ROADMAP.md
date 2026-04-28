@@ -53,7 +53,8 @@
 - `MarkdownReport` 含 Failure Attribution + Methodology Caveats；
 - `signal_quality` 披露 + `MockReplayAdapter.SIGNAL_QUALITY=tautological_replay`；
 - `schema_version=1.0.0` + `run_metadata` 跨 artifact 共享 run_id；
-- 113 passed + 1 strict xfailed（v0.1 + 候选 B 已合入后的基线）。
+- 116 passed + 1 strict xfailed（v0.1 + 候选 B 已合入后的基线，HEAD `a432db9`；
+  xfail 见下文 §xfail 测试）。
 
 ### v0.2 已启动但**尚未合入**的工作（在工作区，未 commit）
 
@@ -346,13 +347,16 @@ Anthropic *Writing effective tools for agents* 主张评估必须由真实 LLM a
 
 ## xfail 测试
 
-当前存在 1 个 strict xfail（v0.1 基线）：
+当前存在 1 个 strict xfail（v0.1 基线，HEAD `a432db9`）：
 
-- `tests/test_tool_design_audit_subtle_decoy_xfail.py::test_audit_should_flag_subtle_semantic_decoy_with_disjoint_vocabulary`
-  —— 仅当候选 A 合入后存在；当前 v0.1 基线（`HEAD=d3b6b2a`）无该 xfail。
-- 历史 strict xfail `tests/test_tool_design_audit_decoy_xfail.py` 在候选 A 中
-  被转正，文件改名为 `tests/test_tool_design_audit_decoy.py`（同样仅在候选 A
-  合入后生效）。
+- `tests/test_tool_design_audit_decoy_xfail.py::test_audit_should_flag_semantic_decoy_tool_overlapping_with_primary`
+  —— **当前 v0.1 基线就在 main 上**（commit `67678e4`），不是候选 A 私有产物。
+  它把 ToolDesignAuditor 仅做结构检查、看不出"语义诱饵工具"这一 gap 钉成红线；
+  转正条件：引入 transcript-based 或真实 tool response 样本驱动的语义级 audit
+  （即 v0.2 路线的 ToolDesignAuditor 语义信号工作，候选 A 已实现该方向，文件名
+  在该分支被改写为 `test_tool_design_audit_decoy.py` + 新增 subtle decoy xfail）。
+- 候选 A 合入前**严禁**新增 xfail，也严禁删除/弱化此 xfail（strict=True 守住
+  "未来一旦能识别诱饵就必须把 xfail 转正" 的反向闸门）。
 
 未来允许 xfail 的条件：
 
