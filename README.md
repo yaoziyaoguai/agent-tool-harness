@@ -50,6 +50,8 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > v1.5 第一轮（**已合入 main，待发版**）：`run` 子命令新增 `--judge-advisory NAME:PATH` 可重复 flag，把 v1.3 多 advisory majority-vote Python API 接到 CLI；NAME 仅支持 `recorded` / `anthropic_compatible_offline` / `anthropic_compatible_fake`，**绝不**接受任何 live transport NAME；与 `--judge-provider` 互斥。新增 6 条契约测试。**CI 仍 0 联网；不需要真实密钥**。
 >
 > v1.5 第二轮（**已合入 main，待发版**）：MarkdownReport 多 advisory 可读性扩展——`report.md` 在 majority/votes 概览下为每条 advisory 输出 `provider/passed/rationale/confidence` 或 `error_code/suggested_fix` 缩进子条目，让 reviewer 不用打开 JSON 即可定位分歧与错误。`_ADVISORY_SUGGESTED_FIX` 静态映射覆盖 9 类 error_code。新增 6 条渲染契约测试。**仍是文档/可读性强化，不是真实 LLM Judge**。
+>
+> v1.5 release notes：见 [RELEASE_NOTES_v1.5.md](RELEASE_NOTES_v1.5.md)（multi-advisory CLI + report readability MVP）。
 
 ## 快速开始
 
