@@ -153,3 +153,60 @@ def test_required_args_are_actually_required(argv):
     parser = _build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(argv)
+
+
+def test_readme_quickstart_audits_the_just_promoted_file():
+    """README "## 快速开始" 中：promote-evals → audit-evals 流程必须连贯。
+
+    走查 v0.1 第二个 example 时发现的真实 bug：README 快速开始第 4 步把候选 promote
+    到 ``runs/generated/evals.promoted.yaml``，第 5 步却 audit-evals 一个完全不同的
+    文件 ``examples/runtime_debug/evals.yaml``。一个按顺序照抄的 fresh user 会困惑
+    "我刚 promote 的文件去哪了？流程是不是断了？" —— 这正是 ONBOARDING walk-through
+    的隐性断点（ONBOARDING §6 流程是对的，README 漂移）。
+
+    本测试只钉一条最小不变量：**README 快速开始代码块中，只要出现
+    ``promote-evals --out PATH``，同一代码块内必须存在至少一条 ``audit-evals --evals PATH``
+    引用同一个文件。** 不强制是紧邻的下一步——允许中间插入对照 baseline 之类的
+    audit。这样既抓住流程断裂，又不会过度约束未来文档结构。
+
+    **不**负责：检查 ONBOARDING（它的 promote→audit 路径是用户自己项目目录，路径
+    形态不同，已有人工流程描述兜底）；检查具体路径是否真实存在（端到端 smoke
+    职责）。
+    """
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    # 仅取 "## 快速开始" 一节内容（截到下一个 "## " 标题）。
+    marker = "## 快速开始"
+    assert marker in readme, "README 应有 '## 快速开始' 章节"
+    section = readme.split(marker, 1)[1]
+    next_h2 = section.find("\n## ")
+    if next_h2 != -1:
+        section = section[:next_h2]
+
+    promoted_paths: list[str] = []
+    audited_paths: list[str] = []
+    for block in re.findall(r"```bash\n(.*?)```", section, flags=re.DOTALL):
+        joined = re.sub(r"\\\s*\n\s*", " ", block)
+        for raw_line in joined.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "promote-evals" in line and "--out" in line:
+                argv = shlex.split(line)
+                if "--out" in argv:
+                    promoted_paths.append(argv[argv.index("--out") + 1])
+            if "audit-evals" in line and "--evals" in line:
+                argv = shlex.split(line)
+                if "--evals" in argv:
+                    audited_paths.append(argv[argv.index("--evals") + 1])
+
+    if not promoted_paths:
+        pytest.skip("README 快速开始当前未演示 promote-evals；流程一致性约束不适用。")
+
+    missing = [p for p in promoted_paths if p not in audited_paths]
+    assert not missing, (
+        "README 快速开始中 promote-evals 输出未被任何 audit-evals 验证，流程会让 fresh "
+        "user 误以为 promoted 文件无需校验：\n"
+        + "\n".join(f"  - promoted but never audited: {p}" for p in missing)
+        + f"\n  audited paths in same section: {audited_paths!r}"
+    )

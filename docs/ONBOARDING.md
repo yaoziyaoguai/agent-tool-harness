@@ -47,7 +47,9 @@
 - `tools.yaml`：工具清单（mapping `tools: [...]` 或 list root 都接受）
 - `evals.yaml`：eval 清单（同上）
 
-参考 `examples/runtime_debug/` 下三个文件。常见坏配置见 `examples/bad_configs/README.md`。
+参考 `examples/runtime_debug/`（运行时/checkpoint 调试域）或
+`examples/knowledge_search/`（KB 检索域）下三个文件——两份示例互相印证 harness 不与
+单一业务领域耦合。常见坏配置见 `examples/bad_configs/README.md`。
 
 > **不要把 demo 工具名写进核心框架。** 任何形如 `if tool.name == "lookup_session_failure"` 的逻辑
 > 都属于业务侧，留在你自己的 demo/adapter 里。

@@ -59,7 +59,12 @@ python -m agent_tool_harness.cli promote-evals \
   --candidates runs/generated/eval_candidates.from_tools.yaml \
   --out runs/generated/evals.promoted.yaml
 
-# 5) 审计正式 eval
+# 5) 审计 promoted（先看刚 promote 出的文件，再回去比对你正式 evals.yaml）
+python -m agent_tool_harness.cli audit-evals \
+  --evals runs/generated/evals.promoted.yaml \
+  --out runs/audit-evals-promoted
+
+# 5b) 顺便审计 demo 自带的正式 evals（用于对照 baseline）
 python -m agent_tool_harness.cli audit-evals \
   --evals examples/runtime_debug/evals.yaml \
   --out runs/audit-evals
@@ -265,7 +270,12 @@ python -m agent_tool_harness.cli run \
 
 每个候选额外携带审核字段（详见 `docs/ARTIFACTS.md` 与下面的“候选审核流程”）：
 
-- `review_status`：当前固定为 `candidate`，需要人工 review 才能转正。
+- `review_status`：默认 `candidate`，需要人工 review 后改成 `accepted` 才能 promote；
+  当工具契约本身就缺关键字段（`when_to_use` / `output_contract.evidence` /
+  `response_format` 等）时，generator 会自动写 `needs_review`，此时正确做法是回
+  `tools.yaml` 修工具契约而不是改 eval 绕过——详见
+  [docs/ONBOARDING.md §4](docs/ONBOARDING.md) "看到 review_status: needs_review 怎么办"。
+  其它合法值：`rejected`（review 后判定不该转正）。promoter 只搬运 `accepted`。
 - `review_notes`：审核 checklist；说明候选为什么仍是候选（缺 fixture / 缺 root cause /
   prompt 需要核对真实性等）。
 - `difficulty`：把 `complexity` 映射成 `trivial` / `single_step` / `multi_step` /
