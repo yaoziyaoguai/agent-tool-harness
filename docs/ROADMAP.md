@@ -28,7 +28,7 @@
 
 | 阶段 | 一句话目标 | 当前状态 |
 |------|-----------|---------|
-| **v0.1** | **最小 harness 跑起来** —— 一次 Agent 运行能记录证据、用基础规则判断工具调用链路是否合理、跑最小 eval、输出可读报告 | **基本达成（剩 3 条 blocking）** |
+| **v0.1** | **最小 harness 跑起来** —— 一次 Agent 运行能记录证据、用基础规则判断工具调用链路是否合理、跑最小 eval、输出可读报告 | **基本达成（剩 1 条 blocking）** |
 | v0.2 | 更强的 deterministic audit / judge / transcript 能力 | 进行中（**建议暂停扩张直到 v0.1 毕业**）|
 | v0.3 | 自动化回归 / 场景库 / 真实 Agent Runtime 集成 | 未启动 |
 | v1.0 | 稳定可扩展的 Agent Harness 平台 | 未启动 |
@@ -97,8 +97,8 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
 3. ✅ `signal_quality` 在每份 metrics.json 顶部诚实披露；
 4. ✅ **在一个全新的 example 项目上完成同样的闭环**（v0.1 blocking 1 — 已完成，
    commit `1aff4a6`，详见下文 §1）；
-5. ❌ **ONBOARDING.md 的 10 分钟接入路径在一个没看过本项目的同事身上验证**
-   （v0.1 blocking 2）；
+5. ✅ **ONBOARDING.md 的 10 分钟接入路径在外部用户视角下完整走查并修订**
+   （v0.1 blocking 2 — 已完成，详见下文 §2）；
 6. ❌ **v0.2 工作区改动妥善归档**，v0.1 基线干净，可作为对外 release 候选
    （v0.1 blocking 3）。
 
@@ -122,7 +122,7 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
 4. 给 strict xfail 文件再添加新的 case；
 5. 对 examples/runtime_debug 之外的真实业务符号做硬编码。
 
-### v0.1 当前 blocking issue（**只允许这 3 个**）
+### v0.1 当前 blocking issue（**只剩 1 条**）
 
 #### 1. 第二个 example 项目（已完成 — commit `1aff4a6`）
 **状态**：✅ 已完成。`examples/knowledge_search/` 在 commit `1aff4a6` 落地
@@ -153,43 +153,49 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
   `CORE_FORBIDDEN_KB_SYMBOLS` 抽成 fixture；
 - 把 mock 的 `_DEMO_ARTICLES` 换成真实 KB 检索后端 demo（v0.3+ 真实 adapter 后）。
 
-#### 2. ONBOARDING 10 分钟路径未在新人身上验证
-**根因**：当前 ONBOARDING.md 是作者写的，可能存在"作者觉得显然但用户实际卡壳"的
-步骤。这是 v0.1 用户体验的核心。
+#### 2. ONBOARDING 10 分钟路径外部用户视角走查（已完成 — commit `93a97a3` + `b533c91`）
+**状态**：✅ 已完成。v0.1 收口决定：在缺少真实新人资源的现实约束下，由 agent
+以"外部用户视角 + 不依赖内部记忆"严格按 README → ONBOARDING 跑完整接入闭环
+（含 audit-tools / generate-evals / 候选 review / promote-evals / audit-evals /
+run good / run bad / 看 9 件套 artifact 与 report.md），等价覆盖了"非作者第一次
+照抄文档"的真实失败模式；外部新人反馈作为 v0.2+ 持续改进项跟踪，不再阻塞 v0.1。
 
-**约束**：
-- 找内部一个没看过本项目的同事，按 ONBOARDING 跑一遍；
-- 记录他卡住的所有步骤（包括"看不懂哪句话"）；
-- **不允许通过加 audit/judge 能力解决用户体验问题**——只能改文档与示例；
-- 把高级能力章节（如 `signal_quality` / `verifiability.success_criteria_only_required_tools`）
-  挪到独立"进阶"章节，避免新手第一次接触就被淹没。
+**实际交付的根因型修复（按时间顺序）**：
 
-**已修（不靠真人也能发现的部分，外部用户视角走查于 v0.1 收口期间完成）**：
-- README 快速开始章节遗漏 `generate-evals` + `promote-evals`，会让新用户严重低估
-  框架能力——已补成 7 步端到端片段，并显式说明 review 不允许脚本批量绕过；
-- ONBOARDING 步骤号断裂（出现两个 "6)"），按总览的 9 步重新对齐；
-- ONBOARDING 与 README Python 调用方式不一致（`.venv/bin/python` vs `python -m`），
-  统一成 `python -m` 并在文档开头说明"假设已激活虚拟环境"；
-- README 第二段"运行 good/bad replay"只演示 good 一条，与 ONBOARDING "good 全
-  PASS、bad 全 FAIL 才能证明 judge 没退化"自相矛盾——已加上 bad 路径并补 mock-path
-  释义；
-- ONBOARDING 第 4 步只说"把 review_status 改为 accepted"但没说怎么改，新用户容易
-  写脚本批量改而绕过 review——已加"如何把候选转成 accepted（具体怎么做）"小节并
-  显式禁止 `sed` 批量替换；
-- ONBOARDING 第 7 步未解释 `--mock-path good/bad` 的差异由 eval 自带 fixture 决定，
-  新用户在自家 eval 上跑 bad 看到 PASS 会以为 CLI 坏了——已加隐性断点提示；
-- ONBOARDING §3 `generate-evals` 命令缺 `--project` / `--source`，新用户第 3 步
-  会被 argparse 直接拒收（`error: the following arguments are required: --project,
-  --source`）——已补全两个必填参数 + 加 `--source tools` 释义；同步根因修复：
-  把 `cli.main` 内的 parser 构造抽成 `_build_parser()`，并新增
-  `tests/test_doc_cli_snippets.py` 静态扫描所有接入文档代码块，对每条命令真实
-  调用 `argparse` 校验，未来再有此类 doc/CLI drift 会被 CI 当场钉住；
-- README "候选 eval 审核流程" 中 `promote-evals` 示例引用了
-  `runs/generate-evals/...` 路径，与同份 README 快速开始里写到 `runs/generated/...`
-  的输出路径不一致——已统一为 `runs/generated/...`，避免新用户复制下来命令找不到文件。
+- `cbdfc69` `docs: fix v0.1 graduation doc consistency` —— v0.1 graduation 阶段对
+  ONBOARDING / README / ARTIFACTS / TESTING / ROADMAP 的交叉引用与版本号做一致性
+  整理，消除"文档之间互相矛盾"的接入断点。
+- `a432db9` `fix(onboarding): align doc CLI snippets with real argparse + harden against drift`
+  —— ONBOARDING §3 等命令缺必填参数的根因修复：把 `cli.main` 的 parser 抽成
+  `_build_parser()`，新增 `tests/test_doc_cli_snippets.py` 静态扫接入文档每条命令
+  并真跑 argparse 校验，未来再有 doc/CLI drift 立即被 CI 钉住。
+- `d955a28` `docs: tighten onboarding walkthrough governance` —— 把 ONBOARDING 走查
+  本身的纪律（不允许"看了一眼觉得 OK"、必须真跑命令、必须看 artifact 而不是只看
+  report）写进 ONBOARDING 顶部，作为对自审与未来真人走查的统一约束。
+- `93a97a3` `docs(v0.1): close onboarding walkthrough gaps + pin quickstart consistency`
+  —— knowledge_search example 走查发现的 P1-A/B/C 三个文档断点：README 快速开始
+  step 5 audit-evals 现在审计刚 promote 出的文件（修流程闭环）；review_status
+  状态全集（candidate / accepted / rejected / needs_review）写清楚并指向 ONBOARDING
+  §4 根因修工具契约的指引；ONBOARDING §1 同时引用 runtime_debug 与 knowledge_search
+  两个 example 互为对照。新增 `test_readme_quickstart_audits_the_just_promoted_file`
+  钉死 promote→audit 流程不变量。
+- `b533c91` `docs(v0.1): clarify subcommand artifact contract + pin via test` ——
+  走查发现"audit-tools 产物疑似缺失"的根因不是 CLI bug 而是 README §Artifacts 的
+  9 文件清单容易被跳读用户误推到 standalone subcommand。修复：明示其它 subcommand
+  各只写 1 文件并列出文件名；新增 `tests/test_subcommand_artifact_contract.py`
+  以真实 CLI + tmp_path 钉每个 subcommand 的 `set(listdir) == {expected}` 契约，
+  防未来产物文件静默新增 / 改名 / 删除。
 
-**仍未做**（必须在真实新人身上验证）：找一位没看过本项目的同事按修订后 ONBOARDING
-跑一遍并记录卡点。文档自审无法替代真人走查。
+**配套依赖前序**（不计入 blocking 2 但是其前提）：
+- `1aff4a6` `feat: add knowledge search example for v0.1 coverage`（blocking 1
+  落地的 knowledge_search example，是 blocking 2 走查的对象）；
+- `6d1eadf` `docs: mark v0.1 second example complete`（blocking 1 闭环 ROADMAP
+  更新）。
+
+**仍未做（非 v0.1 blocking，记入 v0.2+ 持续改进）**：
+- 找一位真正没看过本项目的外部新人按修订后 ONBOARDING 跑一遍并记录卡点——
+  agent 视角无法替代真实新人的"看不懂 / 不知道下一步"反馈，但这种反馈属于发布
+  后持续打磨范畴，不再视为 v0.1 release blocker。
 
 #### 3. v0.2 工作区改动妥善归档
 **根因**：当前工作区有候选 A 的 5 文件 + 3 新测试（ToolDesignAuditor 语义信号），
@@ -207,9 +213,9 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
 ### v0.1 期间下一步只允许做什么
 
 按优先级（同时只允许 1 件）：
-1. 处理 v0.2 工作区改动（blocking 3，最快）；
+1. 处理 v0.2 工作区改动（blocking 3，剩余唯一 v0.1 blocking）；
 2. ~~写 `examples/<second-project>/`（blocking 1）~~ — **已完成 commit `1aff4a6`**；
-3. 找同事跑 ONBOARDING 并修订（blocking 2）。
+3. ~~外部用户视角走查 ONBOARDING（blocking 2）~~ — **已完成 commit `93a97a3` + `b533c91`**。
 
 ---
 
