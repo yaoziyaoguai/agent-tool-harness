@@ -919,6 +919,44 @@ deterministic 分歧 / 出错的 advisory 该怎么修"成本高。
 - 真实联网 retry 验证（永远不在 CI）。
 
 
+### v1.7 第一轮已落地：product hardening + release-readiness 治理
+
+**根因**：v1.6 把 retry / cost / judge prompt audit 三个组件加进来后，
+真实接入面变大，但缺少跨 artifact 横向钉死的契约测试，会让以下漂移
+悄悄进入 main：
+1. 加新 CLI 子命令但忘了在 README/TRY_IT 写文档，用户复制粘贴会失败；
+2. 加新 artifact 但忘了写 `schema_version`，下游消费者无法判断版本；
+3. 真实 key 字面 / `Authorization: Bearer ...` / `Bearer <token>` 被
+   dump 进 transcript / judge_results / metrics（live 路径很容易踩到）；
+4. 有人偷接价格表把 `llm_cost.estimated_cost_usd` 翻成非 null 而忘改
+   advisory-only 措辞，把 advisory cost 当真实账单宣传；
+5. preflight `summary.ready_for_live` 被翻成 true 让用户误以为已经接通
+   真实 LLM。
+
+**本轮范围（已落地）**：
+- 新增 `docs/TRY_IT_v1_7.md` 端到端串联 v1.6 三件套（preflight +
+  audit-judge-prompts + run --mock-path bad + replay-run +
+  analyze-artifacts + llm_cost.json）的产品试用路径，含反模式提醒；
+- 新增 `tests/test_docs_cli_snippets.py`：钉死 README/TRY_IT/
+  TRY_IT_v1_7/ONBOARDING 中所有 `python -m agent_tool_harness.cli <sub>`
+  片段必须真实存在；钉死 `audit-judge-prompts` 在 README/ARTIFACTS/
+  TRY_IT_v1_7 至少各出现一次；钉死 ARTIFACTS.md 必须保留 advisory-only
+  / 不是真实账单 / 通过 audit 不代表 / 启发式 措辞；
+- 新增 `tests/test_artifact_consistency.py`：跨所有 .json artifact 钉死
+  `schema_version` 顶层字段必须存在；钉死任何 artifact 不得出现 sk- key
+  / Authorization Bearer / Bearer token 字面；钉死
+  `llm_cost.estimated_cost_usd` 必须 null + estimated_cost_note 必须含
+  advisory-only；钉死 preflight 默认 `summary.ready_for_live` 必须 false；
+- 8 条新测试；累计 317 passed + 1 xfailed（v1.6 309 → v1.7 317）。
+
+**本轮范围外（仅 ROADMAP 备忘，**不**实现）**：
+- 真实 live LLM provider 验证（永远不在 CI）；
+- 价格表注入 / 真实账单 cost；
+- MCP / HTTP / Shell 集成；
+- Web UI；
+- snippet 测试覆盖到 `--flag` 级 schema-driven drift 检查。
+
+
 ---
 
 ## 暂不做范围（永久或长期）

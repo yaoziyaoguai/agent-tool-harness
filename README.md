@@ -60,6 +60,20 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 >
 > v1.6 release notes：见 [RELEASE_NOTES_v1.6.md](RELEASE_NOTES_v1.6.md)（retry/backoff + cost + judge prompt audit MVP）。
 
+> v1.7 第一轮（**已合入 main**）：product-hardening + release-readiness 治理——
+> (a) 新增 [docs/TRY_IT_v1_7.md](docs/TRY_IT_v1_7.md) 端到端串联 v1.6 三件套
+> （preflight + audit-judge-prompts + run --mock-path bad + replay-run +
+> analyze-artifacts + llm_cost.json）的产品试用路径；
+> (b) 新增 `tests/test_docs_cli_snippets.py`，钉死 README/TRY_IT/ONBOARDING
+> 中所有 `python -m agent_tool_harness.cli <sub>` 片段必须真实存在 + 关键
+> CLI 子命令必须有用户可见文档入口 + ARTIFACTS.md 必须保留 advisory-only
+> 措辞，防止 docs ↔ CLI 漂移；
+> (c) 新增 `tests/test_artifact_consistency.py`，跨所有 .json artifact 钉死
+> `schema_version` 顶层字段必须存在 + 任何 artifact 不得出现 sk- key /
+> Authorization Bearer / Bearer token 字面 + `llm_cost.estimated_cost_usd`
+> 必须为 null + preflight 默认 `summary.ready_for_live` 必须 false。
+> v1.7 release notes：见 [RELEASE_NOTES_v1.7.md](RELEASE_NOTES_v1.7.md)。
+
 ## 快速开始
 
 > 第一次接入的团队请先看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；
