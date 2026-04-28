@@ -261,15 +261,19 @@ def run_preflight(
     ``live_intent`` / ``live_confirmed`` 是 v1.3 第一轮新增的双标志契约
     （详见 ``cli._judge_provider_preflight`` 的 docstring）：
 
-    - 两个都为 False（默认）：行为与 v1.x 第三轮完全一致，``summary.live_optin_status``
-      = ``"disabled"``；
+    - 两个都为 False（默认）：``summary.live_optin_status`` = ``"disabled"``；
     - ``live_intent=True`` 且 ``live_confirmed=False``：``summary.live_optin_status``
       = ``"opt_in_incomplete"``，并新增 hint 引导用户补 ``--confirm-i-have-real-key``；
-    - 两个都为 True：``summary.live_optin_status`` = ``"opted_in_no_transport"``，
-      表示用户已完整 opt-in，但 v1.3 不实现真实 transport，仍然不发任何
-      网络请求——这是为了让 v1.4 真实 transport 落地时 CLI 契约**零改动**。
-
-    注意：``ready_for_live`` 仍然恒为 False，因为 v1.3 不存在真实 transport。
+    - 两个都为 True 但 config 不全：``summary.live_optin_status`` =
+      ``"opted_in_no_transport"`` 保留兼容性；
+    - 两个都为 True **且** config 完整 **且** safety checks 全绿（v1.4 起）：
+      ``summary.live_optin_status`` = ``"live_ready"``，``ready_for_live`` 翻
+      ``True``——意为：preflight 判定用户当前环境已经具备打开真实 live 的全部
+      前置条件（双标志齐 + 4 个 env var 完整 + .gitignore 安全 + .env.example
+      仅含占位 + 8 类 error taxonomy 脱敏全绿）。**preflight 本身仍然完全不
+      联网、不读取真实 key 值**——它只是回报"安全闸都通过"，真实 live HTTP
+      仍由用户在自己环境构造 ``LiveAnthropicTransport(...,live_enabled=True,
+      live_confirmed=True)`` 显式触发。
     """
 
     report = PreflightReport()
@@ -305,37 +309,61 @@ def run_preflight(
             "请检查 _safe_message。"
         )
 
-    # 双标志状态机：opt-in 必须显式两次确认。
+    safe_taxonomy = (
+        report.provider_self_test["error_taxonomy_safe"]
+        == report.provider_self_test["error_taxonomy_total"]
+    )
+    config_complete = not report.config_status["missing_fields"]
+    gitignore_safe = report.gitignore_status["ignores_dotenv"]
+    env_example_safe = report.env_example_status["all_placeholders"]
+    all_safety_green = (
+        config_complete and gitignore_safe and env_example_safe and safe_taxonomy
+    )
+
+    # 双标志 + safety 状态机。v1.4 引入 ``live_ready`` 终态：
+    # - 必须 live_intent + live_confirmed（双标志齐）；
+    # - **且** all safety green（config 完整 + gitignore 安全 + env_example
+    #   仅占位 + error taxonomy 脱敏全绿）；
+    # - 满足全部条件后 ``ready_for_live=True``——这是给真实用户的"绿灯"信号；
+    # - 若双标志齐但 safety 未全绿，仍走旧 ``opted_in_no_transport`` 兼容字面值，
+    #   提醒"还差什么"，避免用户误以为可以贸然打开 live。
     if live_intent and live_confirmed:
-        live_optin_status = "opted_in_no_transport"
-        hints.append(
-            "已完整 opt-in（--live + --confirm-i-have-real-key），但 v1.3 "
-            "不实现真实 LiveAnthropicTransport——本次 preflight 仍然没有"
-            "发任何网络请求。真实 transport 在 v1.4 落地，详见 "
-            "docs/V1_3_LIVE_TRANSPORT_DESIGN.md。"
-        )
+        if all_safety_green:
+            live_optin_status = "live_ready"
+            hints.append(
+                "已完整 opt-in 且 4 项 safety check 全绿："
+                "ready_for_live=True。**preflight 本身仍未发任何网络请求**；"
+                "若要真实 live，请在自己环境主动构造 LiveAnthropicTransport"
+                "（不传 --judge-fake-transport-fixture）并自负成本/隐私责任。"
+                "详见 docs/V1_4_LIVE_TRANSPORT_IMPLEMENTATION.md。"
+            )
+        else:
+            live_optin_status = "opted_in_no_transport"
+            hints.append(
+                "已完整 opt-in（--live + --confirm-i-have-real-key），但 "
+                "config / gitignore / env_example / error taxonomy 至少一项尚未"
+                "全绿，因此 ready_for_live=False。请先按上方 hints 补齐再重试。"
+            )
     elif live_intent and not live_confirmed:
         live_optin_status = "opt_in_incomplete"
         hints.append(
             "你传了 --live 但未传 --confirm-i-have-real-key；这是双标志契"
             "约设计的安全闸：再加一次 --confirm-i-have-real-key 才视为完"
-            "整 opt-in。即便完整 opt-in，v1.3 仍不会发任何网络请求。"
+            "整 opt-in。即便完整 opt-in，preflight 仍不会发任何网络请求。"
         )
     else:
         live_optin_status = "disabled"
 
-    safe_taxonomy = (
-        report.provider_self_test["error_taxonomy_safe"]
-        == report.provider_self_test["error_taxonomy_total"]
-    )
     report.summary = {
-        "ready_for_live": False,  # 本轮永远 False；live transport 不在范围
-        "config_complete": not report.config_status["missing_fields"],
-        "gitignore_safe": report.gitignore_status["ignores_dotenv"],
-        "env_example_safe": report.env_example_status["all_placeholders"],
+        # v1.4 起：True 当且仅当双标志齐 + 4 项 safety 全绿。preflight 本身仍
+        # 不联网；这只是给用户的"前置条件全部通过"信号。
+        "ready_for_live": live_intent and live_confirmed and all_safety_green,
+        "config_complete": config_complete,
+        "gitignore_safe": gitignore_safe,
+        "env_example_safe": env_example_safe,
         "error_taxonomy_safe": safe_taxonomy,
-        # v1.3 新增：双标志 opt-in 状态。值域：
-        # "disabled" | "opt_in_incomplete" | "opted_in_no_transport"。
+        # 值域：
+        # "disabled" | "opt_in_incomplete" | "opted_in_no_transport" | "live_ready"。
         "live_optin_status": live_optin_status,
         "live_intent": live_intent,
         "live_confirmed": live_confirmed,

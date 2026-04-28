@@ -288,7 +288,16 @@ def test_preflight_live_alone_is_opt_in_incomplete(tmp_path: Path) -> None:
 
 
 def test_preflight_full_optin_still_no_transport(tmp_path: Path) -> None:
-    """两个 flag 都传 → opted_in_no_transport；hint 指向 V1_3 设计文档。"""
+    """两个 flag 都传但 config 不全 → opted_in_no_transport；ready_for_live=False；
+    hint 必须可行动地告诉用户"还差什么"，而不是放任 ready_for_live=True 让用户
+    误以为可以贸然打开 live。
+
+    v1.4 起 ready_for_live 不再恒为 False——而是双标志齐 + 4 项 safety 全绿
+    才翻 True。本测试针对 config 不全的"半就绪"场景，断言：
+    - status 仍是 opted_in_no_transport（兼容旧字面值）；
+    - ready_for_live=False；
+    - hint 必须包含 "ready_for_live=False" 的可行动解释。
+    """
 
     config = AnthropicCompatibleConfig.from_env()
     (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
@@ -302,9 +311,9 @@ def test_preflight_full_optin_still_no_transport(tmp_path: Path) -> None:
         live_confirmed=True,
     )
     assert report.summary["live_optin_status"] == "opted_in_no_transport"
-    assert report.summary["ready_for_live"] is False  # v1.3 永远 False
+    assert report.summary["ready_for_live"] is False
     joined = "\n".join(report.actionable_hints)
-    assert "V1_3_LIVE_TRANSPORT_DESIGN.md" in joined
+    assert "ready_for_live=False" in joined
 
 
 def test_cli_preflight_live_flag_alone_does_not_open_socket(
@@ -379,3 +388,53 @@ def test_cli_preflight_full_optin_still_no_socket(
     assert data["summary"]["live_intent"] is True
     assert data["summary"]["live_confirmed"] is True
     assert data["summary"]["ready_for_live"] is False
+
+
+def test_preflight_v14_live_ready_when_all_safety_green(tmp_path: Path, monkeypatch) -> None:
+    """v1.4 新契约：双标志齐 + 4 项 safety 全绿 → ready_for_live=True，
+    live_optin_status=live_ready。preflight 本身**仍**完全不联网（用 socket
+    禁用 monkeypatch 钉死）。
+
+    本测试覆盖的真实 bug：
+    - 若 preflight 还把 ready_for_live 硬编码为 False，用户即便环境完全就绪
+      也无法收到"绿灯"信号——只能猜测能不能打开 live。
+    - 若 v1.4 不慎让 preflight 在双标志齐时尝试真实联网，本测试的
+      socket monkeypatch 会立即失败。
+    """
+
+    import socket as _sock
+
+    monkeypatch.setattr(_sock, "socket", lambda *a, **k: (_ for _ in ()).throw(
+        RuntimeError("preflight must NEVER open real socket")
+    ))
+
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_PROVIDER", "anthropic_compatible")
+    monkeypatch.setenv(
+        "AGENT_TOOL_HARNESS_LLM_BASE_URL", "https://fake.local/v1/messages"
+    )
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_API_KEY", "sk-fake")
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_MODEL", "claude-fake")
+    config = AnthropicCompatibleConfig.from_env()
+    (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text(
+        "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
+    )
+    report = run_preflight(
+        config,
+        repo_root=tmp_path,
+        live_intent=True,
+        live_confirmed=True,
+    )
+    assert report.summary["live_optin_status"] == "live_ready"
+    assert report.summary["ready_for_live"] is True
+    assert report.summary["config_complete"] is True
+    assert report.summary["gitignore_safe"] is True
+    assert report.summary["env_example_safe"] is True
+    assert report.summary["error_taxonomy_safe"] is True
+    joined = "\n".join(report.actionable_hints)
+    assert "ready_for_live=True" in joined
+    # 安全底线：即便 ready_for_live=True，preflight 也绝不在 hints/summary
+    # 中出现真实 key/url 字面值。
+    blob = joined + str(report.summary)
+    assert "sk-fake" not in blob
+    assert "fake.local" not in blob
