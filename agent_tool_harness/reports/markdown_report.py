@@ -363,6 +363,33 @@ class MarkdownReport:
                 block.append(
                     f"    - [{severity}/{category}] **{ftype}**{related_text} — {why}"
                 )
+                # v1.0 候选 A 增量（per-eval 视角）：把 evidence grounding 类
+                # finding 的结构化字段也直接渲染在 Per-Eval Details，让用户在每条
+                # eval 块内就能复盘 grounding 失败原因；避免"category 聚合区有信息
+                # 但 per-eval 区缺信息"导致用户漏看。
+                if ftype == "evidence_grounded_in_decoy_tool":
+                    cited_refs = finding.get("cited_refs") or []
+                    cited_tools = finding.get("cited_tools") or []
+                    required_tools = finding.get("required_tools") or []
+                    if cited_refs or cited_tools:
+                        block.append(
+                            f"        - Cited evidence: {cited_refs} from non-required "
+                            f"tool(s) {cited_tools}; required={required_tools}"
+                        )
+                elif ftype == "no_evidence_grounding":
+                    had_evidence = finding.get("tool_responses_had_evidence")
+                    available = finding.get("available_evidence_refs") or []
+                    if had_evidence is True:
+                        block.append(
+                            f"        - Tool returned evidence ({available}) but "
+                            "final_answer did not cite any id/label — fix prompt or "
+                            "Agent strategy."
+                        )
+                    elif had_evidence is False:
+                        block.append(
+                            "        - Tool responses contained no evidence id/label — "
+                            "fix tool output_contract.required_fields first."
+                        )
                 if fix:
                     block.append(f"        - Suggested fix: {fix}")
                 if refs:

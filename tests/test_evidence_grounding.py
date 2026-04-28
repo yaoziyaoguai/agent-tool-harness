@@ -1,23 +1,34 @@
-"""Evidence grounding 边界测试 + decoy trajectory 样本库。
+"""Evidence grounding 边界测试 + 5 类 deterministic decoy/grounding 场景样本基线。
 
-模块定位（v1.0 第一项 P1 deterministic anti-decoy）：
-- 本文件覆盖 RuleJudge 新规则 ``evidence_from_required_tools`` 与 TranscriptAnalyzer
-  finding ``evidence_grounded_in_decoy_tool`` 的真实边界。
-- 这里的"trajectory 样本库"是测试本地 builder（``_build_run`` / ``_build_eval``），
-  **故意不落到 fixtures/ 目录**：避免把 decoy 业务符号泄漏到全局 fixture，导致其他
-  测试无意中复用一个语义有偏的"标准 trajectory"。每个 case 内联构造，意图自证。
+模块定位（v1.0 P1 + 候选 A + 第三轮：5 场景 sample baseline）：
+- 本文件覆盖 RuleJudge 新规则 ``evidence_from_required_tools``、TranscriptAnalyzer
+  finding ``evidence_grounded_in_decoy_tool``、以及 ``no_evidence_grounding`` 子场景
+  区分的真实边界。
+- 内联 builder 同时充当 **5 类 deterministic 场景的 trajectory sample 基线**，
+  让后续测试/排查能围绕同一组失败模式扩展，而不是各自再造 mock：
+  1) final_answer 只有 "evidence/证据" 关键字但 tool_responses 没 evidence；
+  2) tool_responses 有 evidence 但 final_answer 未引用具体 id/label；
+  3) final_answer 引用了 decoy tool 的 evidence 而不是 required tool 的；
+  4) required tool 没调用 + forbidden/low-signal tool 被先调用（grounding 失败的
+     上游链路）；
+  5) 正确引用 required tool evidence id/label 的正向路径。
 
 不负责（边界）：
 - 不替代 ``test_tool_design_audit_subtle_decoy_xfail.py`` 中的 strict xfail。后者
   测的是**静态 ToolDesignAuditor 仅看 yaml 字段**就能识别 disjoint-vocabulary decoy
-  的能力；本文件测的是**运行时 trajectory 已有 evidence 引用**之后能否识别 decoy
+  的能力；本文件测的是**运行时 trajectory** 已有 evidence 引用之后能否识别 decoy
   grounding。两者维度不同，xfail 仍保留并由 ROADMAP 跟踪。
 - 不验证 evidence 的语义正确性（那是真实 LLM judge 的事，v1.0 之后）。
 
+为什么 builder **不**落到 fixtures/ 目录：
+- 避免把 decoy 业务符号"标准化"到全局 fixture，导致其他测试无意中复用一个
+  语义有偏的 trajectory 而误以为代表真实场景。每个 case 内联构造，意图自证。
+
 如何用 artifacts 排查：
 - ``runs/<id>/diagnosis.json`` 中查 ``findings[type=evidence_grounded_in_decoy_tool]``，
-  其 ``evidence_refs`` 直接指向 tool_responses.jsonl + transcript.jsonl 中的诱饵
-  工具与被引用的 evidence id。
+  其 ``cited_refs / cited_tools / required_tools`` 直接告诉你诱饵工具与被引用的
+  evidence id；``no_evidence_grounding`` 则用 ``tool_responses_had_evidence`` 区分
+  "工具没返回 evidence"与"工具返回了但 Agent 没引用"两种修复方向截然不同的子场景。
 """
 
 from __future__ import annotations
@@ -390,3 +401,74 @@ def test_report_renders_evidence_grounding_details():
     assert "snap-decoy-99" in md
     assert "decoy_tool" in md
     assert "primary_tool" in md
+
+
+# --------------------- Scenario 4 baseline：grounding 失败的上游链路 ----------
+def test_scenario4_required_tool_skipped_with_forbidden_first_tool():
+    """场景 4 基线：required tool 没被调用 + forbidden_first_tool 被先调用。
+
+    构造：
+    - eval 显式禁用 ``decoy_tool`` 作为第一步，并要求 ``primary_tool``；
+    - tool_calls 第一步就是 ``decoy_tool``，``primary_tool`` 完全未出现；
+    - tool_responses 只有诱饵工具的 evidence。
+
+    期望 analyzer 同时报：``forbidden_first_tool`` + ``missing_required_tool``，
+    并落到 ``agent_tool_choice`` category。这条样本钉住"grounding 失败的上游
+    工具选择路径"——decoy grounding 不只是答案层的事，往往是 Agent 在第一步就
+    被诱导到错误工具。
+    """
+    case = _build_eval(
+        required_tools=["primary_tool"],
+        rules=[
+            {"type": "must_call_tool", "tool": "primary_tool"},
+            {"type": "forbidden_first_tool", "tool": "decoy_tool"},
+            {"type": "must_use_evidence"},
+        ],
+    )
+    run = _build_run(
+        eval_id=case.id,
+        final_answer="Cannot determine root cause without primary evidence.",
+        tool_calls=[{"tool_name": "decoy_tool", "arguments": {}}],
+        tool_responses=[_tool_response("decoy_tool", evidence_ids=["snap-decoy-99"])],
+    )
+    diag = _analyze(case, run)
+    types = {f["type"] for f in diag.get("findings", [])}
+    assert "forbidden_first_tool" in types
+    assert "missing_required_tool" in types
+    # primary_tool 必须以 missing_required_tool 关联工具名出现（防 finding 丢工具名）
+    related = {
+        f.get("related_tool_or_eval")
+        for f in diag.get("findings", [])
+        if f["type"] == "missing_required_tool"
+    }
+    assert "primary_tool" in related
+
+
+def test_scenario5_positive_path_with_required_tool_evidence():
+    """场景 5 基线（正向路径）：调用 required tool + 引用其 evidence id。
+
+    严格期望：所有 grounding 类规则全部通过，分析也不应生成任何 high-severity
+    grounding finding（防止正路径假阳）。
+    """
+    case = _build_eval(
+        required_tools=["primary_tool"],
+        rules=[
+            {"type": "must_call_tool", "tool": "primary_tool"},
+            {"type": "must_use_evidence"},
+            {"type": "evidence_from_required_tools"},
+        ],
+    )
+    run = _build_run(
+        eval_id=case.id,
+        final_answer="Root cause confirmed by evidence ev-real-17 from primary_tool.",
+        tool_calls=[{"tool_name": "primary_tool", "arguments": {}}],
+        tool_responses=[_tool_response("primary_tool", evidence_ids=["ev-real-17"])],
+    )
+    judge = _judge(case, run)
+    assert judge.passed
+    diag = TranscriptAnalyzer().analyze(case, run, judge)
+    types = {f["type"] for f in diag.get("findings", [])}
+    assert "evidence_grounded_in_decoy_tool" not in types
+    assert "no_evidence_grounding" not in types
+    assert "missing_required_tool" not in types
+    assert "forbidden_first_tool" not in types
