@@ -95,7 +95,8 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
 1. ✅ `examples/runtime_debug` good path 全 PASS / bad path 全 FAIL；
 2. ✅ 9 个 artifact 在 good / bad / runner_error 路径下都能完整生成；
 3. ✅ `signal_quality` 在每份 metrics.json 顶部诚实披露；
-4. ❌ **在一个全新的 example 项目上完成同样的闭环**（v0.1 blocking 1）；
+4. ✅ **在一个全新的 example 项目上完成同样的闭环**（v0.1 blocking 1 — 已完成，
+   commit `1aff4a6`，详见下文 §1）；
 5. ❌ **ONBOARDING.md 的 10 分钟接入路径在一个没看过本项目的同事身上验证**
    （v0.1 blocking 2）；
 6. ❌ **v0.2 工作区改动妥善归档**，v0.1 基线干净，可作为对外 release 候选
@@ -123,17 +124,34 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
 
 ### v0.1 当前 blocking issue（**只允许这 3 个**）
 
-#### 1. 第二个 example 项目尚未存在
-**根因**：所有 demo 都跑在 `examples/runtime_debug` 上。这无法证明 harness 是
-通用的——可能 audit/judge/runner 的某些假设悄悄绑死在 runtime_debug 的工具命名
-风格上。需要新增 `examples/<minimal-second-project>/`，用一个完全不同的领域
-（如 payments / search / docs lookup）跑 audit + run 的闭环。
+#### 1. 第二个 example 项目（已完成 — commit `1aff4a6`）
+**状态**：✅ 已完成。`examples/knowledge_search/` 在 commit `1aff4a6` 落地
+（`feat: add knowledge search example for v0.1 coverage`）。
 
-**约束**：
+**实际交付**：
+- `examples/knowledge_search/` 含 `project.yaml` + `tools.yaml`（3 工具：
+  `kb.search.search_articles` / `kb.article.fetch_article` /
+  `kb.assistant.suggest_canned_response`）+ `evals.yaml`（1 eval：
+  `kb_sso_session_loss_regression`）+ `demo_tools.py` + `README.md`；
+- **零核心代码改动**：`agent_tool_harness/` 任何 .py 文件均不出现 KB 业务符号
+  （由 `tests/test_example_knowledge_search.py::test_core_package_does_not_hardcode_kb_example_symbols`
+  作为根因型回归钉死）；
+- good path PASS / bad path FAIL，9 个 artifact 全在，`signal_quality =
+  tautological_replay` 在 metrics 顶部诚实披露——与 runtime_debug 行为完全一致，
+  证明 harness 不与单一业务域耦合；
+- 7 条新增测试覆盖：example 文件齐全、loader 可读、audit-tools / audit-evals 可跑、
+  good/bad smoke 必 PASS / 必 FAIL、9 artifact 完整、核心包无业务硬编码。
+
+**保留的范围约束**（未来添加第三 example 时仍适用）：
 - **零新代码逻辑**——只用现有 audit/judge/runner 能力；
 - 工具数量 ≤ 3，eval 数量 ≤ 2；
 - good path 必须 PASS，bad path 必须 FAIL；
 - 不需要复杂业务，只要能证明"换一个领域 harness 仍然成立"。
+
+**未来扩展点（仅 backlog，非 v0.1 范围）**：
+- 第三 example（如 payments / pricing）以参数化形式接入测试，把
+  `CORE_FORBIDDEN_KB_SYMBOLS` 抽成 fixture；
+- 把 mock 的 `_DEMO_ARTICLES` 换成真实 KB 检索后端 demo（v0.3+ 真实 adapter 后）。
 
 #### 2. ONBOARDING 10 分钟路径未在新人身上验证
 **根因**：当前 ONBOARDING.md 是作者写的，可能存在"作者觉得显然但用户实际卡壳"的
@@ -190,7 +208,7 @@ artifact，看 report.md 判断"工具调用链路是否合理 + 哪条 eval pas
 
 按优先级（同时只允许 1 件）：
 1. 处理 v0.2 工作区改动（blocking 3，最快）；
-2. 写 `examples/<second-project>/`（blocking 1）；
+2. ~~写 `examples/<second-project>/`（blocking 1）~~ — **已完成 commit `1aff4a6`**；
 3. 找同事跑 ONBOARDING 并修订（blocking 2）。
 
 ---
