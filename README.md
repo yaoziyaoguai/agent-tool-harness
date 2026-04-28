@@ -40,6 +40,8 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > v1.x 第三轮（已合入 main，已被 v1.2 收口）：新增 `judge-provider-preflight` CLI。详见 [`RELEASE_NOTES_v1.2.md`](RELEASE_NOTES_v1.2.md)。
 >
 > v1.3 第一轮（**已合入 main，待发版**）：`CompositeJudgeProvider` 支持多 advisory majority-vote 聚合（Python API；CLI 留 v1.3 第二轮）；`judge-provider-preflight` 新增 `--live` + `--confirm-i-have-real-key` 双标志契约（**任意组合下都不发任何网络请求**）；新增 `docs/V1_3_LIVE_TRANSPORT_DESIGN.md`（未来 `LiveAnthropicTransport` 仅设计）。**仍完全不接真实 LLM、不联网、不需要密钥**。
+>
+> v1.4 第一项（**已合入 main，待发版**）：基于 v1.3 设计实现 `LiveAnthropicTransport` 骨架（标准库 `http.client`，**零新增依赖**）；默认完全 disabled，必须 `live_enabled=True` + `live_confirmed=True` + 4 个 env var 完整才有资格调网络；`http_factory` 注入点让 CI / smoke 用 fake connection 覆盖全部错误路径；新增 `docs/V1_4_LIVE_TRANSPORT_IMPLEMENTATION.md`。**CI / smoke 仍完全不联网；任何真实 live 调用必须由用户在自己环境中显式构造 transport 触发**。
 
 ## 快速开始
 

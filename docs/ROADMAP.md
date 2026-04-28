@@ -750,6 +750,48 @@ baseline 能与未来多个 LLM advisory 形成稳定聚合契约——后者更
 
 ---
 
+### v1.4 第一项已落地：LiveAnthropicTransport 实现骨架（默认 disabled，CI 不联网）
+
+**根因**：v1.3 已经把"未来真实 transport"的设计文档（`docs/V1_3_LIVE_TRANSPORT_DESIGN.md`）
++ preflight CLI 双标志契约钉死，但**还缺**一个实际可注入的
+LiveAnthropicTransport 类——否则未来用户在自己环境中接阿里云 Coding Plan
+Anthropic-compatible endpoint 时，仍要从零写一份 HTTP transport，且很容易
+不小心泄漏 key 或绕过双标志契约。本轮把"代码层"补上：实现可注入、可断
+言、可脱敏的 transport 骨架；CI / smoke **完全**通过 fake `http_factory`
+注入，绝不真实联网。
+
+**本轮范围（已落地）**：
+- 新增 `agent_tool_harness/judges/provider.py::LiveAnthropicTransport`：
+  基于标准库 `http.client` + `ssl` + `urllib.parse`（**零新增依赖**）；
+  默认 `live_enabled=False, live_confirmed=False` → `send()` 立即抛
+  `_FakeTransportError(ERROR_DISABLED_LIVE)`，不触碰任何 socket。
+- HTTP 状态码 + 异常类型映射到 v1.x 第二轮 8 类 error taxonomy（401/403→
+  auth；429→rate_limited；5xx→provider_error；TimeoutError→timeout；
+  OSError/HTTPException→network_error；坏 JSON / 缺字段→bad_response）。
+- 脱敏硬约束：异常 message 只含 error_code slug；`raise ... from None`
+  截断 chain；200 响应只回传 4 个公开字段（passed/rationale/confidence/
+  rubric），raw response 永不入 artifact。
+- `http_factory` 注入点：CI / contract test 通过假 connection 验证全部
+  错误路径，**绝不**调真实 `http.client.HTTPSConnection`。
+- 新增 `tests/test_live_anthropic_transport.py` 19 条契约测试：默认
+  disabled / 单 `--live` 不够 / 缺 config / 200 OK / 6 类 status / timeout /
+  network / 坏 JSON / 缺字段 / 不合法 base_url / **泄漏扫描全错误路径** /
+  端到端 provider+disabled / multi-advisory composition / RuleJudge 默认
+  路径不退化。
+- 新增 `docs/V1_4_LIVE_TRANSPORT_IMPLEMENTATION.md`：实现说明 + 错误映
+  射表 + 测试覆盖矩阵 + 与 v1.3 双标志契约对应关系 + 阿里云 Coding Plan
+  接入提示。
+
+**本轮范围外（仅 ROADMAP 备忘，**不**实现）**：
+- 真实 live smoke：v1.4 既不在 CI 跑，也不在示例命令里跑——任何真实
+  ping 必须由用户在自己环境中显式触发。
+- `--judge-provider anthropic_compatible_live` CLI 入口（避免一次性
+  引入太多变更面）；v1.4 第二轮再加 CLI wiring。
+- retry / backoff / 限流治理 / 成本上报 / 流式响应；这些属 v1.5+。
+- 多 advisory CLI 入口；prompt / rubric 工程。
+
+---
+
 ## 暂不做范围（永久或长期）
 - **自动改用户工具代码**：v1.0 之后才考虑，且永远默认 dry-run；
 - **跨语言工具支持**：Python 工具是 MVP；其他语言通过 MCP / HTTP / Shell

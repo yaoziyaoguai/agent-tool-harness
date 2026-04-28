@@ -628,6 +628,248 @@ class _FakeTransportError(Exception):
         self.error_code = error_code
 
 
+# ---------------------------------------------------------------------------
+# v1.4 第一项：LiveAnthropicTransport — 真实 HTTPS transport 骨架（默认 disabled）
+# ---------------------------------------------------------------------------
+#
+# 本节负责什么
+# ============
+# 在 v1.x 第二轮已经钉死的 ``JudgeTransport`` Protocol 之上，提供一个**基
+# 于标准库** ``http.client`` 的真实 HTTPS transport 实现骨架——为未来
+# 接入阿里云 Coding Plan Anthropic-compatible endpoint 准备最小可注入
+# 的 live-ready 路径。
+#
+# 本节**不**负责什么
+# ==================
+# - **不**引入 ``requests`` / ``httpx`` / ``anthropic`` 等第三方依赖；
+#   严格用 ``http.client`` + ``ssl`` + ``json`` + ``urllib.parse`` 标准库；
+# - **不**在测试 / smoke 中真实联网。所有 contract test 通过 ``http_factory``
+#   注入 fake connection，断言 transport 把 HTTP status / 异常正确映射
+#   到 8 类 error taxonomy；
+# - **不**自己解析 prompt / rubric。LiveAnthropicTransport 把 ``request``
+#   dict 直接序列化成 JSON body 发出去；prompt 工程留给 v1.4 第二轮；
+# - **不**自己实现 retry / backoff / 限流治理；这些属于 v1.5+ 工程治理。
+#
+# 默认安全闸门
+# ============
+# ``LiveAnthropicTransport.__init__`` 接受 ``live_enabled`` /
+# ``live_confirmed`` 双标志（与 ``judge-provider-preflight`` 的 CLI 双标
+# 志契约一一对应），任一为 ``False`` 时 ``send()`` **直接**抛
+# ``_FakeTransportError(ERROR_DISABLED_LIVE)``——绝不会进入 ``http.client``
+# 任何分支。这是为了让"用户不小心构造了 LiveAnthropicTransport 但没完
+# 整 opt-in"在 artifact 里**显眼**地报错，而不是默默落网。
+#
+# 错误分类映射
+# ============
+# - 401 / 403 → ``ERROR_AUTH``
+# - 429 → ``ERROR_RATE_LIMITED``
+# - 5xx → ``ERROR_PROVIDER``
+# - ``socket.timeout`` / ``TimeoutError`` → ``ERROR_TIMEOUT``
+# - ``OSError`` / ``socket.gaierror`` / ``ConnectionError`` /
+#   ``http.client.HTTPException`` → ``ERROR_NETWORK``
+# - 200 但 JSON 解析失败 / 缺关键字段 → ``ERROR_BAD_RESPONSE``
+#
+# 全部映射后**只**抛 ``_FakeTransportError``——上层 provider 已经在
+# v1.x 第二轮把 ``_FakeTransportError`` 的捕获 + 脱敏路径钉死，
+# Live transport 复用同一条路径，零新增证据写入面。
+#
+# 脱敏硬约束
+# ==========
+# - 永远**不**把 ``base_url`` / ``api_key`` / Authorization header 写
+#   入异常 message / raise from / __cause__；只透传 error_code slug；
+# - 永远**不**把 raw response body 落入 artifact——transport.send 只
+#   返回经过字段提取的小 dict（``passed / rationale / confidence /
+#   rubric``）；
+# - 永远**不**把 raw exception repr 序列化；上层 provider 只读 ``error_code``。
+#
+# 未来扩展点（仅备忘）
+# ====================
+# - retry / backoff（指数退避 + jitter）；
+# - 成本上报：每次成功调用记录 token usage 到 ``runs/<run_dir>/llm_cost.json``；
+# - 流式响应支持（Anthropic Messages 的 SSE）；
+# - 多 endpoint 故障转移（已通过 CompositeJudgeProvider list 形态自然
+#   覆盖）。
+# ---------------------------------------------------------------------------
+
+
+class LiveAnthropicTransport:
+    """Anthropic-compatible 真实 HTTPS transport 骨架（v1.4，默认 disabled）。
+
+    使用方式
+    --------
+    1. **测试 / smoke**：传 ``http_factory`` 注入 fake connection，
+       ``live_enabled=True``、``live_confirmed=True``、config 完整 →
+       transport 走 fake connection 的 ``request()`` / ``getresponse()``
+       路径，**不**碰真实 ``http.client.HTTPSConnection``；
+    2. **真实 live（v1.4 之外）**：用户在自己环境里完整 opt-in（双标志 +
+       4 个 env var）后构造 ``LiveAnthropicTransport(config,
+       live_enabled=True, live_confirmed=True)``，``http_factory=None``
+       时回落到 ``http.client.HTTPSConnection``——这一分支**不**在 CI /
+       smoke 中执行（尽管代码已就位），完全由用户自行触发。
+
+    本类**不**负责什么
+    ------------------
+    见模块级注释；这里再次强调：不引入新依赖、不在 CI 联网、不写入
+    任何 secret 到 artifact / 异常 chain。
+    """
+
+    def __init__(
+        self,
+        config: AnthropicCompatibleConfig,
+        *,
+        live_enabled: bool = False,
+        live_confirmed: bool = False,
+        http_factory: Any = None,
+        timeout_s: float | None = None,
+    ) -> None:
+        self._config = config
+        # 双标志同时为 True 才认为 user 完整 opt-in；任一缺失 → 走
+        # disabled_live_provider 错误路径。这条契约与 CLI
+        # ``--live`` + ``--confirm-i-have-real-key`` 一一对应。
+        self._enabled = bool(live_enabled and live_confirmed)
+        # http_factory 用于注入 fake connection（contract test）。签名约定：
+        # ``http_factory(host: str, port: int, timeout: float) -> conn``，
+        # conn 必须有 ``request(method, path, body, headers)`` 与
+        # ``getresponse() -> resp``，resp 必须有 ``status`` 与 ``read()``。
+        # 默认 None 时回落到 ``http.client.HTTPSConnection``——但只有真
+        # 实 live 路径会触发，CI / smoke 不会走到这里。
+        self._http_factory = http_factory
+        # timeout 来源优先级：显式参数 > env var > 默认 30s；硬上限 120s
+        # 防"无限等"路径让用户体感更安全。
+        if timeout_s is None:
+            try:
+                import os as _os
+                env_v = _os.environ.get("AGENT_TOOL_HARNESS_LLM_REQUEST_TIMEOUT_S")
+                timeout_s = float(env_v) if env_v else 30.0
+            except (ValueError, TypeError):
+                timeout_s = 30.0
+        self._timeout_s = max(1.0, min(120.0, float(timeout_s)))
+
+    @property
+    def is_live_ready(self) -> bool:
+        """供调用方 / 报告显示用：本 transport 当前是否完整 opt-in。
+
+        注意：``True`` 仅表示**有资格**调网络，**不**表示一定会调；
+        ``send()`` 仍会校验 config 字段。
+        """
+
+        return self._enabled
+
+    def send(self, request: dict) -> dict:
+        """发送一次 request；任何分类错误统一抛 ``_FakeTransportError``。
+
+        本方法不做 retry / 不做日志 / 不打印 secret；调用方（
+        :class:`AnthropicCompatibleJudgeProvider`）已经在 v1.x 第二轮把
+        异常捕获 + 脱敏路径钉死。
+        """
+
+        if not self._enabled:
+            # 双标志未完整 opt-in → 立即拒绝；不调任何 socket / http.client。
+            raise _FakeTransportError(ERROR_DISABLED_LIVE)
+        if (
+            not self._config.base_url
+            or not self._config.api_key
+            or not self._config.model
+        ):
+            # 完整 opt-in 但 config 不全 → missing_config；上层走脱敏路径。
+            raise _FakeTransportError(ERROR_MISSING_CONFIG)
+
+        # 解析 base_url；任何解析异常（不合法 URL）→ network 路径，避免
+        # 用 raw URL 字符串构造异常 chain 泄漏。
+        from urllib.parse import urlsplit
+        try:
+            parts = urlsplit(self._config.base_url)
+            host = parts.hostname
+            port = parts.port or (443 if parts.scheme == "https" else 80)
+            path = parts.path or "/v1/messages"
+        except Exception:
+            raise _FakeTransportError(ERROR_NETWORK) from None
+        if not host:
+            raise _FakeTransportError(ERROR_NETWORK)
+
+        # 构造 connection。优先用注入 factory（测试用）；否则回落 stdlib。
+        # 这里**故意**用懒导入：CI 默认走 http_factory 路径，根本不需要
+        # import http.client，进一步降低"测试时不小心 import 真实 client"
+        # 的风险。
+        try:
+            if self._http_factory is not None:
+                conn = self._http_factory(host, port, self._timeout_s)
+            else:
+                from http.client import HTTPSConnection
+                conn = HTTPSConnection(host, port, timeout=self._timeout_s)
+        except Exception:
+            raise _FakeTransportError(ERROR_NETWORK) from None
+
+        # 序列化请求 body：固定 JSON；headers 不写入任何 raw secret 到日志。
+        # Authorization header 是必须的，但仅在 send 调用栈里短暂存在；
+        # **不**写入异常 message、不写入 artifact。
+        import json as _json
+
+        try:
+            body = _json.dumps(request, ensure_ascii=False).encode("utf-8")
+        except (TypeError, ValueError):
+            raise _FakeTransportError(ERROR_BAD_RESPONSE) from None
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Api-Key": self._config.api_key,
+            "Anthropic-Version": "2023-06-01",
+            "Accept": "application/json",
+        }
+
+        try:
+            conn.request("POST", path, body=body, headers=headers)
+            resp = conn.getresponse()
+            status = int(getattr(resp, "status", 0))
+            raw = resp.read()
+        except TimeoutError:
+            raise _FakeTransportError(ERROR_TIMEOUT) from None
+        except OSError as exc:
+            # socket.timeout 在 Py3.10+ 是 TimeoutError 的别名；老版本走
+            # 这里。任何 socket 级错误一律映射为 network/timeout，**不**
+            # 透传 raw exception。
+            if "timed out" in str(exc).lower():
+                raise _FakeTransportError(ERROR_TIMEOUT) from None
+            raise _FakeTransportError(ERROR_NETWORK) from None
+        except Exception:
+            # http.client.HTTPException 等其它异常：归 network。
+            raise _FakeTransportError(ERROR_NETWORK) from None
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        # HTTP 状态码映射；分类与 v1.x 第二轮 8 类 taxonomy 完全对齐。
+        if status in (401, 403):
+            raise _FakeTransportError(ERROR_AUTH)
+        if status == 429:
+            raise _FakeTransportError(ERROR_RATE_LIMITED)
+        if 500 <= status < 600:
+            raise _FakeTransportError(ERROR_PROVIDER)
+        if status != 200:
+            # 其它非 2xx 状态：归 bad_response（不暴露具体 status code 给
+            # 用户，避免被 fingerprint）。
+            raise _FakeTransportError(ERROR_BAD_RESPONSE)
+
+        # 200 OK：解析 body；任何 JSON 解析 / 字段缺失都归 bad_response。
+        try:
+            payload = _json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, _json.JSONDecodeError):
+            raise _FakeTransportError(ERROR_BAD_RESPONSE) from None
+        if not isinstance(payload, dict) or "passed" not in payload:
+            raise _FakeTransportError(ERROR_BAD_RESPONSE)
+
+        # 只回传 4 个公开字段；不夹带 raw response 给上层（防泄漏 +
+        # 防 schema drift）。
+        return {
+            "passed": bool(payload.get("passed")),
+            "rationale": payload.get("rationale"),
+            "confidence": payload.get("confidence"),
+            "rubric": payload.get("rubric"),
+        }
+
+
 def _safe_message(error_code: str) -> str:
     """根据错误分类返回固定的安全提示文本（**不**含任何用户输入）。
 
