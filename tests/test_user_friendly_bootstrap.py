@@ -291,3 +291,53 @@ def test_cli_bootstrap_stdout_lists_next_steps(tmp_path: Path) -> None:
         "no .env / no network / no live LLM",
     ):
         assert needle in r.stderr, f"missing in stderr: {needle!r}"
+
+
+# --- v2.x Real Trial Readiness ----------------------------------------------
+
+
+def test_real_trial_candidate_doc_exists() -> None:
+    """docs/REAL_TRIAL_CANDIDATE.md 必须存在并含关键提示词
+    （防"内部同事不知道怎么选第一个试用工具"的 UX 退化）。"""
+    doc = REPO_ROOT / "docs" / "REAL_TRIAL_CANDIDATE.md"
+    assert doc.is_file()
+    text = doc.read_text(encoding="utf-8")
+    for needle in (
+        "First Tool Suitability",  # 核心标题
+        "no secrets",
+        "no live LLM",
+        "deterministic",
+        "v3.0",
+        "REVIEW_CHECKLIST",
+        "bootstrap",
+        "validate-generated",
+        "--strict-reviewed",
+        "--mock-path good",
+    ):
+        assert needle.lower() in text.lower(), f"missing: {needle}"
+
+
+def test_real_trial_doc_has_no_secrets_leakage() -> None:
+    """REAL_TRIAL_CANDIDATE.md 自身不能含真实 token / Authorization / 完整请求体。"""
+    doc = REPO_ROOT / "docs" / "REAL_TRIAL_CANDIDATE.md"
+    text = doc.read_text(encoding="utf-8")
+    for forbidden in ("Bearer sk-", "Authorization: sk-"):
+        assert forbidden not in text
+
+
+def test_review_checklist_includes_first_tool_suitability(tmp_path: Path) -> None:
+    """生成的 REVIEW_CHECKLIST §6 必须出现 First Tool Suitability Checklist
+    （这是防止 reviewer 第一轮就接错工具的关键）。"""
+    out = tmp_path / "boot"
+    bootstrap_user_project(SAFE_SAMPLE, out)
+    text = (out / "REVIEW_CHECKLIST.md").read_text(encoding="utf-8")
+    assert "First Tool Suitability" in text
+    for marker in (
+        "mockable",
+        "deterministic eval",
+        "secret",  # "不需要真实 secret"
+        "联网",
+        "v3.0",
+        "MCP",
+    ):
+        assert marker in text, f"checklist missing marker: {marker}"

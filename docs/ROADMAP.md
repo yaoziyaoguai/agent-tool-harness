@@ -139,6 +139,14 @@ Harness**。
    LLM；默认拒绝覆盖 `--out`（需 `--force`）。
    实现：`agent_tool_harness/scaffold/bootstrap.py`。回归：
    `tests/test_user_friendly_bootstrap.py`。
+7. **Bootstrap UX hardening**（done）：bootstrap CLI stdout 显式 4 步
+   Next steps + Safety banner；`validate-generated --bootstrap-dir <dir>`
+   一键 doctor 入口，自动定位三件套并 warn 缺失 REVIEW_CHECKLIST /
+   summary。
+8. **Real Trial Candidate Pack**（done）：`docs/REAL_TRIAL_CANDIDATE.md`
+   + REVIEW_CHECKLIST §6 First Tool Suitability Checklist，指导内部同事
+   选第一个最小试用工具，明确不推荐外部 API / 数据库 / 真实 key 工具
+   作为第一轮试用。仍属 v2.x，**v3.0 still backlog / not started**。
 
 **安全契约**（被 `tests/test_bootstrap_pipeline_smoke.py` 钉死）：
 - scaffold 全程**不**执行用户代码：样本工程 `tests/fixtures/sample_tool_project/
