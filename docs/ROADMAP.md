@@ -231,6 +231,22 @@ Harness**。
 从真实 transcript 抓 fixture 内容；LLM 协助写 `when_to_use`；自动 patch 用户
 工具；与 audit-tools 联动一键 audit draft。
 
+12. **(v2.x patch #12 / docs+test only)** First Real Internal Trial Feedback
+    Loop —— Triage workflow + 反馈模板 §11 triage hint 字段补全。
+    **状态**：First real internal trial = **waiting for feedback**（已就绪
+    可邀请，0 份真实非维护者反馈到位）；FEEDBACK_TRIAGE_WORKFLOW = **done**；
+    v3.0 = **still backlog / not started**。
+    新增 ``docs/FEEDBACK_TRIAGE_WORKFLOW.md`` —— 5 类决策表（v2.x patch /
+    v3.0 backlog candidate / closed-as-design / needs-more-evidence /
+    **security-blocker**），明确 maintainer rehearsal 不计入 v3.0 ≥3 门槛、
+    security-blocker 不是 v3.0 触发器、bad_response 一次默认 v3.0 backlog
+    不立刻动 transport。``docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md`` 末尾
+    新增 §11 triage 自评 10 字段，与决策表一一对应；试用者填了能加快 triage，
+    不填 maintainer 会按反馈正文判断。回归测试 ``tests/test_feedback_triage_workflow.py``
+    钉死 5 类决策、≥3 真实反馈门槛、security 优先、closed-as-design 6 个反例、
+    模板 §11 字段完整、不漏真实 secret。**未新增**任何 production code，
+    主路径与 v0.1 证据链 / artifact / no-leak 契约不变。
+
 ---
 
 ## 阶段总览（详细表）

@@ -119,3 +119,19 @@ doc drift，请精确记录（**不要**贴真实泄漏内容，只贴文件名 
 
 - 你认为 v2.0 Internal Trial Ready 还缺什么？
 - 你愿意把这个 harness 推荐给其它团队吗？为什么 / 为什么不？
+
+## 11. Triage 自评（可选，但 maintainer 会用这几行做反馈分流）
+
+> 这一节字段直接对应 [`FEEDBACK_TRIAGE_WORKFLOW.md`](FEEDBACK_TRIAGE_WORKFLOW.md) §2 决策表。
+> 你不填，maintainer 会按反馈正文判断；你填了能加快 triage。
+
+- `real_feedback`（你不是这个 harness 的维护者，本次试用是真实工作场景）：yes / no
+- `trial_completed`（你跑完 §3 全部勾选的命令，并看到 10 件 artifact / report.md）：yes / no
+- `report_artifacts_generated`（runs/ 下出了完整 artifact）：yes / no
+- `blocker_type`：docs / cli / artifact / live / security / feature / unknown
+- `needs_secret_network_database`（修复你这条问题是否必须接真实 key / 真实网络 / 真实数据库）：yes / no
+- `asks_for_v3_feature`（你的诉求是否必须靠 MCP / Web UI / live judge / HTTP-Shell executor / multi-format provider / 企业平台）：yes / no
+- `explains_offline_gap`（你能写清 deterministic / replay-first 为什么对你的场景不够吗）：yes / no
+- `has_reproduction_steps`（你给出了命令 + artifact 行号 / eval_id 可复现）：yes / no
+- `security_risk`（试用过程中你发现疑似 key / Authorization / 完整请求响应落盘 / .env 被 track）：yes / no
+- 一句话最重要诉求（让 maintainer 在 v2.x patch / v3.0 backlog / closed-as-design 之间快速选）：
