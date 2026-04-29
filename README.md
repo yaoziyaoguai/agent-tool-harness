@@ -108,6 +108,10 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 
 ## 快速开始
 
+> **不知道先看哪份文档？** → [`docs/INDEX.md`](docs/INDEX.md) 按你的角色
+> （试用者 / maintainer 邀请人 / maintainer 分流人 / maintainer 决定 tag）
+> 路由到 1-2 份 canonical 文档，避免在 23 份历史文档中迷路。
+>
 > **内部小组试用（推荐先看）**：复制 5 条命令跑通 10-15 分钟最小闭环 →
 > [docs/INTERNAL_TRIAL_QUICKSTART.md](docs/INTERNAL_TRIAL_QUICKSTART.md)；
 > 完整接入路径见 [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)；

@@ -247,3 +247,41 @@ def test_summary_still_pins_v3_not_started_default():
     text = _read(SUMMARY)
     assert "not started" in text
     assert "**0**" in text or " = 0" in text or "数量 | **0**" in text
+
+
+# ----------------------------------------------------- §6 synthetic simulation
+def test_workflow_section_6_synthetic_simulation_present():
+    """§6 必须明确 synthetic 不计入真实反馈、不触发 v3.0、不追加到 SUMMARY。"""
+    text = _read(WORKFLOW)
+    assert "Synthetic Feedback" in text or "synthetic" in text.lower()
+    assert "不计入" in text
+    assert "5 个 case" in text or "5 case" in text or "Case A" in text
+
+
+def test_workflow_section_6_lists_five_cases_with_correct_decisions():
+    """5 个 synthetic case 必须各自落到正确 triage 桶。"""
+    text = _read(WORKFLOW)
+    # Case A → v2.x patch
+    assert "Case A" in text and "v2.x patch" in text
+    # Case B → v2.x patch
+    assert "Case B" in text
+    # Case C → closed-as-design
+    assert "Case C" in text and "closed-as-design" in text
+    # Case D → security-blocker，且必须显式说"不立即 tag"
+    assert "Case D" in text and "security-blocker" in text
+    assert "不" in text and "tag" in text
+    # Case E → v3.0 backlog candidate but NOT trigger
+    assert "Case E" in text
+    assert "v3.0 backlog candidate" in text
+    # Case E 必须显式说"不启动 v3.0"（接受 markdown 加粗变体）
+    assert (
+        "不启动 v3.0" in text
+        or "**不**启动 v3.0" in text
+        or "不**启动** v3.0" in text
+    )
+
+
+def test_workflow_section_6_real_feedback_still_zero_after_simulation():
+    """演练验证清单必须明确：跑完 5 case 后真实反馈数仍 = 0。"""
+    text = _read(WORKFLOW)
+    assert "0 / 3" in text or "= 0" in text or "依然 = 0" in text

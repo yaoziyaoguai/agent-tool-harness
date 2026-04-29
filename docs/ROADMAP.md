@@ -264,6 +264,48 @@ Harness**。
     **未新增**任何 production code，主路径与 v0.1 证据链 / artifact /
     no-leak 契约不变。
 
+14. **(v2.x patch #14 / docs+module+test)** v2.x Documentation Consolidation
+    + Feedback Intake Validator + Release Candidate Notes。
+    **状态**：Documentation consolidation = **done**（导航式而非删除式，
+    避免削弱测试）；Feedback intake validator = **done**（Python module，
+    无 CLI 子命令以避免 snippet drift scope 蔓延）；Release candidate
+    notes = **done**；First real internal trial = **waiting for real
+    teammate feedback**；v3.0 = **still backlog / not started**。
+
+    新增 ``docs/INDEX.md``：4 角色路由（试用者 / maintainer 邀请 /
+    maintainer 分流 / maintainer tag 决策）→ 各只看 1-2 份 canonical
+    文档，避免在 23 份历史 + 当前文档中迷路。``README.md`` 顶部加链接。
+
+    新增 ``docs/V2_X_RELEASE_CANDIDATE_NOTES.md``：1 页 maintainer 封板
+    判断包（已完成能力表 + 当前状态 + 4 条 tag 触发条件 + 3 条未 tag
+    原因 + v3.0 启动 gate 4 条 + 仍 backlog 的能力清单）。
+    ``docs/PUSH_READINESS_SUMMARY.md`` 加 historical pointer 指向新 RC
+    notes（不删，被既有测试 pin 防 drift）。
+
+    ``docs/FEEDBACK_TRIAGE_WORKFLOW.md`` 新增 §6 Synthetic Feedback Triage
+    Simulation：5 个 case A-E（v2.x patch / v2.x patch / closed-as-design /
+    security-blocker / v3.0 backlog candidate but NOT trigger），全部
+    显式标 synthetic，**不**计入真实反馈、**不**触发 v3.0、**不**追加到
+    SUMMARY，让 maintainer 跑一遍决策表练手感。
+
+    新增 ``agent_tool_harness/feedback/`` 子包 + ``validator.py``：16 必填
+    字段 + 7 硬规则（maintainer rehearsal 不能装真实反馈 / synthetic 不计
+    入 / v3.0 candidate 必须解释 offline gap / security_risk 强制
+    security-blocker 决策 / final_triage_decision allowlist / 真实 secret
+    字面扫描 / 必填字段完整性）+ secret 扫描（sk- / sk_ / Bearer /
+    Authorization / 真实 endpoint）。返回 ``ValidationResult`` 含 ok /
+    errors / warnings / counts_toward_real_feedback / suggested_triage。
+    **不**联网 / 不调 LLM / 不读 .env / 不写文件 / 不暴露 CLI 子命令
+    （避免 snippet drift scope）。
+
+    回归测试：``tests/test_docs_index.py`` (6) /
+    ``tests/test_v2x_release_candidate_notes.py`` (7) /
+    ``tests/test_feedback_triage_workflow.py`` 新增 §6 三个 synthetic
+    simulation 测试 / ``tests/test_feedback_intake_validator.py`` (~20) ——
+    含"validator 不能 import requests/httpx/openai/anthropic/dotenv 等"
+    硬规则，防止未来"顺手"加 LLM 协助 triage 绕过纪律。
+    **未触动**核心 harness 代码 / run artifact / no-leak / determinism 契约。
+
 ---
 
 ## 阶段总览（详细表）

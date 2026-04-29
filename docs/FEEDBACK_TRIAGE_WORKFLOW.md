@@ -145,3 +145,52 @@
 - security blocker **不是** v3.0 的支持论据；
 - bad_response 一次 / 网关格式不兼容一次 → 默认 v3.0 backlog，不立刻动 transport 层；
 - 任何 closed-as-design 决策必须留下"设计依据链接"，不能空口拒绝。
+
+---
+
+## 6. Synthetic Feedback Triage Simulation —— 决策表演练（**非真实反馈**）
+
+> **强约束**：本节 5 个 case 全部是 synthetic / simulated / **演练用例**。
+> 它们**不计入**真实反馈数（仍 0 / 3）、**不**触发 v3.0 启动 gate、
+> **不**追加到 [`INTERNAL_TRIAL_FEEDBACK_SUMMARY.md`](INTERNAL_TRIAL_FEEDBACK_SUMMARY.md)
+> 的 A/B/C/D 分类。
+> 唯一作用：让维护者跑一遍 §2 决策表，确认手感正确。
+
+### Case A — v2.x onboarding patch
+- 反馈：试用者能 `bootstrap`，但 `REVIEW_CHECKLIST.md` 看不懂某段；
+- 输入：`real_feedback=yes` / `trial_completed=yes` / `asks_for_v3_feature=no` / 修复方案不需 secret/network；
+- **决策**：v2.x patch（改 REVIEW_CHECKLIST 措辞 + 补回归测试）。
+
+### Case B — v2.x validation UX patch
+- 反馈：`validate-generated --strict-reviewed` 失败，但 stderr 错误信息不可行动；
+- 输入：`real_feedback=yes` / `trial_completed=yes` / `blocker_type=cli` / `asks_for_v3_feature=no`；
+- **决策**：v2.x patch（改 stderr hint + 补 stderr drift 测试）。
+
+### Case C — closed-as-design
+- 反馈：试用者希望 generated draft 不 review 直接 `run`；
+- 输入：`real_feedback=yes` / 落入 §3 closed-as-design 反例"跳过 review";
+- **决策**：closed-as-design（记录设计依据链接：`FEEDBACK_TRIAGE_WORKFLOW.md` §3 closed-as-design 段；不修代码、不入 v3.0 backlog）。
+
+### Case D — security blocker
+- 反馈：试用者把 `Authorization: Bearer ...` 真实头粘进了反馈正文；
+- 输入：`security_risk=yes`；
+- **决策**：security-blocker（**优先级 0**，立即走 §3 security-blocker 6 步：
+  暂停招募 → 净化 → 登记不透露内容 → 修复 → 跑 release gate → 让试用者
+  脱敏后重提）。**不**因此启动 v3.0、**不**因此立即 tag。
+
+### Case E — v3.0 backlog candidate, 但 NOT trigger
+- 反馈：试用者明确写"我们需要 Web UI / MCP / live judge"且解释了 deterministic
+  为什么不够 + 给出了具体业务场景；
+- 输入：`real_feedback=yes` / `asks_for_v3_feature=yes` / `explains_offline_gap=yes` / `has_reproduction_steps=yes`；
+- **决策**：v3.0 backlog candidate（追加到 ROADMAP v3.0 backlog 区）。
+  **但**：当前桶内累计 = 1（含本条），距 ≥3 同根因门槛仍差 ≥2 份；
+  **不**启动 v3.0、**不**写 v3.0 设计文档、**不**实现任何 v3.0 能力。
+
+### 演练验证清单
+跑完 5 个 case 后，确认：
+- 真实反馈数依然 = 0 / 3（synthetic 不计入）；
+- v3.0 状态依然 = still backlog / not started；
+- 没有任何 case 因为"看起来很重要"被错升级到 v3.0 立即启动；
+- security blocker 没有被吞成普通 patch；
+- closed-as-design 留下了设计依据链接；
+- 所有 v2.x patch 都附带回归测试规划。

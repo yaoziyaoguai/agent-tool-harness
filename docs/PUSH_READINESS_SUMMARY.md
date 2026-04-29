@@ -1,5 +1,14 @@
 # Push Readiness Summary — v2.x
 
+> **历史层文档**（保留作 historical reference + 被测试 pin 防 drift）。
+>
+> **新读者请直接看
+> [`V2_X_RELEASE_CANDIDATE_NOTES.md`](V2_X_RELEASE_CANDIDATE_NOTES.md)**，
+> 那是当前 maintainer 封板判断的 canonical 文档；本页保留下面历史记录
+> 仅供时间线追溯。
+>
+> ---
+>
 > **不是** release note；**是**当前 16 commits ahead origin/main 的
 > push 前自检清单。维护者 review 后人工 ``git push origin main``。
 
