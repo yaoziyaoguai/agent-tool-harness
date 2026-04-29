@@ -41,5 +41,15 @@ from agent_tool_harness.scaffold.from_python_ast import (
     scaffold_tools_yaml,
     scan_python_module,
 )
+from agent_tool_harness.scaffold.from_tools_yaml import (
+    scaffold_evals_yaml,
+    scaffold_fixtures_dir,
+)
 
-__all__ = ["ScaffoldedTool", "scaffold_tools_yaml", "scan_python_module"]
+__all__ = [
+    "ScaffoldedTool",
+    "scaffold_tools_yaml",
+    "scan_python_module",
+    "scaffold_evals_yaml",
+    "scaffold_fixtures_dir",
+]

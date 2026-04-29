@@ -14,7 +14,11 @@ from agent_tool_harness.eval_generation.candidate_writer import CandidateWriter
 from agent_tool_harness.eval_generation.generator import EvalGenerator
 from agent_tool_harness.eval_generation.promoter import CandidatePromoter
 from agent_tool_harness.runner.eval_runner import EvalRunner
-from agent_tool_harness.scaffold import scaffold_tools_yaml
+from agent_tool_harness.scaffold import (
+    scaffold_evals_yaml,
+    scaffold_fixtures_dir,
+    scaffold_tools_yaml,
+)
 from agent_tool_harness.tools.registry import ToolRegistryError
 
 
@@ -348,6 +352,56 @@ def _build_parser() -> argparse.ArgumentParser:
         help="允许覆盖已存在的 --out（默认禁止，避免冲掉手写正式 tools.yaml）。",
     )
 
+    # v2.x bootstrap 第二轮：scaffold-evals + scaffold-fixtures。
+    # 二者都只读 tools.yaml 元数据，**不**执行任何工具、不联网、不调 LLM；
+    # 详见 agent_tool_harness/scaffold/from_tools_yaml.py 顶层 docstring。
+    scaffold_evals = subparsers.add_parser(
+        "scaffold-evals",
+        help=(
+            "为 --tools 中每个工具生成 1 条 smoke eval 草稿（runnable=false + 全 TODO 占位）；"
+            "**不**执行工具、**不**联网、**不**调 LLM。默认禁止覆盖 --out（需 --force）。"
+        ),
+    )
+    scaffold_evals.add_argument(
+        "--tools",
+        required=True,
+        help="已存在的 tools.yaml（draft 或正式）；scaffold 只读元数据。",
+    )
+    scaffold_evals.add_argument(
+        "--out",
+        required=True,
+        help="draft evals.yaml 输出路径；文件头固定 5 行披露。",
+    )
+    scaffold_evals.add_argument(
+        "--force",
+        action="store_true",
+        help="允许覆盖已存在的 --out（默认禁止，避免冲掉手写正式 evals.yaml）。",
+    )
+
+    scaffold_fixtures = subparsers.add_parser(
+        "scaffold-fixtures",
+        help=(
+            "为 --tools 中每个工具在 --out-dir 下生成 <tool>.fixture.yaml 占位"
+            "（含 example-only / not real tool output 披露）；逐文件软跳过已存在文件，"
+            "需要覆盖时加 --force。"
+        ),
+    )
+    scaffold_fixtures.add_argument(
+        "--tools",
+        required=True,
+        help="已存在的 tools.yaml；scaffold 只读元数据。",
+    )
+    scaffold_fixtures.add_argument(
+        "--out-dir",
+        required=True,
+        help="fixture 占位输出目录；每个工具一个 <name>.fixture.yaml。",
+    )
+    scaffold_fixtures.add_argument(
+        "--force",
+        action="store_true",
+        help="允许覆盖已存在的单个 fixture 文件（默认逐文件跳过）。",
+    )
+
     return parser
 
 
@@ -415,6 +469,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "scaffold-tools":
             return _scaffold_tools(
                 source=args.source, out=args.out, force=args.force
+            )
+        if args.command == "scaffold-evals":
+            return _scaffold_evals(
+                tools=args.tools, out=args.out, force=args.force
+            )
+        if args.command == "scaffold-fixtures":
+            return _scaffold_fixtures(
+                tools=args.tools, out_dir=args.out_dir, force=args.force
             )
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
@@ -647,6 +709,55 @@ def _scaffold_tools(source: str, out: str, *, force: bool) -> int:
     """
     summary = scaffold_tools_yaml(source, out, force=force)
     print(f"wrote {summary['out']}")
+    print(json.dumps(summary, ensure_ascii=False))
+    return 0
+
+
+def _scaffold_evals(tools: str, out: str, *, force: bool) -> int:
+    """v2.x bootstrap 第二轮 CLI 入口：把 draft tools.yaml 翻译成 draft evals.yaml。
+
+    职责
+    ----
+    - 读 tools.yaml 元数据；为每个 tool 写 1 条 smoke eval 草稿（runnable=false）。
+    - stdout 打印 `wrote <out>` + tool/eval 计数。
+
+    不负责
+    ------
+    - **不**执行任何工具；
+    - **不**联网 / 不调真实 LLM；
+    - **不**伪造业务正确答案——所有业务字段都是 TODO 占位；
+    - **不**自动 audit-evals / 不自动 promote。
+
+    artifact 排查路径
+    -----------------
+    - 输出 evals.yaml 顶部 5 行披露 + 每条 eval 含 `metadata.scaffold_status:
+      draft`；reviewer 必须把所有 `TODO_xxx` 替换为真实业务内容并把 runnable
+      改为 true 才能用 `audit-evals` 验证 + 用 `run` 跑。
+    """
+    summary = scaffold_evals_yaml(tools, out, force=force)
+    print(f"wrote {summary['out']}")
+    print(json.dumps(summary, ensure_ascii=False))
+    return 0
+
+
+def _scaffold_fixtures(tools: str, out_dir: str, *, force: bool) -> int:
+    """v2.x bootstrap 第二轮 CLI 入口：为每个 tool 写一个 mock fixture 占位。
+
+    职责
+    ----
+    - 读 tools.yaml 元数据；在 --out-dir 下为每个 tool 写 `<name>.fixture.yaml`。
+    - 软覆盖：单文件已存在且未 `--force` 时只跳过该文件，summary.skipped 列出。
+
+    不负责
+    ------
+    - **不**调用工具拿真实响应（那需要执行用户代码）；
+    - **不**联网；
+    - **不**保证字段 schema 与真实工具响应一致——这恰恰是要 reviewer 替换的部分。
+    """
+    summary = scaffold_fixtures_dir(tools, out_dir, force=force)
+    print(f"wrote {len(summary['written'])} files into {summary['out_dir']}")
+    if summary["skipped"]:
+        print(f"skipped {len(summary['skipped'])} existing files (use --force to overwrite)")
     print(json.dumps(summary, ensure_ascii=False))
     return 0
 

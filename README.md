@@ -262,6 +262,20 @@ python -m agent_tool_harness.cli run \
 > （`when_to_use` / `output_contract` / `token_policy` / `side_effects`）一律
 > 写 `TODO(reviewer):`。reviewer 补完 TODO → 跑 `audit-tools` 验证 → 才能用于
 > 正式 `run`。详见 `agent_tool_harness/scaffold/from_python_ast.py`。
+>
+> **bootstrap 第二步**（draft tools.yaml → draft evals.yaml + 占位 fixtures）：
+> ```bash
+> python -m agent_tool_harness.cli scaffold-evals \
+>   --tools my_team/tools.draft.yaml \
+>   --out my_team/evals.draft.yaml
+> python -m agent_tool_harness.cli scaffold-fixtures \
+>   --tools my_team/tools.draft.yaml \
+>   --out-dir my_team/fixtures.draft
+> ```
+> 每条 eval `runnable: false` + 业务字段 TODO；每个 fixture 文件头写
+> `example only / not real tool output`。reviewer 把 TODO 全部替换成真实业务
+> 内容并把 `runnable` 改 true → 跑 `audit-evals` 验证 → 才能用于 `run`。
+> 详见 `agent_tool_harness/scaffold/from_tools_yaml.py`。
 
 审计工具：
 

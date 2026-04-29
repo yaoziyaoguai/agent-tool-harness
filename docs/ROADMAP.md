@@ -102,6 +102,38 @@ Harness**。
 > 这些能力如果某天确有用户真实需求，独立开新仓库或新 milestone（v3.0+）
 > 处理；本主线 ROADMAP 只到 v2.0 Internal Trial Ready 为止。
 
+### v2.x patch —— Tool Bootstrap / Eval Scaffold（已落地）
+
+**问题**：内部小团队接入 v2.0 时，必须从零手写 `tools.yaml` + `evals.yaml`
++ mock fixtures，门槛高、易写错字段、易漏 11 个 ToolSpec 字段。
+
+**解法（deterministic / offline-first / 0 新依赖）**：三个 CLI 子命令把
+"机械可推断"部分自动化，把"业务语义"部分留 TODO 给 reviewer：
+
+1. **`scaffold-tools --source <dir> --out tools.draft.yaml`**
+   仅用标准库 `ast` 静态扫描 `.py` 文件，抽 name / docstring 首行 / 参数 /
+   类型注解 / 默认值；**绝不** import / exec / 联网 / 读 .env；
+   实现：`agent_tool_harness/scaffold/from_python_ast.py`。
+2. **`scaffold-evals --tools <yaml> --out evals.draft.yaml`**
+   为每个 tool 生成 1 条 smoke eval 草稿（`runnable: false` + 全 TODO 占位
+   防止伪造业务正确答案）；
+   实现：`agent_tool_harness/scaffold/from_tools_yaml.py`。
+3. **`scaffold-fixtures --tools <yaml> --out-dir <dir>`**
+   每个 tool 一个 `<name>.fixture.yaml` 占位（含 example only / not real
+   tool output 披露）；逐文件软跳过已存在文件，需 `--force` 整体覆盖。
+
+**安全契约**（被 `tests/test_bootstrap_pipeline_smoke.py` 钉死）：
+- scaffold 全程**不**执行用户代码：样本工程 `tests/fixtures/sample_tool_project/
+  tools_unsafe.py` 顶层 `raise RuntimeError(...)` 是 canary，任何动态 import
+  退路会让端到端 smoke 立刻 FAIL；
+- 所有 draft 输出都有固定披露行；
+- evals draft 默认 `runnable: false`（双重保险防 misleading PASS/FAIL）；
+- scaffold-tools / scaffold-evals 默认拒绝整文件覆盖（需 `--force`）。
+
+**不做的事**（推迟到 v3.0+ backlog）：从 MCP `tools/list` discovery；
+从真实 transcript 抓 fixture 内容；LLM 协助写 `when_to_use`；自动 patch 用户
+工具；与 audit-tools 联动一键 audit draft。
+
 ---
 
 ## 阶段总览（详细表）
