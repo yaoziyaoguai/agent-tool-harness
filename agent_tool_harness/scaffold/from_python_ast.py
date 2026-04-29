@@ -231,7 +231,7 @@ def _render_tool(tool: ScaffoldedTool) -> list[str]:
         for param in tool.params:
             lines.append(f"        {param.name}:")
             lines.append(f"          type: TODO_type  # static annotation: {param.annotation}")
-            lines.append(f"          description: TODO(reviewer): 描述参数 {param.name} 的用途")
+            lines.append(f"          description: TODO_param_description  # TODO(reviewer): 描述参数 {param.name} 的用途")  # noqa: E501
     else:
         lines.append("      properties: {}  # TODO(reviewer): 函数无显式参数；可能是隐式 kwargs，请人工确认")  # noqa: E501
     lines.append("    output_contract:")

@@ -359,3 +359,44 @@ def test_scaffold_output_does_not_contain_secrets_lookalikes(tmp_path: Path) -> 
     assert "First line is safe" in text
     assert "sk-test_THIS_MUST_NOT_LEAK_TO_DRAFT" not in text
     assert "Authorization: Bearer" not in text
+
+
+def test_scaffolded_tools_yaml_is_valid_yaml(tmp_path: Path) -> None:
+    """**关键回归**：scaffold-tools 输出必须能被 yaml.safe_load 成功解析。
+
+    历史 bug（被 tests/test_bootstrap_pipeline_smoke.py 抓到）：
+    `description: TODO(reviewer): 描述参数 X 的用途` 这行把 `TODO(reviewer): 描述...`
+    当作 YAML 标量值，但值里含 `:`，导致 PyYAML 抛 ScannerError，下游
+    scaffold-evals / audit-tools / loader 全部炸掉。修复方式是把 TODO 注释
+    放在 `#` 后面（YAML comment），值字段写单 token `TODO_xxx`。
+    本测试钉死"draft tools.yaml 必须是合法 YAML"这一最基本契约——任何
+    将来在 _render_tool 里再次写 bare 含冒号占位字符串的改动会立刻 FAIL。
+    """
+    import yaml as _yaml
+
+    from agent_tool_harness.scaffold import scaffold_tools_yaml
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "demo.py").write_text(
+        textwrap.dedent(
+            '''
+            def query_user(user_id: str, include_details: bool = False) -> dict:
+                """Look up a user."""
+                return {}
+
+            def list_orders(user_id: str, limit: int = 10) -> list:
+                """List orders for a user."""
+                return []
+            '''
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "tools.draft.yaml"
+    scaffold_tools_yaml(src, out)
+    text = out.read_text(encoding="utf-8")
+    data = _yaml.safe_load(text)
+    assert isinstance(data, dict) and isinstance(data.get("tools"), list)
+    assert {t["name"] for t in data["tools"]} == {"query_user", "list_orders"}
+    # 钉死每个 param description 仍然写了 TODO 注释（不是被静默删掉）。
+    assert text.count("# TODO(reviewer): 描述参数") >= 3
