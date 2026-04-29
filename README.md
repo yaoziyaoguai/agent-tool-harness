@@ -287,6 +287,12 @@ python -m agent_tool_harness.cli run \
 > 校验：YAML 合法、披露行存在、`required_tools` 引用一致、TODO 计数、
 > `runnable=true` 残留 TODO（最危险情景）等。`pass`/`warning` → exit 0；
 > `fail` → exit 2。详见 `agent_tool_harness/scaffold/validate_generated.py`。
+>
+> **bootstrap-to-run 完整闭环 sample**（v2.x）：见
+> `examples/bootstrap_to_run/`，提供已 review 完的 `tools.reviewed.yaml` /
+> `evals.reviewed.yaml` + 安全纯函数 `sample_tools.py`，可直接跑
+> `validate-generated --strict-reviewed`（reviewed 契约：TODO=fail / 必须
+> 至少 1 条 runnable）+ `run --mock-path good` 出 10 件套 artifact。
 
 审计工具：
 

@@ -431,6 +431,14 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="可选：fixtures 目录；若提供则会校验披露行 + 每 tool 是否有占位 fixture。",
     )
+    validate_gen.add_argument(
+        "--strict-reviewed",
+        action="store_true",
+        help=(
+            "把校验从'draft mode'切到'reviewed mode'：TODO 残留 → fail（不再 warning）；"
+            "至少要有 1 条 runnable=true 的 eval；reviewer 主动移掉 scaffold 披露行不再当问题。"
+        ),
+    )
 
     return parser
 
@@ -513,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
                 tools=args.tools,
                 evals=args.evals,
                 fixtures_dir=args.fixtures_dir,
+                strict_reviewed=args.strict_reviewed,
             )
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
@@ -798,23 +807,19 @@ def _scaffold_fixtures(tools: str, out_dir: str, *, force: bool) -> int:
     return 0
 
 
-def _validate_generated(tools: str, evals: str, fixtures_dir: str | None) -> int:
+def _validate_generated(
+    tools: str, evals: str, fixtures_dir: str | None, *, strict_reviewed: bool = False
+) -> int:
     """v2.x bootstrap chain hardening CLI 入口：交叉校验三件套草稿。
 
-    职责
-    ----
-    - 调用 `validate_generated`；把 ValidateGeneratedReport 用 JSON 打印到 stdout；
-    - status=fail → 返回 exit code 2（reviewer 拿到结论会 misleading）；
-    - status=warning / pass → 返回 exit code 0（draft 仍 in-review 是预期状态）；
-    - 把 status 行另外用 stderr 打印一行人类可读 summary，便于 CI 抓。
-
-    不负责
-    ------
-    - **不**做 ToolSpec/EvalSpec 字段级 audit（用 audit-tools / audit-evals）；
-    - **不**做语义级判断（when_to_use 是否合理 / decoy 检测）；
-    - **不**自动修 TODO（反 hack 硬约束：scaffold 不能伪造业务答案）。
+    支持 ``strict_reviewed`` 模式（v2.x bootstrap-to-run hardening 新增）：
+    把 reviewer 声称已 review 完的配置按更严格契约检查（TODO=fail / 必须
+    至少 1 条 runnable / 不再当披露行缺失为 warning）。其它行为见 module
+    docstring。
     """
-    report = validate_generated(tools, evals, fixtures_dir)
+    report = validate_generated(
+        tools, evals, fixtures_dir, strict_reviewed=strict_reviewed
+    )
     print(report.to_json())
     summary_line = (
         f"validate-generated: status={report.status} "

@@ -167,6 +167,10 @@ def _strip_yaml_comments(text: str) -> str:
     解释性注释，被 TODO 正则误匹配，validate-generated 误报 1 个 TODO
     warning。修复方式是在统计前剥注释——但**不**修改原文件 / 不影响
     披露行检查（披露行检查直接 in 原文本，不走这里）。
+    历史 bug：reviewer 在 reviewed.yaml 顶部写"全部 TODO_xxx 占位被替换"
+    解释性注释，被 TODO 正则误匹配，validate-generated 误报 1 个 TODO
+    warning。修复方式是在统计前剥注释——但**不**修改原文件 / 不影响
+    披露行检查（披露行检查直接 in 原文本，不走这里）。
 
     为什么不上完整 YAML AST：因 yaml.safe_load 已成功（上游已保证），
     且 TODO 占位由 scaffold 输出的稳定字符串组成，绝不会出现在 YAML
@@ -194,11 +198,24 @@ def validate_generated(
     tools_yaml: Path | str,
     evals_yaml: Path | str,
     fixtures_dir: Path | str | None = None,
+    *,
+    strict_reviewed: bool = False,
 ) -> ValidateGeneratedReport:
     """主入口：交叉校验 bootstrap chain 三件套。
 
     完全 deterministic / offline：只做 yaml.safe_load + 文本扫描 + 文件
     存在性检查；不 import 用户代码、不联网、不读 .env。
+
+    strict_reviewed (v2.x bootstrap-to-run hardening 新增)
+    -------------------------------------------------------
+    默认 False = 'draft mode'：scaffold 写出来的草稿 in-review 是预期状态，
+    残留 TODO / runnable=false 都只是 warning。
+
+    True = 'reviewed mode'：reviewer 声称这份配置已经 review 完，validate
+    要按更严格的"它能进 run 吗"标准检查：
+    - 残留 TODO → fail（不是 warning），reviewer 漏清就拦掉；
+    - 至少有 1 条 runnable=true 的 eval（否则 run 啥也跑不了）；
+    - disclosure_missing 不再当 warning（reviewer 主动移掉草稿头是预期）。
     """
     tp = Path(tools_yaml)
     ep = Path(evals_yaml)
@@ -225,7 +242,8 @@ def validate_generated(
         issues.append(err)
     else:
         data, text = loaded  # type: ignore[misc]
-        issues += _check_disclosure(text, _TOOLS_DISCLOSURE_PHRASES, str(tp))
+        if not strict_reviewed:
+            issues += _check_disclosure(text, _TOOLS_DISCLOSURE_PHRASES, str(tp))
         counts["todo_in_tools"] = _count_todos(text)
         tools_list = data.get("tools", []) if isinstance(data, dict) else data
         if not isinstance(tools_list, list):
@@ -247,7 +265,8 @@ def validate_generated(
         issues.append(err)
     else:
         data, text = loaded  # type: ignore[misc]
-        issues += _check_disclosure(text, _EVALS_DISCLOSURE_PHRASES, str(ep))
+        if not strict_reviewed:
+            issues += _check_disclosure(text, _EVALS_DISCLOSURE_PHRASES, str(ep))
         counts["todo_in_evals"] = _count_todos(text)
         evals_list = data.get("evals", []) if isinstance(data, dict) else data
         if not isinstance(evals_list, list):
@@ -348,19 +367,44 @@ def validate_generated(
                         )
                     )
 
-    # ---- 4. TODO 总数 → warning（仅当 issues 里没有其它 warning/error 时也要发出）----
+    # ---- 4. TODO 总数 → draft mode warning / strict_reviewed mode error ----
     todo_total = (
         counts["todo_in_tools"] + counts["todo_in_evals"] + counts["todo_in_fixtures"]
     )
     if todo_total > 0:
+        if strict_reviewed:
+            # reviewed 模式：reviewer 声称已 review，TODO 残留是真实漏改。
+            issues.append(
+                Issue(
+                    "error",
+                    "reviewed_config_has_todo",
+                    str(tp),
+                    f"--strict-reviewed: found {todo_total} TODO placeholders; "
+                    "reviewed configs must have all TODO_xxx replaced with real "
+                    "values before being treated as production-ready.",
+                )
+            )
+        else:
+            issues.append(
+                Issue(
+                    "warning",
+                    "draft_still_needs_review",
+                    str(tp),
+                    f"found {todo_total} TODO placeholders across draft files; "
+                    "reviewer must replace all TODO_xxx with real values + flip "
+                    "runnable: true before promoting to a real eval run.",
+                )
+            )
+
+    # ---- 4b. strict_reviewed 模式额外契约：必须至少 1 条 runnable=true 的 eval ----
+    if strict_reviewed and counts["runnable_evals_count"] == 0:
         issues.append(
             Issue(
-                "warning",
-                "draft_still_needs_review",
-                str(tp),
-                f"found {todo_total} TODO placeholders across draft files; "
-                "reviewer must replace all TODO_xxx with real values + flip "
-                "runnable: true before promoting to a real eval run.",
+                "error",
+                "reviewed_config_has_no_runnable_eval",
+                str(ep),
+                "--strict-reviewed: reviewed evals.yaml must contain at least one "
+                "eval with runnable: true; otherwise nothing will be executed by `run`.",
             )
         )
 

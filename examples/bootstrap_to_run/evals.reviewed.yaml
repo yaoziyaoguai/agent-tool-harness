@@ -1,0 +1,49 @@
+# reviewed evals.yaml —— scaffold-evals draft 经人工 review 后的示例。
+#
+# 与 draft 的关键差异：
+# - runnable: true（draft 默认 false 防误跑）
+# - 全部 TODO_xxx 占位被替换成真实业务字段
+# - 顶部 scaffold disclosure header 已被 reviewer 主动移除
+# - 添加了 judge.rules 列表（draft 只写了简化的 must_call_tool 单 mapping）
+#
+# validate-generated 对本文件应判定 status=pass（无 broken_ref / 无
+# runnable+TODO / 无 missing fixture，因为不指定 --fixtures-dir）。
+evals:
+  - id: bootstrap_sample_smoke_user_status
+    name: Bootstrap sample smoke — lookup user status
+    category: sample_smoke
+    split: smoke
+    realism_level: smoke_reviewed
+    complexity: multi_step
+    source: bootstrap_to_run_sample_reviewed
+    runnable: true
+    user_prompt: >
+      A teammate reports that user u-42 cannot complete checkout. Identify the
+      most likely root cause and explain the next action; cite evidence ids.
+    initial_context:
+      user_id: u-42
+      session_id: s-99
+      observed_symptom: checkout blocked
+    verifiable_outcome:
+      expected_root_cause: boundary_violation
+      evidence_ids: [user-status-u-42, session-s-99]
+    success_criteria:
+      - The first evidence-gathering step should look up the user status.
+      - After user status, the assistant should inspect the user session.
+      - The final answer must cite at least one user-status evidence id.
+    expected_tool_behavior:
+      required_tools: [lookup_user_status, inspect_user_session]
+      allowed_alternatives: []
+      notes: >
+        Snapshot-only or session-only paths are insufficient because they miss
+        the user-level boundary signal.
+    judge:
+      rules:
+        - type: must_call_tool
+          tool: lookup_user_status
+        - type: must_call_tool
+          tool: inspect_user_session
+        - type: max_tool_calls
+          value: 5
+        - type: must_use_evidence
+        - type: evidence_from_required_tools

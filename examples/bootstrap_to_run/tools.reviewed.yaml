@@ -1,0 +1,83 @@
+# reviewed tools.yaml —— 由 scaffold-tools draft 经人工 review 后产出的示例。
+#
+# 这份文件**不是** scaffold 直接写的（scaffold 写的草稿头会标 `generated draft /
+# review required`），而是 reviewer 在 draft 基础上手工填完所有 TODO 字段，
+# 然后**主动移除**了顶部 scaffold 披露行，作为已通过 review 的产物。
+# validate-generated 对 reviewed 文件不会报 `disclosure_missing` warning
+# 是预期的（它只针对 draft）。
+#
+# 本文件指向 examples/bootstrap_to_run/sample_tools.py 中的安全纯函数。
+# 任何 import 都不会触发副作用。
+tools:
+  - name: lookup_user_status
+    namespace: bootstrap.sample
+    version: "0.1"
+    description: Look up the current status of a user by id.
+    when_to_use: >
+      Use first when a user reports any account-level issue and the user_id is
+      known. Pair with inspect_user_session if a session-scoped check is needed.
+    when_not_to_use: >
+      Do not use for purely visual UI questions or to mutate user state.
+    input_schema:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          description: Stable user identifier.
+        include_recent_actions:
+          type: boolean
+          default: false
+          description: Whether to include recent action evidence ids in the response.
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: false
+      supports_filtering: false
+      max_output_tokens: 800
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: sample_tools.py
+      function: lookup_user_status
+
+  - name: inspect_user_session
+    namespace: bootstrap.sample
+    version: "0.1"
+    description: Inspect a user session for boundary violations.
+    when_to_use: >
+      Use after lookup_user_status when the issue may be session-scoped (e.g.
+      auth boundary, stale session state).
+    when_not_to_use: >
+      Do not use as the first tool when only a user_id is known and no session
+      context has been collected.
+    input_schema:
+      type: object
+      required: [session_id]
+      properties:
+        session_id:
+          type: string
+          description: Stable session identifier.
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: false
+      supports_filtering: false
+      max_output_tokens: 600
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: sample_tools.py
+      function: inspect_user_session

@@ -1,0 +1,24 @@
+project:
+  name: bootstrap-to-run-sample
+  domain: bootstrap chain end-to-end smoke
+  description: >
+    Minimal sample project showing the v2.x bootstrap → validate → reviewed →
+    deterministic run loop. Uses safe pure Python functions (no network /
+    no .env / no live LLM / no MCP / no shell).
+
+evidence_sources:
+  - name: user_status
+    type: structured_record
+    description: Deterministic user status stub.
+  - name: user_session
+    type: structured_record
+    description: Deterministic session stub.
+
+domain_taxonomy:
+  issue_categories:
+    - boundary_violation
+    - status_mismatch
+  evidence_types:
+    - user_status
+    - session_state
+    - root_cause_summary

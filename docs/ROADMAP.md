@@ -121,11 +121,17 @@ Harness**。
 3. **`scaffold-fixtures --tools <yaml> --out-dir <dir>`**
    每个 tool 一个 `<name>.fixture.yaml` 占位（含 example only / not real
    tool output 披露）；逐文件软跳过已存在文件，需 `--force` 整体覆盖。
-4. **`validate-generated --tools <yaml> --evals <yaml> [--fixtures-dir <dir>]`**
+4. **`validate-generated --tools <yaml> --evals <yaml> [--fixtures-dir <dir>] [--strict-reviewed]`**
    把三件套当一个整体做交叉校验：YAML 合法性 / 披露行 / `required_tools`
    引用一致 / TODO 计数 / `runnable=true` 残留 TODO（最危险情景，硬 fail）/
    缺 fixture（warning）等。`pass`/`warning` → exit 0；`fail` → exit 2。
+   `--strict-reviewed` 模式（reviewer 声称已 review 完）：TODO=fail / 必须
+   至少 1 条 runnable / 不再当披露行缺失为 warning。
    实现：`agent_tool_harness/scaffold/validate_generated.py`。
+5. **bootstrap-to-run sample pack**：`examples/bootstrap_to_run/` 提供
+   `sample_tools.py`（安全纯函数）+ reviewed `tools/evals.yaml` + `project.yaml`，
+   完整闭环 scaffold → validate → reviewed → `run --mock-path good` → 10 件套
+   artifact。回归由 `tests/test_bootstrap_to_run_sample.py` 钉死。
 
 **安全契约**（被 `tests/test_bootstrap_pipeline_smoke.py` 钉死）：
 - scaffold 全程**不**执行用户代码：样本工程 `tests/fixtures/sample_tool_project/
