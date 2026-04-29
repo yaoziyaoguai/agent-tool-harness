@@ -45,6 +45,11 @@ from agent_tool_harness.scaffold.from_tools_yaml import (
     scaffold_evals_yaml,
     scaffold_fixtures_dir,
 )
+from agent_tool_harness.scaffold.validate_generated import (
+    Issue,
+    ValidateGeneratedReport,
+    validate_generated,
+)
 
 __all__ = [
     "ScaffoldedTool",
@@ -52,4 +57,7 @@ __all__ = [
     "scan_python_module",
     "scaffold_evals_yaml",
     "scaffold_fixtures_dir",
+    "Issue",
+    "ValidateGeneratedReport",
+    "validate_generated",
 ]

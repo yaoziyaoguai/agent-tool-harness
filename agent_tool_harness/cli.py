@@ -18,6 +18,7 @@ from agent_tool_harness.scaffold import (
     scaffold_evals_yaml,
     scaffold_fixtures_dir,
     scaffold_tools_yaml,
+    validate_generated,
 )
 from agent_tool_harness.tools.registry import ToolRegistryError
 
@@ -402,6 +403,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="允许覆盖已存在的单个 fixture 文件（默认逐文件跳过）。",
     )
 
+    # v2.x bootstrap chain hardening：把三步生成的 draft 当一个整体做交叉校验，
+    # 让内部小团队一眼看出"还差几步能进入正式 eval"。仅 yaml.safe_load + 文本
+    # 扫描 + 文件存在性检查；不 import 用户代码、不联网、不读 .env。详见
+    # agent_tool_harness/scaffold/validate_generated.py 顶层 docstring。
+    validate_gen = subparsers.add_parser(
+        "validate-generated",
+        help=(
+            "对 scaffold-tools / scaffold-evals / scaffold-fixtures 三件套做交叉"
+            "校验：YAML 合法性、披露行、tool 引用一致性、TODO 计数、runnable=true"
+            "残留 TODO 等。pass/warning → exit 0；fail → exit 2。"
+        ),
+    )
+    validate_gen.add_argument(
+        "--tools",
+        required=True,
+        help="待校验的 draft tools.yaml。",
+    )
+    validate_gen.add_argument(
+        "--evals",
+        required=True,
+        help="待校验的 draft evals.yaml。",
+    )
+    validate_gen.add_argument(
+        "--fixtures-dir",
+        required=False,
+        default=None,
+        help="可选：fixtures 目录；若提供则会校验披露行 + 每 tool 是否有占位 fixture。",
+    )
+
     return parser
 
 
@@ -477,6 +507,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "scaffold-fixtures":
             return _scaffold_fixtures(
                 tools=args.tools, out_dir=args.out_dir, force=args.force
+            )
+        if args.command == "validate-generated":
+            return _validate_generated(
+                tools=args.tools,
+                evals=args.evals,
+                fixtures_dir=args.fixtures_dir,
             )
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
@@ -760,6 +796,33 @@ def _scaffold_fixtures(tools: str, out_dir: str, *, force: bool) -> int:
         print(f"skipped {len(summary['skipped'])} existing files (use --force to overwrite)")
     print(json.dumps(summary, ensure_ascii=False))
     return 0
+
+
+def _validate_generated(tools: str, evals: str, fixtures_dir: str | None) -> int:
+    """v2.x bootstrap chain hardening CLI 入口：交叉校验三件套草稿。
+
+    职责
+    ----
+    - 调用 `validate_generated`；把 ValidateGeneratedReport 用 JSON 打印到 stdout；
+    - status=fail → 返回 exit code 2（reviewer 拿到结论会 misleading）；
+    - status=warning / pass → 返回 exit code 0（draft 仍 in-review 是预期状态）；
+    - 把 status 行另外用 stderr 打印一行人类可读 summary，便于 CI 抓。
+
+    不负责
+    ------
+    - **不**做 ToolSpec/EvalSpec 字段级 audit（用 audit-tools / audit-evals）；
+    - **不**做语义级判断（when_to_use 是否合理 / decoy 检测）；
+    - **不**自动修 TODO（反 hack 硬约束：scaffold 不能伪造业务答案）。
+    """
+    report = validate_generated(tools, evals, fixtures_dir)
+    print(report.to_json())
+    summary_line = (
+        f"validate-generated: status={report.status} "
+        f"errors={sum(1 for i in report.issues if i.severity == 'error')} "
+        f"warnings={sum(1 for i in report.issues if i.severity == 'warning')}"
+    )
+    print(summary_line, file=sys.stderr)
+    return 2 if report.status == "fail" else 0
 
 
 def _load_judge_recording(path_str: str) -> dict:

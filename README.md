@@ -276,6 +276,17 @@ python -m agent_tool_harness.cli run \
 > `example only / not real tool output`。reviewer 把 TODO 全部替换成真实业务
 > 内容并把 `runnable` 改 true → 跑 `audit-evals` 验证 → 才能用于 `run`。
 > 详见 `agent_tool_harness/scaffold/from_tools_yaml.py`。
+>
+> **bootstrap 第三步**（一眼看出 chain 是否健康 + 还差几步能进入正式 eval）：
+> ```bash
+> python -m agent_tool_harness.cli validate-generated \
+>   --tools my_team/tools.draft.yaml \
+>   --evals my_team/evals.draft.yaml \
+>   --fixtures-dir my_team/fixtures.draft
+> ```
+> 校验：YAML 合法、披露行存在、`required_tools` 引用一致、TODO 计数、
+> `runnable=true` 残留 TODO（最危险情景）等。`pass`/`warning` → exit 0；
+> `fail` → exit 2。详见 `agent_tool_harness/scaffold/validate_generated.py`。
 
 审计工具：
 
