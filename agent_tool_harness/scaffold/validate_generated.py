@@ -160,9 +160,34 @@ def _check_disclosure(text: str, phrases: tuple[str, ...], file_label: str) -> l
     ]
 
 
+def _strip_yaml_comments(text: str) -> str:
+    """剥掉 YAML # 注释后的纯数据视图，只用于 TODO 计数 / 引用扫描。
+
+    历史 bug：reviewer 在 reviewed.yaml 顶部写"全部 TODO_xxx 占位被替换"
+    解释性注释，被 TODO 正则误匹配，validate-generated 误报 1 个 TODO
+    warning。修复方式是在统计前剥注释——但**不**修改原文件 / 不影响
+    披露行检查（披露行检查直接 in 原文本，不走这里）。
+
+    为什么不上完整 YAML AST：因 yaml.safe_load 已成功（上游已保证），
+    且 TODO 占位由 scaffold 输出的稳定字符串组成，绝不会出现在 YAML
+    引号字符串内部，朴素行级剥注释足够安全。复杂场景留给 v3.0 backlog。
+    """
+    out_lines: list[str] = []
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            continue
+        idx = line.find(" #")
+        if idx >= 0:
+            out_lines.append(line[:idx])
+        else:
+            out_lines.append(line)
+    return "\n".join(out_lines)
+
+
 def _count_todos(text: str) -> int:
-    """统计 TODO 占位次数（用于报告 + warning 信号）。"""
-    return len(_TODO_PATTERN.findall(text))
+    """统计 TODO 占位次数（用于报告 + warning 信号）。**不**计 # 注释里的 TODO。"""
+    return len(_TODO_PATTERN.findall(_strip_yaml_comments(text)))
 
 
 def validate_generated(

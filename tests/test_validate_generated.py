@@ -240,3 +240,65 @@ def test_yaml_module_used_for_parsing(tmp_path: Path) -> None:
 def test_yaml_loader_used(tmp_path: Path) -> None:
     """Sanity：让 import 不会因 yaml 缺失而失败（yaml 已在依赖）。"""
     assert yaml.safe_load("a: 1") == {"a": 1}
+
+
+def test_todo_in_yaml_comment_is_not_counted(tmp_path: Path) -> None:
+    """**回归 bug**：reviewer 在 reviewed.yaml 顶部写解释性注释，比如
+    "全部 TODO_xxx 占位被替换"，过去会被 TODO 正则误匹配，validate
+    误报 1 个 TODO warning。修复后：YAML # 注释里的 TODO 不计入。
+
+    边界：注释不计；引号字符串里的 TODO_xxx 是稳定 scaffold 占位，
+    不会出现在引号内（scaffold 不会写出来），所以朴素行级剥注释足够。
+    """
+    tools = tmp_path / "tools.yaml"
+    evals = tmp_path / "evals.yaml"
+    tools.write_text(
+        "# 顶部解释：本文件已 review，全部 TODO_xxx 占位都被替换\n"
+        "# generated draft / review required / does not execute\n"
+        "tools:\n"
+        "  - name: foo\n"
+        "    description: real tool description\n"
+        "    when_to_use: real guidance\n",
+        encoding="utf-8",
+    )
+    evals.write_text(
+        "# generated draft / review required / does not execute tools\n"
+        "# 注意：所有 TODO_xxx 都已清掉\n"
+        "evals:\n"
+        "  - id: e1\n"
+        "    runnable: false\n"
+        "    required_tools: [foo]\n",
+        encoding="utf-8",
+    )
+    report = validate_generated(tools, evals)
+    # 注释里的 TODO_xxx 不应被计数
+    assert report.counts["todo_in_tools"] == 0
+    assert report.counts["todo_in_evals"] == 0
+    # 也不应触发 draft_still_needs_review warning（来源于 todo_total>0）
+    codes = {i.code for i in report.issues}
+    assert "draft_still_needs_review" not in codes
+
+
+def test_real_todo_in_data_still_counted(tmp_path: Path) -> None:
+    """对照实验：真实数据行里的 TODO_xxx 仍必须计数（避免修过头）。"""
+    tools = tmp_path / "tools.yaml"
+    evals = tmp_path / "evals.yaml"
+    tools.write_text(
+        "# generated draft / review required / does not execute\n"
+        "tools:\n"
+        "  - name: foo\n"
+        "    description: TODO_real_description\n"
+        "    when_to_use: TODO(reviewer) fill in\n",
+        encoding="utf-8",
+    )
+    evals.write_text(
+        "# generated draft / review required / does not execute tools\n"
+        "evals:\n"
+        "  - id: e1\n"
+        "    runnable: false\n"
+        "    required_tools: [foo]\n",
+        encoding="utf-8",
+    )
+    report = validate_generated(tools, evals)
+    # 数据行里的 TODO 必须计数 (TODO_real_description + TODO(reviewer))
+    assert report.counts["todo_in_tools"] >= 2
