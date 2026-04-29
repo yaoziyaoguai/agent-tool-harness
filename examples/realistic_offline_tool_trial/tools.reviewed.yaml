@@ -1,0 +1,123 @@
+# reviewed tools.yaml —— realistic_offline_tool_trial 的 reviewed 配置。
+#
+# 与 scaffold-tools 直接生成的 draft 区别：
+# - 全部 TODO_xxx 已被替换为业务语义；
+# - 顶部 disclosure header 已移除（reviewer 已签字）；
+# - validate-generated 对本文件预期 status=pass。
+#
+# 本文件指向 examples/realistic_offline_tool_trial/sample_tools.py 中的
+# 纯函数，任何 import 都不会触发副作用（offline / deterministic / fake data）。
+tools:
+  - name: search_fake_knowledge_base
+    namespace: realistic.offline.trial
+    version: "0.1"
+    description: Search a deterministic fake knowledge base by natural-language query.
+    when_to_use: >
+      Use when the user prompt mentions an unfamiliar concept (idempotency,
+      token budget, boundary violation, yaml drift) and a quick reference
+      would unblock the next reasoning step.
+    when_not_to_use: >
+      Do not use for questions that need real-time data (network), database
+      reads, or anything that depends on the user's private workspace.
+    input_schema:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: Non-empty natural-language search query.
+        top_k:
+          type: integer
+          default: 3
+          description: Maximum number of hits to return; capped by KB size.
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: false
+      supports_filtering: false
+      max_output_tokens: 800
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: sample_tools.py
+      function: search_fake_knowledge_base
+
+  - name: classify_fake_tool_failure
+    namespace: realistic.offline.trial
+    version: "0.1"
+    description: Classify a tool failure into a deterministic category by keyword.
+    when_to_use: >
+      Use after a tool call returns an error_shape payload, to pick the next
+      action (retry / escalate / open file / ask reviewer) without guessing.
+    when_not_to_use: >
+      Do not use for runtime success cases or when the failure is clearly
+      domain-specific (the keyword rules are MVP, not a real classifier).
+    input_schema:
+      type: object
+      required: [error_message]
+      properties:
+        error_message:
+          type: string
+          description: The first line of the failing tool's error.
+        trace_excerpt:
+          type: string
+          default: ""
+          description: Optional truncated trace to refine classification.
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: false
+      supports_filtering: false
+      max_output_tokens: 600
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: sample_tools.py
+      function: classify_fake_tool_failure
+
+  - name: validate_fake_config_snippet
+    namespace: realistic.offline.trial
+    version: "0.1"
+    description: Run a fake keyword-level validation pass on a yaml snippet.
+    when_to_use: >
+      Use when the user is about to promote a draft yaml to reviewed config
+      and wants a quick sanity check for residual TODO / runnable+TODO mix.
+    when_not_to_use: >
+      Do not use as a real schema validator; for strict checks always run
+      `python -m agent_tool_harness.cli validate-generated --strict-reviewed`.
+    input_schema:
+      type: object
+      required: [yaml_text]
+      properties:
+        yaml_text:
+          type: string
+          description: UTF-8 yaml content to inspect (no real parsing).
+    output_contract:
+      required_fields: [summary, evidence, next_action, technical_id]
+      technical_ids: true
+      raw_fields_allowed: false
+      error_shape: [summary, cause, retryable, suggested_fix]
+    token_policy:
+      supports_pagination: false
+      supports_filtering: false
+      max_output_tokens: 400
+      actionable_errors: true
+    side_effects:
+      destructive: false
+      open_world_access: false
+    executor:
+      type: python
+      path: sample_tools.py
+      function: validate_fake_config_snippet

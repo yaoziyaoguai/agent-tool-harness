@@ -1,0 +1,32 @@
+project:
+  name: realistic-offline-tool-trial
+  domain: offline tool trial — internal teammate first-touch sample
+  description: >
+    A v2.x sample project that feels closer to a real internal toolchain
+    (KB search + failure classifier + config snippet validator) but stays
+    fully offline / deterministic / fake-data. Used by maintainers to
+    rehearse the full bootstrap → review → strict → run loop, and as a
+    suggested starting point for the first real internal teammate trial.
+
+evidence_sources:
+  - name: fake_kb
+    type: structured_record
+    description: Hardcoded fake knowledge-base hits (no IO, no network).
+  - name: failure_classifier
+    type: structured_record
+    description: Keyword-based deterministic failure category.
+  - name: config_validator
+    type: structured_record
+    description: Keyword-based fake yaml snippet checker (no real parse).
+
+domain_taxonomy:
+  issue_categories:
+    - transient_network
+    - auth_or_permission
+    - config_schema
+    - code_logic
+    - residual_todo
+  evidence_types:
+    - kb_doc_id
+    - failure_category
+    - config_issue

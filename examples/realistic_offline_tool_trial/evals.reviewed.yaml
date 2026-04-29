@@ -1,0 +1,88 @@
+# reviewed evals.yaml —— realistic_offline_tool_trial 的 reviewed 评测集。
+#
+# 设计目标：覆盖 sample_tools.py 里 3 个工具，让 maintainer rehearsal 能跑出
+# 包含 KB-search / failure-classifier / config-validator 三类证据的 report。
+# 每条 eval 都 runnable=true 并填了 verifiable_outcome / judge.rules，
+# strict-reviewed 应该 pass。
+#
+# 注意：本文件仍然只是 v2.x deterministic smoke（MockReplayAdapter 会按
+# required_tools 顺序调工具，PASS 不代表真实 Agent 智能；这是 v3.0 之前
+# 框架本身就不会越界声明的事）。
+evals:
+  - id: kb_search_smoke
+    name: Realistic KB search smoke — explain idempotency keys
+    category: realistic_smoke
+    split: smoke
+    realism_level: smoke_reviewed
+    complexity: single_step
+    source: realistic_offline_tool_trial_reviewed
+    runnable: true
+    user_prompt: >
+      A teammate asks: how do retries interact with idempotency keys when a
+      tool retries on transient errors? Cite at least one KB doc.
+    initial_context:
+      query: idempotency key retry
+      top_k: 2
+    verifiable_outcome:
+      expected_root_cause: idempotency_key_required
+      evidence_ids: [kb-101]
+    success_criteria:
+      - The assistant should call search_fake_knowledge_base before answering.
+      - The final answer must cite at least one kb-101 evidence id.
+    expected_tool_behavior:
+      required_tools: [search_fake_knowledge_base]
+      allowed_alternatives: []
+      notes: >
+        Snapshot-only paths are insufficient because the user explicitly asked
+        for a KB citation.
+    judge:
+      rules:
+        - type: must_call_tool
+          tool: search_fake_knowledge_base
+        - type: max_tool_calls
+          value: 3
+        - type: must_use_evidence
+        - type: evidence_from_required_tools
+
+  - id: failure_classify_then_validate_smoke
+    name: Realistic failure classify + config validate smoke
+    category: realistic_smoke
+    split: smoke
+    realism_level: smoke_reviewed
+    complexity: multi_step
+    source: realistic_offline_tool_trial_reviewed
+    runnable: true
+    user_prompt: >
+      A reviewed yaml snippet still has TODO placeholders and a tool just
+      failed with `KeyError: 'tools'`. Classify the failure and validate the
+      snippet; cite evidence ids.
+    initial_context:
+      error_message: "KeyError: 'tools'"
+      trace_excerpt: "File reviewed.yaml line 1, in <module>"
+      yaml_text: |
+        random_unrelated_field: value
+        another_field: 123
+    verifiable_outcome:
+      expected_root_cause: not_an_ath_yaml
+      evidence_ids: [failure-keyword-keyerror, no-tools-or-evals-key]
+    success_criteria:
+      - The assistant should call classify_fake_tool_failure first.
+      - The assistant should then call validate_fake_config_snippet.
+      - The final answer must cite at least one failure-keyword evidence id
+        and at least one no-tools-or-evals-key evidence id.
+    expected_tool_behavior:
+      required_tools: [classify_fake_tool_failure, validate_fake_config_snippet]
+      allowed_alternatives: []
+      notes: >
+        Skipping the validator misses the residual_todo signal that explains
+        why strict-reviewed would have rejected the snippet.
+    judge:
+      rules:
+        - type: must_call_tool
+          tool: classify_fake_tool_failure
+        - type: must_call_tool
+          tool: validate_fake_config_snippet
+        - type: max_tool_calls
+          value: 5
+        - type: must_use_evidence
+        - type: evidence_from_required_tools

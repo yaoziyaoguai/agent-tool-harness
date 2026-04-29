@@ -147,6 +147,15 @@ Harness**。
    + REVIEW_CHECKLIST §6 First Tool Suitability Checklist，指导内部同事
    选第一个最小试用工具，明确不推荐外部 API / 数据库 / 真实 key 工具
    作为第一轮试用。仍属 v2.x，**v3.0 still backlog / not started**。
+9. **Realistic Offline Tool Trial sample**（done）：
+   `examples/realistic_offline_tool_trial/` 提供"比 toy lookup 更接近真实
+   内部工作流，但完全 offline / deterministic / fake data"的 sample，包含
+   3 个工具函数（`search_fake_knowledge_base` / `classify_fake_tool_failure`
+   / `validate_fake_config_snippet`）+ reviewed configs + maintainer
+   rehearsal log。maintainer rehearsal 已端到端跑通 7 步路径并产出 10 件
+   套 artifact；rehearsal feedback **不**计入 3 份真实内部反馈（与 v3.0
+   gate 严格隔离）。回归：`tests/test_realistic_offline_tool_trial.py`。
+   下一步是 **First real internal team trial**（still next，未启动）。
 
 **安全契约**（被 `tests/test_bootstrap_pipeline_smoke.py` 钉死）：
 - scaffold 全程**不**执行用户代码：样本工程 `tests/fixtures/sample_tool_project/
