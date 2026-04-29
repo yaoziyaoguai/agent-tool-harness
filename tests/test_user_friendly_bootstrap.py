@@ -199,3 +199,95 @@ def test_cli_bootstrap_force_overwrites(tmp_path: Path) -> None:
         "bootstrap", "--source", str(SAFE_SAMPLE), "--out", str(out), "--force"
     )
     assert r.returncode == 0, r.stderr
+
+
+# --- Bootstrap UX hardening: --bootstrap-dir doctor entry --------------------
+
+
+def test_validate_bootstrap_dir_runs_against_full_dir(tmp_path: Path) -> None:
+    """validate-generated --bootstrap-dir 应该自动定位 tools/evals/fixtures。"""
+    out = tmp_path / "boot"
+    bootstrap_user_project(SAFE_SAMPLE, out)
+    r = _run_cli("validate-generated", "--bootstrap-dir", str(out))
+    assert r.returncode == 0, r.stderr  # draft mode → warning, not fail
+    payload = json.loads(r.stdout)
+    assert payload["status"] in {"pass", "warning"}
+    # 自动定位到了 fixtures/ 子目录
+    assert payload["fixtures_dir"] is not None
+
+
+def test_validate_bootstrap_dir_strict_fails_on_unreviewed_draft(
+    tmp_path: Path,
+) -> None:
+    """--bootstrap-dir + --strict-reviewed 必须 fail（draft 还没人 review）。"""
+    out = tmp_path / "boot"
+    bootstrap_user_project(SAFE_SAMPLE, out)
+    r = _run_cli(
+        "validate-generated", "--bootstrap-dir", str(out), "--strict-reviewed"
+    )
+    assert r.returncode == 2  # TODO 残留 + 无 runnable
+    assert "reviewed_config_has_todo" in r.stdout
+    assert "reviewed_config_has_no_runnable_eval" in r.stdout
+
+
+def test_validate_bootstrap_dir_warns_when_checklist_deleted(
+    tmp_path: Path,
+) -> None:
+    """reviewer 误删 REVIEW_CHECKLIST.md → stderr 必须 warn（防静默丢链路）。"""
+    out = tmp_path / "boot"
+    bootstrap_user_project(SAFE_SAMPLE, out)
+    (out / "REVIEW_CHECKLIST.md").unlink()
+    r = _run_cli("validate-generated", "--bootstrap-dir", str(out))
+    assert "missing REVIEW_CHECKLIST.md" in r.stderr
+
+
+def test_validate_bootstrap_dir_warns_when_summary_deleted(
+    tmp_path: Path,
+) -> None:
+    """validation_summary.json 缺失也要 warn。"""
+    out = tmp_path / "boot"
+    bootstrap_user_project(SAFE_SAMPLE, out)
+    (out / "validation_summary.json").unlink()
+    r = _run_cli("validate-generated", "--bootstrap-dir", str(out))
+    assert "missing validation_summary.json" in r.stderr
+
+
+def test_validate_bootstrap_dir_rejects_mutually_exclusive_args(
+    tmp_path: Path,
+) -> None:
+    """--bootstrap-dir 与 --tools/--evals 互斥（防用户用错参数也假成功）。"""
+    out = tmp_path / "boot"
+    bootstrap_user_project(SAFE_SAMPLE, out)
+    r = _run_cli(
+        "validate-generated",
+        "--bootstrap-dir", str(out),
+        "--tools", str(out / "tools.generated.yaml"),
+        "--evals", str(out / "evals.generated.yaml"),
+    )
+    assert r.returncode == 2
+    assert "mutually exclusive" in r.stderr
+
+
+def test_validate_bootstrap_dir_rejects_nonexistent_dir(tmp_path: Path) -> None:
+    """传入不存在目录必须 fail with clear message。"""
+    r = _run_cli(
+        "validate-generated", "--bootstrap-dir", str(tmp_path / "no-such-dir")
+    )
+    assert r.returncode == 2
+    assert "not a directory" in r.stderr
+
+
+def test_cli_bootstrap_stdout_lists_next_steps(tmp_path: Path) -> None:
+    """bootstrap 完成后 stderr 必须含明确的 4 条 next steps（防 UX 退化）。"""
+    out = tmp_path / "boot"
+    r = _run_cli("bootstrap", "--source", str(SAFE_SAMPLE), "--out", str(out))
+    assert r.returncode == 0
+    for needle in (
+        "Next steps:",
+        "1) review TODO",
+        "2) doctor check",
+        "3) strict review",
+        "4) deterministic smoke",
+        "no .env / no network / no live LLM",
+    ):
+        assert needle in r.stderr, f"missing in stderr: {needle!r}"

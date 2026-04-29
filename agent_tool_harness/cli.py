@@ -418,19 +418,30 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     validate_gen.add_argument(
         "--tools",
-        required=True,
-        help="待校验的 draft tools.yaml。",
+        required=False,
+        help="待校验的 draft tools.yaml。与 --bootstrap-dir 二选一。",
     )
     validate_gen.add_argument(
         "--evals",
-        required=True,
-        help="待校验的 draft evals.yaml。",
+        required=False,
+        help="待校验的 draft evals.yaml。与 --bootstrap-dir 二选一。",
     )
     validate_gen.add_argument(
         "--fixtures-dir",
         required=False,
         default=None,
         help="可选：fixtures 目录；若提供则会校验披露行 + 每 tool 是否有占位 fixture。",
+    )
+    validate_gen.add_argument(
+        "--bootstrap-dir",
+        required=False,
+        default=None,
+        help=(
+            "Bootstrap UX hardening doctor 入口：传 `bootstrap` 命令的 --out 目录，"
+            "自动定位 tools.generated.yaml / evals.generated.yaml / fixtures/ 三件套，"
+            "并额外检查 REVIEW_CHECKLIST.md / validation_summary.json 是否存在。"
+            "与 --tools/--evals 互斥。"
+        ),
     )
     validate_gen.add_argument(
         "--strict-reviewed",
@@ -556,6 +567,7 @@ def main(argv: list[str] | None = None) -> int:
                 tools=args.tools,
                 evals=args.evals,
                 fixtures_dir=args.fixtures_dir,
+                bootstrap_dir=args.bootstrap_dir,
                 strict_reviewed=args.strict_reviewed,
             )
         if args.command == "bootstrap":
@@ -847,15 +859,71 @@ def _scaffold_fixtures(tools: str, out_dir: str, *, force: bool) -> int:
 
 
 def _validate_generated(
-    tools: str, evals: str, fixtures_dir: str | None, *, strict_reviewed: bool = False
+    tools: str | None,
+    evals: str | None,
+    fixtures_dir: str | None,
+    *,
+    bootstrap_dir: str | None = None,
+    strict_reviewed: bool = False,
 ) -> int:
     """v2.x bootstrap chain hardening CLI 入口：交叉校验三件套草稿。
 
-    支持 ``strict_reviewed`` 模式（v2.x bootstrap-to-run hardening 新增）：
-    把 reviewer 声称已 review 完的配置按更严格契约检查（TODO=fail / 必须
-    至少 1 条 runnable / 不再当披露行缺失为 warning）。其它行为见 module
-    docstring。
+    支持三种调用方式
+    ----------------
+    1. 显式三件套：``--tools <yaml> --evals <yaml> [--fixtures-dir <dir>]``。
+    2. ``--bootstrap-dir <dir>``（v2.x Bootstrap UX hardening doctor 入口）：
+       传 ``bootstrap`` 命令的 ``--out`` 目录，自动定位 ``tools.generated.yaml``
+       / ``evals.generated.yaml`` / ``fixtures/``，并额外检查
+       ``REVIEW_CHECKLIST.md`` / ``validation_summary.json`` 是否存在
+       （缺一即写到 stderr，但 status 仍走 validate_generated 自身规则）。
+    3. ``--strict-reviewed`` 模式可叠加在以上任一调用之上。
+
+    设计为什么不另开 ``bootstrap-doctor`` 子命令
+    ------------------------------------------
+    - 避免 CLI 命令矩阵膨胀；
+    - 复用 ``validate_generated`` 的全部规则（drift 测试 / schema 测试只需
+      钉一份）；
+    - 用户记忆点更少：bootstrap → validate-generated → run。
     """
+    if bootstrap_dir is not None:
+        if tools is not None or evals is not None or fixtures_dir is not None:
+            print(
+                "error: --bootstrap-dir is mutually exclusive with "
+                "--tools/--evals/--fixtures-dir",
+                file=sys.stderr,
+            )
+            return 2
+        bd = Path(bootstrap_dir)
+        if not bd.is_dir():
+            print(
+                f"error: --bootstrap-dir not a directory: {bd}", file=sys.stderr
+            )
+            return 2
+        tools = str(bd / "tools.generated.yaml")
+        evals = str(bd / "evals.generated.yaml")
+        fixtures_candidate = bd / "fixtures"
+        fixtures_dir = (
+            str(fixtures_candidate) if fixtures_candidate.is_dir() else None
+        )
+        # Bootstrap UX hardening 额外契约：reviewer 不能误删 review checklist
+        # / summary，否则后续命令链会断。这些只是 stderr warning 不阻塞 exit
+        # code（真正的 fail 仍由 validate_generated 决定），但能让 reviewer
+        # 立刻看到目录被破坏过。
+        for required_name in ("REVIEW_CHECKLIST.md", "validation_summary.json"):
+            if not (bd / required_name).is_file():
+                print(
+                    f"warning: bootstrap-dir missing {required_name} "
+                    f"(was the dir hand-edited or partially deleted?)",
+                    file=sys.stderr,
+                )
+    else:
+        if tools is None or evals is None:
+            print(
+                "error: must pass --tools and --evals (or --bootstrap-dir)",
+                file=sys.stderr,
+            )
+            return 2
+
     report = validate_generated(
         tools, evals, fixtures_dir, strict_reviewed=strict_reviewed
     )
@@ -900,11 +968,43 @@ def _bootstrap(source: str, out: str, *, force: bool) -> int:
         + counts.get("todo_in_evals", 0)
         + counts.get("todo_in_fixtures", 0)
     )
+    # Bootstrap UX hardening：把"下一步该跑啥"用 stderr 显式打印（不依赖
+    # reviewer 自己去翻 REVIEW_CHECKLIST.md 才知道下一步）。stderr 不会污染
+    # stdout 的 JSON pipe。
+    print("", file=sys.stderr)
     print(
         f"wrote bootstrap to {report.out_dir} "
         f"(status={report.validation.status}, "
         f"runnable_evals={counts.get('runnable_evals_count', 0)}, "
         f"todo={todo_total})",
+        file=sys.stderr,
+    )
+    print("", file=sys.stderr)
+    print("Next steps:", file=sys.stderr)
+    print(
+        f"  1) review TODO   : open {report.out_dir / 'REVIEW_CHECKLIST.md'}",
+        file=sys.stderr,
+    )
+    print(
+        "  2) doctor check  : python -m agent_tool_harness.cli "
+        f"validate-generated --bootstrap-dir {report.out_dir}",
+        file=sys.stderr,
+    )
+    print(
+        "  3) strict review : python -m agent_tool_harness.cli "
+        f"validate-generated --bootstrap-dir {report.out_dir} --strict-reviewed",
+        file=sys.stderr,
+    )
+    print(
+        "  4) deterministic smoke: python -m agent_tool_harness.cli run "
+        "--project <your_project.yaml> "
+        f"--tools {report.tools_yaml} --evals {report.evals_yaml} "
+        "--out runs/bootstrap-smoke --mock-path good",
+        file=sys.stderr,
+    )
+    print("", file=sys.stderr)
+    print(
+        "Safety: no .env / no network / no live LLM / no untrusted code execution.",
         file=sys.stderr,
     )
     return 0

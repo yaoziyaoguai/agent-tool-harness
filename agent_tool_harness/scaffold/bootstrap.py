@@ -75,6 +75,7 @@ _CHECKLIST_REQUIRED_PHRASES = (
     "strict-reviewed",
     "no secrets",
     "v3.0",
+    "doctor",
 )
 
 
@@ -179,6 +180,17 @@ def _build_review_checklist(report: BootstrapReport) -> str:
         "- 当前仍属 v2.x patch；MCP / Web UI / 真实 LLM Judge / HTTP·Shell",
         "  executor / 企业级平台能力都是 **v3.0** backlog，本轮 **no secrets",
         "  read / no live LLM**。",
+        "- 内部真实反馈不足 3 份之前不讨论 v3.0；先把 v2.x bootstrap UX +",
+        "  deterministic smoke 跑顺。",
+        "",
+        "## 5. 一键 doctor 检查（reviewer 改完后随时跑）",
+        "",
+        "```bash",
+        f"python -m agent_tool_harness.cli validate-generated \\\n"
+        f"  --bootstrap-dir {report.out_dir}",
+        f"python -m agent_tool_harness.cli validate-generated \\\n"
+        f"  --bootstrap-dir {report.out_dir} --strict-reviewed",
+        "```",
         "",
         "_本 checklist 由 `bootstrap` 命令自动生成，根据 `validation_summary.json`",
         "_即时填字段；如需修改文案请改 `agent_tool_harness/scaffold/bootstrap.py`._",
