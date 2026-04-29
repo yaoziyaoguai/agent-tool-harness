@@ -83,6 +83,9 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > （把定位 / Quickstart / 接入 / 看结果 / 排查 / 命令 / 反馈 / 不包含能力 /
 > v3.0 触发条件 / 安全 9 区块串好的 umbrella 页）见
 > [docs/INTERNAL_TRIAL_LAUNCH_PACK.md](docs/INTERNAL_TRIAL_LAUNCH_PACK.md)；
+> 想拿自己的 AI Tool 自助跑（不依赖 maintainer）见
+> [docs/INTERNAL_TEAM_SELF_SERVE_TRIAL.md](docs/INTERNAL_TEAM_SELF_SERVE_TRIAL.md)
+> 与 [docs/templates/INTERNAL_TRIAL_REQUEST_TEMPLATE.md](docs/templates/INTERNAL_TRIAL_REQUEST_TEMPLATE.md)；
 > 反馈用 [docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md](docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md)
 > 提交结构化反馈（含 5 分钟极简版）。
 >

@@ -84,7 +84,12 @@ agent-tool-harness 是一个 **offline-first / deterministic / replay-first
 
 ## 2. 接入你自己项目的最小路径
 
+→ [INTERNAL_TEAM_SELF_SERVE_TRIAL.md](INTERNAL_TEAM_SELF_SERVE_TRIAL.md)
+（**内部小组自助试用入口**，10 个问题 Q&A，不依赖 maintainer）
 → [INTERNAL_TRIAL.md §3 接入你自己的工具和 eval](INTERNAL_TRIAL.md#3-接入你自己的工具和-eval)
+（更详细的字段说明）
+→ [docs/templates/INTERNAL_TRIAL_REQUEST_TEMPLATE.md](templates/INTERNAL_TRIAL_REQUEST_TEMPLATE.md)
+（**正式 trial 登记单**，含必填 redaction 自查）
 
 推荐顺序（**不要**一上来接整个项目）：
 
