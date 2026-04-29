@@ -247,6 +247,23 @@ Harness**。
     模板 §11 字段完整、不漏真实 secret。**未新增**任何 production code，
     主路径与 v0.1 证据链 / artifact / no-leak 契约不变。
 
+13. **(v2.x patch #13 / docs+test only)** First Real Trial Execution Plan ——
+    给 maintainer 在邀请第一位真实试用者前的 1 页运营自检包。
+    新增 ``docs/FIRST_REAL_TRIAL_EXECUTION_PLAN.md`` 9 节：试用目标（明确
+    不验证 v3.0 能力）、试用者选择标准、工具选择 13 条硬约束（不需 secret /
+    network / database / 真实数据 / HTTP-Shell / MCP / live judge）、试用前
+    maintainer 自检表、7 步真实 CLI 路径（``bootstrap`` → ``validate-generated
+    --strict-reviewed`` → ``run --mock-path good``，**绝不**让试用者跑
+    ``--live``）、反馈收集路径、failure artifact-first 11 行排查表 + 5 条
+    禁止动作、试用结束后 maintainer 操作（联动 FEEDBACK_TRIAGE_WORKFLOW §4）、
+    v3.0 Gate 仍关闭声明。回归测试 ``tests/test_first_real_trial_execution_plan.py``
+    11 个钉死契约：试用目标排除 v3.0 / 工具 13 硬约束 / 真实 CLI 命令名
+    （防止 ``validate-evals`` 等拼写误漂移）/ 显式禁 ``--live`` /
+    security 立即处置 / tag 等首份真实反馈 / v3.0 still 0/3 / 不引用
+    不存在子命令 / 关联 4 份配套文档真实存在 / 无真实 secret 字面。
+    **未新增**任何 production code，主路径与 v0.1 证据链 / artifact /
+    no-leak 契约不变。
+
 ---
 
 ## 阶段总览（详细表）
