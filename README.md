@@ -250,6 +250,21 @@ python -m agent_tool_harness.cli run \
 
 ## CLI 用法
 
+> **v2.x 一条命令 bootstrap（推荐新项目第一次接入用这个）**：
+> ```bash
+> python -m agent_tool_harness.cli bootstrap \
+>   --source path/to/your/tool_modules \
+>   --out my_team/ath-bootstrap
+> ```
+> 一条命令完成 scaffold-tools + scaffold-evals + scaffold-fixtures +
+> validate-generated，写出 `tools.generated.yaml` / `evals.generated.yaml` /
+> `fixtures/` / `validation_summary.json` / `REVIEW_CHECKLIST.md`。
+> 仍然 **不**执行用户代码 / **不**联网 / **不**调真实 LLM。
+> reviewer 跟 `REVIEW_CHECKLIST.md` 操作即可。详见
+> `agent_tool_harness/scaffold/bootstrap.py`。
+>
+> 如果想分步操作（高级用法），仍可用下面 4 条原子子命令：
+>
 > **v2.x bootstrap（可选，加速第一次接入）**：用 ast 静态扫描你的工具源码
 > 生成 draft `tools.yaml`（**绝不** import / 执行用户代码、不联网、不读 .env）：
 > ```bash

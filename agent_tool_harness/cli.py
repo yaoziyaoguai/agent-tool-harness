@@ -15,6 +15,7 @@ from agent_tool_harness.eval_generation.generator import EvalGenerator
 from agent_tool_harness.eval_generation.promoter import CandidatePromoter
 from agent_tool_harness.runner.eval_runner import EvalRunner
 from agent_tool_harness.scaffold import (
+    bootstrap_user_project,
     scaffold_evals_yaml,
     scaffold_fixtures_dir,
     scaffold_tools_yaml,
@@ -440,6 +441,40 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # v2.x User-Friendly Bootstrap Flow：把 scaffold-tools / scaffold-evals /
+    # scaffold-fixtures / validate-generated 4 步收束成 1 条命令，再写出
+    # REVIEW_CHECKLIST.md + validation_summary.json。详见
+    # agent_tool_harness/scaffold/bootstrap.py 顶层 docstring。
+    bootstrap = subparsers.add_parser(
+        "bootstrap",
+        help=(
+            "一条命令完成 scaffold-tools + scaffold-evals + scaffold-fixtures + "
+            "validate-generated，并在输出目录写 REVIEW_CHECKLIST.md。仍然 **不** "
+            "执行用户代码 / **不**联网 / **不**调 LLM。默认拒绝覆盖已有 --out（需 --force）。"
+        ),
+    )
+    bootstrap.add_argument(
+        "--source",
+        required=True,
+        help="待 ast 静态扫描的工具源码目录。",
+    )
+    bootstrap.add_argument(
+        "--out",
+        required=True,
+        help=(
+            "bootstrap 输出目录；包含 tools.generated.yaml / evals.generated.yaml /"
+            " fixtures/ / validation_summary.json / REVIEW_CHECKLIST.md。"
+        ),
+    )
+    bootstrap.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "允许覆盖（rm -rf）已存在的 --out。默认禁止，避免冲掉 "
+            "reviewer 已经手改的 reviewed 配置。"
+        ),
+    )
+
     return parser
 
 
@@ -522,6 +557,10 @@ def main(argv: list[str] | None = None) -> int:
                 evals=args.evals,
                 fixtures_dir=args.fixtures_dir,
                 strict_reviewed=args.strict_reviewed,
+            )
+        if args.command == "bootstrap":
+            return _bootstrap(
+                source=args.source, out=args.out, force=args.force
             )
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
@@ -828,6 +867,47 @@ def _validate_generated(
     )
     print(summary_line, file=sys.stderr)
     return 2 if report.status == "fail" else 0
+
+
+def _bootstrap(source: str, out: str, *, force: bool) -> int:
+    """v2.x User-Friendly Bootstrap Flow CLI 入口：4 步收束成 1 条命令。
+
+    职责
+    ----
+    - 调 :func:`bootstrap_user_project` 一次性写出 tools.generated.yaml /
+      evals.generated.yaml / fixtures/ / validation_summary.json /
+      REVIEW_CHECKLIST.md；
+    - stdout 打印 ``BootstrapReport`` 的 JSON-safe 摘要 + 一条 ``wrote``
+      行，便于 CI 抓字段；
+    - validation_status==fail 仍返回 exit 0（draft 阶段允许 fail，reviewer
+      改完再跑 ``validate-generated --strict-reviewed``）；只有当
+      bootstrap 本身抛 ConfigError / FileExistsError 时由 main() 处理。
+
+    不负责
+    ------
+    - **不**自动 ``audit-tools`` / ``audit-evals`` / ``run``（避免 reviewer
+      还没看就以为 PASS=工具/eval 真的合格，是反 misleading 的硬约束）；
+    - **不**联网 / **不**调真实 LLM / **不**读 ``.env`` / **不**执行用户
+      代码（继承 scaffold 子包不变量）；
+    - **不**自动 ``--strict-reviewed``（reviewer 必须显式声明改完 TODO）。
+    """
+    report = bootstrap_user_project(source, out, force=force)
+    payload = report.to_json_safe()
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    counts = report.validation.counts
+    todo_total = (
+        counts.get("todo_in_tools", 0)
+        + counts.get("todo_in_evals", 0)
+        + counts.get("todo_in_fixtures", 0)
+    )
+    print(
+        f"wrote bootstrap to {report.out_dir} "
+        f"(status={report.validation.status}, "
+        f"runnable_evals={counts.get('runnable_evals_count', 0)}, "
+        f"todo={todo_total})",
+        file=sys.stderr,
+    )
+    return 0
 
 
 def _load_judge_recording(path_str: str) -> dict:

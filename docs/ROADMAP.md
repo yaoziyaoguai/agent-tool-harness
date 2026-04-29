@@ -132,6 +132,13 @@ Harness**。
    `sample_tools.py`（安全纯函数）+ reviewed `tools/evals.yaml` + `project.yaml`，
    完整闭环 scaffold → validate → reviewed → `run --mock-path good` → 10 件套
    artifact。回归由 `tests/test_bootstrap_to_run_sample.py` 钉死。
+6. **`bootstrap --source <dir> --out <bootstrap_dir>`**（User-Friendly Bootstrap Flow）
+   一条命令完成上面 1-4 步，写出 `tools.generated.yaml` /
+   `evals.generated.yaml` / `fixtures/` / `validation_summary.json` /
+   `REVIEW_CHECKLIST.md`。仍 **不**执行用户代码 / **不**联网 / **不**调
+   LLM；默认拒绝覆盖 `--out`（需 `--force`）。
+   实现：`agent_tool_harness/scaffold/bootstrap.py`。回归：
+   `tests/test_user_friendly_bootstrap.py`。
 
 **安全契约**（被 `tests/test_bootstrap_pipeline_smoke.py` 钉死）：
 - scaffold 全程**不**执行用户代码：样本工程 `tests/fixtures/sample_tool_project/

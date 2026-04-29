@@ -36,6 +36,10 @@
 
 from __future__ import annotations
 
+from agent_tool_harness.scaffold.bootstrap import (
+    BootstrapReport,
+    bootstrap_user_project,
+)
 from agent_tool_harness.scaffold.from_python_ast import (
     ScaffoldedTool,
     scaffold_tools_yaml,
@@ -52,6 +56,8 @@ from agent_tool_harness.scaffold.validate_generated import (
 )
 
 __all__ = [
+    "BootstrapReport",
+    "bootstrap_user_project",
     "ScaffoldedTool",
     "scaffold_tools_yaml",
     "scan_python_module",
