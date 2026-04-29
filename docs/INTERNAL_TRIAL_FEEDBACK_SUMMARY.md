@@ -18,7 +18,7 @@
 | 项 | 当前值 |
 |---|---|
 | **真实**内部团队反馈数量 | **0** |
-| 维护者 dry-run 记录数（**不计入** 3 份门槛） | 1（见 [DOGFOODING_LOG "Maintainer dry-run record" 段](INTERNAL_TRIAL_DOGFOODING_LOG.md#maintainer-dry-run-record)） |
+| 维护者 dry-run 记录数（**不计入** 3 份门槛） | 2（[Maintainer dry-run record 段](INTERNAL_TRIAL_DOGFOODING_LOG.md#maintainer-dry-run-record) + [#1 internal dogfooding 走查记录段](INTERNAL_TRIAL_DOGFOODING_LOG.md#1-internal-dogfooding-走查记录maintainer-dry-runnon真实团队反馈)） |
 | 是否满足 v3.0 讨论门槛（≥3 份**真实团队**反馈 + 全部满足 4 项硬约束） | **否** |
 | **v3.0 状态** | **not started**（严格保持 backlog） |
 

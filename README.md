@@ -108,7 +108,13 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 
 ## 快速开始
 
-> 第一次接入的团队请先看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；
+> **内部小组试用（推荐先看）**：复制 5 条命令跑通 10-15 分钟最小闭环 →
+> [docs/INTERNAL_TRIAL_QUICKSTART.md](docs/INTERNAL_TRIAL_QUICKSTART.md)；
+> 完整接入路径见 [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)；
+> 拿自己的 AI Tool 自助跑见
+> [docs/INTERNAL_TEAM_SELF_SERVE_TRIAL.md](docs/INTERNAL_TEAM_SELF_SERVE_TRIAL.md)。
+>
+> 第一次接入的开发者团队可看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；
 > 想直接复制粘贴跑一遍 v0.2 完整闭环（含 `analyze-artifacts`）请看
 > [docs/TRY_IT.md](docs/TRY_IT.md)；
 > 常见坏配置对照表见 [examples/bad_configs/README.md](examples/bad_configs/README.md)。
@@ -336,7 +342,7 @@ python -m agent_tool_harness.cli replay-run \
   --out runs/demo-replayed-bad
 ```
 
-输出：与 `run` 命令一样的 9 个 artifact，但 `metrics.signal_quality =
+输出：与 `run` 命令一样的 10 个 artifact，但 `metrics.signal_quality =
 recorded_trajectory`，每条 `tool_call` / `tool_response` 都带
 `replayed_from = {source_run, source_timestamp}`，`transcript.jsonl` 顶部
 有一条 `runner.replay_summary` 事件标识本次为 replay。
@@ -348,7 +354,7 @@ recorded_trajectory`，每条 `tool_call` / `tool_response` 都带
 
 ## Artifacts
 
-每次 `run` 都会生成（即"完整跑一次 eval"才会有 9 个产物）：
+每次 `run` 都会生成（即"完整跑一次 eval"才会有 10 个产物）：
 
 - `transcript.jsonl`
 - `tool_calls.jsonl`
@@ -358,11 +364,12 @@ recorded_trajectory`，每条 `tool_call` / `tool_response` 都带
 - `audit_evals.json`
 - `judge_results.json`
 - `diagnosis.json`
+- `llm_cost.json`（v1.6 起 advisory-only 成本预估，**不是真实账单**；顶层 `estimated_cost_usd` 永远 `null`）
 - `report.md`
 
 这些文件用于复盘 Agent 的真实事件链路。失败时先看 `tool_calls.jsonl` 和 `tool_responses.jsonl`，再看 `judge_results.json` 与 `diagnosis.json`。
 
-> 其它 subcommand 各自只写**一个**文件——它们不是 `run`，不会生成 9 件套：
+> 其它 subcommand 各自只写**一个**文件——它们不是 `run`，不会生成 10 件套：
 > `audit-tools` → `audit_tools.json`；`audit-evals` → `audit_evals.json`；
 > `generate-evals` → 你 `--out` 指定的 candidates YAML；`promote-evals` → 你
 > `--out` 指定的 evals YAML。CLI 在 stdout 会明确打印 `wrote <path>` 自报实际产物。
@@ -460,7 +467,7 @@ run_metadata 解析契约也在同一文件。
   tool sequence、required tools 状态、forbidden first tool、max tool calls 违规、
   runtime/skipped 原因、可行动 next steps。
 - **Transcript-derived Diagnosis** / **Improvement Suggestions**。
-- **Artifacts**：列出 9 个文件并指向 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)。
+- **Artifacts**：列出 10 个文件并指向 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)。
 
 报告永远是派生视图。失败复盘必须回到 `transcript.jsonl` / `tool_calls.jsonl` /
 `tool_responses.jsonl` 三件套；详细 schema 见 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)。

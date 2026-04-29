@@ -172,6 +172,83 @@
 
 ---
 
+## #1 internal dogfooding 走查记录（maintainer dry-run，**非真实团队反馈**）
+
+> **Template only — not real team feedback.**
+> 这是本轮专门做的"模拟一个内部同事第一次使用"走查，用于验证当前 v2.0 /
+> v2.x patch 是否真的能支撑 10-15 分钟本地试用闭环。
+> **不计入** v3.0 触发门槛的 3 份团队反馈；**不**代表任何外部团队体验。
+> 真实团队请按上面 "试用记录模板" 追加新段，**不要**修改本段。
+
+### 元数据
+- 试用人 / 团队：maintainer dry-run（本地，#1 dogfooding 走查）
+- 日期：见对应 git commit 日期
+- 项目类型：repo 自带 `examples/runtime_debug/` demo
+- 接入的 tool 类型：runtime debug demo（非真实业务工具）
+- eval 数量：1
+- 是否 10-15 分钟内跑通 Quickstart：**是**（5 条命令一次性跑通；audit-tools /
+  run --bad / replay-run / analyze-artifacts / 看 report.md，全部成功，10 个
+  artifact 齐全）
+
+### 实跑命令清单（按 INTERNAL_TRIAL_QUICKSTART §1 顺序）
+- [x] `audit-tools --tools examples/runtime_debug/tools.yaml`
+- [x] `run --mock-path bad`
+- [x] `replay-run --run runs/dogfood-run-bad`
+- [x] `analyze-artifacts --run runs/dogfood-replay`
+- [x] `cat runs/dogfood-run-bad/report.md`
+- [x] `judge-provider-preflight --out runs/dogfood-preflight`（safe，`ready_for_live=false`）
+- [x] `audit-judge-prompts --prompts examples/judge_prompts.yaml`
+
+### 走查发现 / 修复（v2.x patch 范围内）
+1. **P0：ARTIFACTS.md / README §Artifacts 漏掉 `llm_cost.json`**——
+   v1.6 起 `run` 每次都写 10 个 artifact，但 `docs/ARTIFACTS.md` 总览段
+   仍写"九个 artifact / 下列九个文件"+表格只有 9 行，README §Artifacts
+   bullet 列表也只有 9 项。真实危害：用户按表格找 artifact 时会把
+   `llm_cost.json` 当"未文档化的多余文件"误删或来问 maintainer。
+   - **根因**：v1.6 加了 `llm_cost.json` artifact，但只在 ARTIFACTS.md
+     §"llm_cost.json (v1.6 新增)" 章节加了详细字段说明，没回头同步总览段
+     和 README 的"9 个"叙述。
+   - **本轮修复**：ARTIFACTS.md 总览段计数+表格行+多处"9 个 artifact"叙述
+     全部改为 10；README §Artifacts bullet 列表加 `llm_cost.json`；新增
+     `tests/test_run_artifact_doc_drift.py`（6 条）真跑一次 run 拿真实文件
+     名集合做反向校验，把这一类漂移钉死。
+2. **P1：README §快速开始第一行只指向 ONBOARDING.md（开发者路径），
+   没指向 INTERNAL_TRIAL_QUICKSTART.md（10-15min 试用路径）**——
+   内部小组照 README §快速开始 走会被引到开发者向 ONBOARDING，而不是
+   v2.0 试用 quickstart，绕路 5+ 分钟。
+   - **本轮修复**：README §快速开始 顶部 callout 优先显示 internal trial
+     quickstart / INTERNAL_TRIAL.md / SELF_SERVE_TRIAL 三个入口，再列
+     ONBOARDING / TRY_IT 给开发者向。
+
+### 仍未解决 / 仅入观察（不在本轮 v2.x patch 修）
+- **P2 only ROADMAP**：README 顶部 81 行 v0.1→v2.0 changelog 在内部试用入口
+  之前，新员工 30 秒视觉扫描里入口仍较远。彻底治理需要做 README §0
+  TL;DR 重排或拆 `CHANGELOG.md`，属重排不属补丁，本轮**不做**，写入
+  `docs/ROADMAP.md` v2.x readability backlog 待真实内部反馈出现后再决定。
+
+### v3.0 能力诉求
+1. 我需要 v3.0 的具体能力：**无**。dry-run 不能代表真实业务诉求。
+2. 当前 deterministic / offline 能力为什么不够：**N/A**（本轮仅验证
+   v2.x patch 文档/命令/artifact 完整性，未涉及任何真实业务场景）。
+3. 如果有 v3.0 能力，哪个真实问题能立刻被解决：**N/A**。
+4. 是否应独立开新仓库 / 新 milestone：**N/A**。
+
+### 安全 / no-leak 自查
+- ✅ 走查产生的 `runs/dogfood-*/` 已 grep 过，无 `sk-` / `Bearer` /
+  `Authorization` 字面值；
+- ✅ 没有读取真实 `.env`，没有调用真实 LLM，全程不联网；
+- ✅ 文档/测试改动里没有粘真实 key、Authorization header、完整请求体、
+  完整响应体、base_url 含 token、HTTP/SDK 原始异常长文本、真实公司路径。
+
+### 下一步
+- 需要至少 **1 名真实内部团队成员** 按 INTERNAL_TRIAL_QUICKSTART 跑一次，
+  填入"试用记录模板"段；maintainer dry-run 仍不计入 v3.0 门槛。
+- v3.0 still **not started**；触发条件仍为：≥ 3 份真实内部反馈明确指出
+  deterministic/offline/replay-first 能力不足。
+
+---
+
+
 ## 示例反馈格式（Example only — not real internal feedback）
 
 > ⚠️ **Example only — not real internal feedback.**

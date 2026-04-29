@@ -1,12 +1,12 @@
 # Artifact Schema 文档
 
 > 本文档面向真实 Agent 团队：在线上接入 agent-tool-harness 后，每次 `run` 都会向
-> `--out` 目录写下九个 artifact。这里集中说明字段、用途、失败时如何排查，避免读者
-> 把派生视图（report.md/metrics.json）当成一手证据。
+> `--out` 目录写下十个 artifact（v1.6 起新增 `llm_cost.json`）。这里集中说明字段、
+> 用途、失败时如何排查，避免读者把派生视图（report.md/metrics.json）当成一手证据。
 
 ## 总览
 
-每次 `agent_tool_harness.cli run` 都必然写入下列九个文件（即使 adapter 抛错、
+每次 `agent_tool_harness.cli run` 都必然写入下列十个文件（即使 adapter 抛错、
 ToolRegistry 初始化失败、eval 被 audit 判定不可运行，runner 也会兜底写完）。
 
 | 文件 | 类型 | 一句话职责 | 读者优先级（失败复盘） |
@@ -19,6 +19,7 @@ ToolRegistry 初始化失败、eval 被 audit 判定不可运行，runner 也会
 | `audit_evals.json` | JSON | EvalQualityAuditor 输出，含 runnable/findings | ★★ |
 | `judge_results.json` | JSON | RuleJudge 对每个 eval 的逐规则结果 | ★★ |
 | `diagnosis.json` | JSON | TranscriptAnalyzer 派生的失败现场摘要 | ★★ |
+| `llm_cost.json` | JSON | advisory-only 成本预估（v1.6 起每 run 必写；顶层 `estimated_cost_usd` 永远 `null`，**不是真实账单**） | ★ |
 | `report.md` | Markdown | 给人看的汇总视图，**不能替代上面三件套** | ★ |
 
 > 任何只看 `report.md` 或 `metrics.json` 就下结论的复盘都是危险的。raw artifacts
@@ -591,7 +592,7 @@ prompts:
 
 由 `python -m agent_tool_harness.cli analyze-artifacts --run RUN_DIR --tools TOOLS_YAML
 [--evals EVALS_YAML] --out OUT_DIR` 写出，是离线 trace-derived 信号复盘的产物，
-**与 9 个 run artifact 是不同概念**：
+**与 10 个 run artifact 是不同概念**：
 
 - `tool_use_signals.json` 字段：
   - `schema_version` / `run_metadata`（其中 `extra.command="analyze-artifacts"`）；
@@ -637,16 +638,16 @@ CLI 当前对外有三种"输出目录"，承接关系如下；任何一步**不
 
 ```
 run --out runs/A          (signal_quality=tautological_replay)
-   │  9 个 artifact，含 transcript / tool_calls / tool_responses / diagnosis / report
+   │  10 个 artifact，含 transcript / tool_calls / tool_responses / metrics / audit_tools / audit_evals / judge_results / diagnosis / llm_cost / report
    ▼
 replay-run --run runs/A --out runs/B   (signal_quality=recorded_trajectory，
    │                                    --source-run 与 --run 同义)
-   │  从 A 重放出新一份完整 9 个 artifact，PASS/FAIL 由当前规则重新评判，
+   │  从 A 重放出新一份完整 10 个 artifact，PASS/FAIL 由当前规则重新评判，
    │  但 Agent 行为严格来自 A 的 transcript（不调 LLM、不调真实工具）
    ▼
 analyze-artifacts --run runs/{A|B} --out runs/C
    │  离线 trace 信号复盘：写出 tool_use_signals.json + tool_use_signals.md，
-   │  与 run/replay 的 9 个 artifact 正交（不重新评判，只对 raw payload 做
+   │  与 run/replay 的 10 个 artifact 正交（不重新评判，只对 raw payload 做
    │  contract / 模式层信号挖掘）
 ```
 
@@ -662,11 +663,11 @@ artifact 而不必重跑 Agent。
 --project ... --tools ... --evals ... --out OUT_DIR` 写出（`--source-run` 是同义
 别名，与 `analyze-artifacts --run` 体验一致）。
 
-**与 9 个标准 run artifact 是同一套结构**——`replay-run` 把已有 run 当
+**与 10 个标准 run artifact 是同一套结构**——`replay-run` 把已有 run 当
 "录像带"deterministic 重放，输出目录里仍然是 `transcript.jsonl` /
 `tool_calls.jsonl` / `tool_responses.jsonl` / `metrics.json` /
 `audit_tools.json` / `audit_evals.json` / `judge_results.json` /
-`diagnosis.json` / `report.md` 一共 9 个 artifact，可以被 `analyze-artifacts`
+`diagnosis.json` / `llm_cost.json` / `report.md` 一共 10 个 artifact，可以被 `analyze-artifacts`
 和任何下游分析继续消费。
 
 但有 4 处与原 run 不同的标记，方便复盘者识别"这是 replay 不是真实 run"：
