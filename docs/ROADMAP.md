@@ -157,6 +157,23 @@ Harness**。
    gate 严格隔离）。回归：`tests/test_realistic_offline_tool_trial.py`。
    下一步是 **First real internal team trial**（still next，未启动）。
 
+10. **Anthropic-compatible live readiness — `.env.example` productionization**（done）：
+    `.env.example` 重写为生产化模板，强调本项目**只**读
+    ``AGENT_TOOL_HARNESS_LLM_*`` 4 个变量（**不**复用
+    ``ANTHROPIC_API_KEY`` / ``OPENAI_API_KEY`` 等通用名，避免和其他项目
+    key 串台），并在注释里列出阿里云 Coding Plan Anthropic-compatible
+    网关已知模型字符串作为参考。README 新增 "Optional：Anthropic-compatible
+    live preflight" 小节，把双标志 opt-in（`--live` +
+    `--confirm-i-have-real-key`）和 no-leak 5 条纪律（不写 key /
+    Authorization / 完整 prompt / 完整 response / SDK 原始异常）写在
+    用户面前。CLI 行为**0 改动**：`judge-provider-preflight` 仍然完全
+    本地、零网络；当用户尚未填 4 个变量时报告 `config_complete=false`
+    / `ready_for_live=false` 是**预期且安全的失败路径**，不是 bug。回归：
+    `tests/test_env_example_namespace_safety.py`（钉死命名空间隔离 +
+    模型名仅作为字符串字面量出现 + 不出现真实 base_url / 真实 key 形态）。
+    **v3.0 still backlog / not started**——本节只补文档与测试，**没有**
+    引入真实 live executor / MCP / Web UI。
+
 **安全契约**（被 `tests/test_bootstrap_pipeline_smoke.py` 钉死）：
 - scaffold 全程**不**执行用户代码：样本工程 `tests/fixtures/sample_tool_project/
   tools_unsafe.py` 顶层 `raise RuntimeError(...)` 是 canary，任何动态 import

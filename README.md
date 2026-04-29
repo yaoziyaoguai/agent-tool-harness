@@ -435,6 +435,15 @@ recorded_trajectory`，每条 `tool_call` / `tool_response` 都带
 
 `metrics.json` 和 `report.md` 顶部还会显示 `signal_quality`（默认值 `tautological_replay`），告诉你“本次 run 的 PASS/FAIL 信号到底是什么级别”。这是当前 MVP 与 Anthropic 文章方法论差距的显式标记，详见 `agent_tool_harness/signal_quality.py` 和 `docs/ROADMAP.md`。
 
+### Optional：Anthropic-compatible live preflight（v2.x，opt-in）
+
+> 本仓库**默认 0 联网、0 真实 LLM 调用**；以下是为愿意自费做 live readiness 自检的用户准备的可选路径。
+
+1. 复制模板：`cp .env.example .env`，把 4 个 `AGENT_TOOL_HARNESS_LLM_*` 变量填上你自己的 Anthropic-compatible 网关（如阿里云 Coding Plan）。变量命名空间**故意**与 `ANTHROPIC_API_KEY` 区分开，避免和别的项目的 key 串台；详见 `.env.example` 顶部学习型说明。
+2. 跑本地侧自检（**仍然不联网**）：`.venv/bin/python -m agent_tool_harness.cli judge-provider-preflight --out runs/preflight`。它只检查 4 个变量是否齐全 / `.gitignore` 是否忽略 `.env` / `.env.example` 是否仅含占位符 / 8 类 error taxonomy 是否脱敏，**不会**发任何网络请求。
+3. 真实 live judge smoke 必须**双标志 opt-in**：`run --judge-provider anthropic_compatible_live --live --confirm-i-have-real-key`，任一缺失自动降级到 `disabled_live_provider` advisory（零网络）。
+4. 任何 artifact / report / log **不会**写入 api_key / Authorization / 完整 prompt body / 完整 response body / 原始 SDK 异常长文本——这条 no-leak 边界由 69+ 条 contract test 钉死。`.env` 永远**不**提交到 git。
+
 ## 如何写自己的 tools.yaml
 
 工具描述应该像教新同事，而不是像给另一个函数写 API 注释。一个合格工具应说明：
