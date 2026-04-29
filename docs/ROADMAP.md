@@ -174,6 +174,51 @@ Harness**。
     **v3.0 still backlog / not started**——本节只补文档与测试，**没有**
     引入真实 live executor / MCP / Web UI。
 
+11. **Controlled live preflight + 3-model compatibility smoke**（done，real
+    network executed once on maintainer laptop）：在 maintainer 本地
+    `.env`（含 ``AGENT_TOOL_HARNESS_LLM_*`` 4 个变量，**未**提交）下，
+    用 ``examples/runtime_debug``（1 eval / mock-path good）+
+    ``--judge-provider anthropic_compatible_live --live
+    --confirm-i-have-real-key`` 对 3 个 Anthropic-compatible 模型
+    （``qwen3-coder-next`` / ``glm-5`` / ``kimi-k2.5``）各做了 1 次最小
+    live judge call。结果（脱敏摘要）：
+
+    | model              | deterministic | live judge | error_type   |
+    | ------------------ | ------------- | ---------- | ------------ |
+    | qwen3-coder-next   | PASS          | error      | bad_response |
+    | glm-5              | PASS          | error      | bad_response |
+    | kimi-k2.5          | PASS          | error      | bad_response |
+
+    **3/3 模型都走到了 8 类 error taxonomy 的 ``bad_response`` 脱敏路径**
+    （响应不符合 Anthropic Messages 严格格式，可能因为该网关实际是
+    OpenAI Chat Completions 兼容或厂商 native 格式 + Anthropic-compat 薄
+    shim）。**重要意义**：这是 v1.4 ``LiveAnthropicTransport`` 上线以来
+    第一次有真实 production endpoint 触发**真实失败路径**——它**意外地**
+    成了 v2.x release gate 的高质量 live no-leak 验证：
+
+    - api_key 字面值在所有 3 个 run 的所有 artifact 中出现次数：**0**
+    - base_url 字面值在所有 artifact 中出现次数：**0**
+    - ``Authorization`` / ``Bearer`` header 子串：**0**
+    - SDK / urllib 原始异常长 traceback：**0**（统一脱敏成中文短消息
+      "transport 返回不可解析的响应（bad_response，已脱敏）。"）
+    - 完整 response body：**0**（advisory artifact 只记 ``error_code`` /
+      ``model`` / ``provider`` 元数据）
+    - composite judge 的 deterministic part 仍正常 PASS（8/8 RuleJudge
+      check pass），证明 **live judge 失败不会污染 deterministic 信号**——
+      这是 v0.1 起就承诺的隔离边界。
+
+    **下一步用户行动建议**（仅供试用者，**不**改代码）：若希望 live
+    judge 真正 PASS，请向你的 Anthropic-compatible 网关确认它返回的
+    response envelope 是否严格符合 Anthropic ``content[].text`` 格式；
+    否则 ``bad_response`` 是预期且安全的失败。**v2.x 主线不会**为兼容
+    OpenAI Chat Completions / 厂商 native 格式新增 transport——那属
+    v3.0+ backlog（multi-format live judge），仍 not started。
+
+    回归测试覆盖：``tests/test_cli_anthropic_compatible_live.py`` 已用
+    fake transport 钉死了 ``_scan_no_leak`` artifact-级 key/url/header
+    扫描；本次 real-network 验证只是把同一不变量在生产 endpoint 下
+    再确认一次，**未新增**测试以避免引入网络依赖。
+
 **安全契约**（被 `tests/test_bootstrap_pipeline_smoke.py` 钉死）：
 - scaffold 全程**不**执行用户代码：样本工程 `tests/fixtures/sample_tool_project/
   tools_unsafe.py` 顶层 `raise RuntimeError(...)` 是 canary，任何动态 import
