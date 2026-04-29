@@ -14,6 +14,7 @@ from agent_tool_harness.eval_generation.candidate_writer import CandidateWriter
 from agent_tool_harness.eval_generation.generator import EvalGenerator
 from agent_tool_harness.eval_generation.promoter import CandidatePromoter
 from agent_tool_harness.runner.eval_runner import EvalRunner
+from agent_tool_harness.scaffold import scaffold_tools_yaml
 from agent_tool_harness.tools.registry import ToolRegistryError
 
 
@@ -318,6 +319,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="输出目录，将写入 audit_judge_prompts.json + audit_judge_prompts.md。",
     )
 
+    # v2.x 内部试用 bootstrap MVP：scaffold-tools 把"第一次接入手写 tools.yaml"
+    # 的成本压低。**只**做 ast 静态扫描，**绝不** import / exec 用户代码、
+    # **绝不**联网、**绝不**读 .env、**绝不**调真实 LLM。详见
+    # agent_tool_harness/scaffold/from_python_ast.py 顶层 docstring。
+    scaffold_tools = subparsers.add_parser(
+        "scaffold-tools",
+        help=(
+            "用 ast 静态扫描 --source 目录下顶层 def 函数，生成 draft tools.yaml；"
+            "所有需要业务语义的字段（when_to_use / output_contract / token_policy 等）"
+            "一律写 TODO。**绝不** import / 执行用户代码、**不**联网、**不**调 LLM。"
+            "默认禁止覆盖已有 --out（需 --force）。"
+        ),
+    )
+    scaffold_tools.add_argument(
+        "--source",
+        required=True,
+        help="待扫描的工具源码目录（仅静态 ast 分析；跳过 tests/ / __pycache__ / .venv 等）。",
+    )
+    scaffold_tools.add_argument(
+        "--out",
+        required=True,
+        help="draft tools.yaml 输出路径；文件头固定写 generated draft / review required。",
+    )
+    scaffold_tools.add_argument(
+        "--force",
+        action="store_true",
+        help="允许覆盖已存在的 --out（默认禁止，避免冲掉手写正式 tools.yaml）。",
+    )
+
     return parser
 
 
@@ -382,6 +412,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "audit-judge-prompts":
             return _audit_judge_prompts(prompts=args.prompts, out=args.out)
+        if args.command == "scaffold-tools":
+            return _scaffold_tools(
+                source=args.source, out=args.out, force=args.force
+            )
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
         # 避免把内部 traceback 推给真实团队；他们应该得到一条直接告诉他们改哪个字段
@@ -585,6 +619,35 @@ def _audit_judge_prompts(prompts: str, out: str) -> int:
     )
     print(f"wrote {out_dir / 'audit_judge_prompts.json'}")
     print(f"wrote {out_dir / 'audit_judge_prompts.md'}")
+    return 0
+
+
+def _scaffold_tools(source: str, out: str, *, force: bool) -> int:
+    """v2.x 内部试用 bootstrap CLI 入口：把 `python -m agent_tool_harness.cli scaffold-tools`
+    转成对 `scaffold_tools_yaml` 的调用，并把异常映射成 actionable 错误。
+
+    职责
+    ----
+    - 调用 ast 静态扫描器写出 draft tools.yaml；
+    - 在 stdout 打印 `wrote <out>` + tool 计数；
+    - 如 `--out` 已存在且未 `--force`，抛 FileExistsError，由 main() 转 exit 2。
+
+    不负责
+    ------
+    - **不**做任何 import / exec（这是 from_python_ast 的不变量）；
+    - **不**写 evals.yaml / project.yaml（v3.0 backlog 才考虑联动）；
+    - **不**读取 .env / 不联网 / 不调真实 LLM。
+
+    artifact 排查路径
+    -----------------
+    - 输出文件顶部固定写 `# generated draft / review required / does not
+      execute tools / does not read secrets / not production-approved`；
+    - 每个 tool 的 `metadata.scaffold_source` 字段指向源码 `path:line`，
+      reviewer 改完 TODO 后跑 `audit-tools` 验证字段完整性。
+    """
+    summary = scaffold_tools_yaml(source, out, force=force)
+    print(f"wrote {summary['out']}")
+    print(json.dumps(summary, ensure_ascii=False))
     return 0
 
 

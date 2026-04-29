@@ -250,6 +250,19 @@ python -m agent_tool_harness.cli run \
 
 ## CLI 用法
 
+> **v2.x bootstrap（可选，加速第一次接入）**：用 ast 静态扫描你的工具源码
+> 生成 draft `tools.yaml`（**绝不** import / 执行用户代码、不联网、不读 .env）：
+> ```bash
+> python -m agent_tool_harness.cli scaffold-tools \
+>   --source path/to/your/tool_modules \
+>   --out my_team/tools.draft.yaml
+> ```
+> 输出文件头固定写 `generated draft / review required / does not execute tools
+> / does not read secrets / not production-approved`；所有需要业务语义的字段
+> （`when_to_use` / `output_contract` / `token_policy` / `side_effects`）一律
+> 写 `TODO(reviewer):`。reviewer 补完 TODO → 跑 `audit-tools` 验证 → 才能用于
+> 正式 `run`。详见 `agent_tool_harness/scaffold/from_python_ast.py`。
+
 审计工具：
 
 ```bash
