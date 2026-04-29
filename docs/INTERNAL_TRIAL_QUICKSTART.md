@@ -11,7 +11,8 @@
 ```bash
 git clone https://github.com/yaoziyaoguai/agent-tool-harness.git
 cd agent-tool-harness && python -m venv .venv && source .venv/bin/activate
-pip install -e . && python -m pytest -q   # 预期：>= 400 passed, 1 xfailed
+pip install -e ".[dev]" && python -m pytest -q   # 预期：>= 400 passed, 1 xfailed
+# 注：必须带 [dev]，否则 pytest 不会被安装（它在 pyproject.toml 的 dev extras 里）。
 ```
 
 ## 1. 五条命令跑完最小闭环
@@ -73,7 +74,7 @@ cat runs/quickstart-run-bad/report.md
 | 工具被 Agent 选错 | `audit_tools.json` finding | `tool_calls.jsonl` |
 | eval 设计有问题 | `audit_evals.json` finding | `evals.yaml` 字段对照 |
 | judge 判定怪 | `judge_results.json` rationale | `report.md::Per-Eval Details` |
-| 想看成本 | `report.md::Cost Summary` | `llm_cost.json::totals`（顶层永远 null） |
+| 想看成本 | `llm_cost.json::totals`（顶层永远 null=advisory） | `report.md::Cost Summary`（**仅当** `project.yaml` 配置了 `pricing:` / `budget:` 时才渲染；runtime_debug 默认没配，所以这一段不会出现） |
 | advisory / live 没就绪 | `runs/<dir>/preflight.json::summary.ready_for_live` | actionable_hints |
 
 ## 4. 接下来

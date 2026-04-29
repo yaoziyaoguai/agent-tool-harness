@@ -79,8 +79,11 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > 端到端跑通**的离线优先 Agent Tool Evaluation Harness。第一次接入的内部
 > 团队请直接进入 [docs/INTERNAL_TRIAL_QUICKSTART.md](docs/INTERNAL_TRIAL_QUICKSTART.md)
 > 一页 5 条命令版（10-15 分钟最小闭环），完整版见
-> [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)；反馈用
-> [docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md](docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md)
+> [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)；想拿一份**统一启动包导航**
+> （把定位 / Quickstart / 接入 / 看结果 / 排查 / 命令 / 反馈 / 不包含能力 /
+> v3.0 触发条件 / 安全 9 区块串好的 umbrella 页）见
+> [docs/INTERNAL_TRIAL_LAUNCH_PACK.md](docs/INTERNAL_TRIAL_LAUNCH_PACK.md)；
+> 反馈用 [docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md](docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md)
 > 提交结构化反馈（含 5 分钟极简版）。
 >
 > v1.8 起 `project.yaml` 支持 advisory `pricing` + per-eval
