@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # v1.4 LiveAnthropicTransport 实现说明
 
 本文档负责什么

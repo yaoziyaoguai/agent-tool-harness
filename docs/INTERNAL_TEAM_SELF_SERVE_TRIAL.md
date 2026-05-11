@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # Internal Team Self-Serve Trial — 内部小组自助试用入口
 
 > **本文目标读者 = 公司内部小组成员**（不是 maintainer），想拿**自己的

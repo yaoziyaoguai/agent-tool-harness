@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # Try the v1.6 + v1.7 product flow — 完整试用指引
 
 > 这份文档面向"我刚 clone 仓库，想把 agent-tool-harness v1.6 / v1.7 的

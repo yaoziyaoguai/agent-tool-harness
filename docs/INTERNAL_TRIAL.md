@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # Internal Trial 指南 — 给公司内部小团队第一次试用的人
 
 > **TL;DR — 想立刻跑通最小闭环？请先读 [INTERNAL_TRIAL_QUICKSTART.md](INTERNAL_TRIAL_QUICKSTART.md)（一页 5 条命令，10-15 分钟）。**

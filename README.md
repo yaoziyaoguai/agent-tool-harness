@@ -24,7 +24,9 @@ Agent Tool Harness 目前是 **MVP**，与 Anthropic 文章方法论存在已知
 - **TraceSignalAnalyzer（v0.2 第三轮新增）也只是 deterministic 启发式**：从已有 `tool_calls.jsonl` / `tool_responses.jsonl` payload + `ToolSpec.output_contract` / `when_not_to_use` 复盘出 5 类信号（contract 缺 evidence/next_action / 大响应或截断无指引 / 同 args 重复调用 / when_not_to_use 词袋命中 ≥2）写入 `diagnosis.json` 的 `tool_use_signals` 字段。**不调 LLM、不调 MCP、不重新执行工具、不读自然语言语义**——同义词改写的禁用场景仍会漏。详见 `docs/ARCHITECTURE.md` Diagnose 段。
 - **真实 OpenAI/Anthropic adapter、MCP executor、HTTP/Shell executor、LLM Judge、from_transcripts/from_docs eval 生成、held-out 比较、Web UI 都属未来路线**。
 
-进度与能力边界以 `docs/ROADMAP.md` 为准；架构与失败归因以 `docs/ARCHITECTURE.md` 为准。
+进度与能力边界以 `docs/roadmap/ROADMAP.md` 为准；架构与失败归因以 `docs/architecture/TECHNICAL_ARCHITECTURE.md` 为准。
+里程碑总览见 `docs/roadmap/MILESTONES.md`；v2.0 之后的方向决策见 `docs/roadmap/NEXT_STEPS.md`。
+完整文档目录见 `docs/INDEX.md`。
 v0.1 release-ready 摘要见 [`RELEASE_NOTES_v0.1.md`](RELEASE_NOTES_v0.1.md)（commit `0dcb8e7`）。
 v0.2 release-ready 摘要见 [`RELEASE_NOTES_v0.2.md`](RELEASE_NOTES_v0.2.md)（trace-derived signals + analyze-artifacts CLI + TRY_IT product trial path）。
 v0.3 release-ready 摘要见 [`RELEASE_NOTES_v0.3.md`](RELEASE_NOTES_v0.3.md)（TranscriptReplayAdapter + replay-run CLI；deterministic recorded-trajectory replay）。

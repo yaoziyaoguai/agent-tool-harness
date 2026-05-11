@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # Internal Trial Launch Pack — 内部小团队试用启动包
 
 > **入口页（umbrella / 导航页）**。本文不重复 Quickstart 与完整版内容，

@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # First Internal Trial Handoff Pack
 
 > **面向**：第一个非维护者内部同事；**篇幅**：可在 10 分钟内读完；

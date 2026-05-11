@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # Push Readiness Summary — v2.x
 
 > **历史层文档**（保留作 historical reference + 被测试 pin 防 drift）。

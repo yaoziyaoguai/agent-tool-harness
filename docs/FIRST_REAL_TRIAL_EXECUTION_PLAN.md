@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # First Real Trial Execution Plan — 第一次真实试用执行包
 
 > **这是给 maintainer 用的一页执行包**，不是给试用者本人看的。

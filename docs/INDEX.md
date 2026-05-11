@@ -20,11 +20,25 @@
 
 | 想了解什么 | 看这一份 |
 |---|---|
-| 整个 harness 的架构与边界 | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| 这个项目是什么、给谁用、解决什么问题 | [`product/PRODUCT_INTENT.md`](product/PRODUCT_INTENT.md) |
+| 用户场景与人类 Review 介入点 | [`product/USER_SCENARIOS.md`](product/USER_SCENARIOS.md) |
+| 项目明确不做的事、依赖策略、安全边界 | [`product/PROJECT_CONSTRAINTS.md`](product/PROJECT_CONSTRAINTS.md) |
+| 产品架构（概念模型、数据流、系统边界） | [`architecture/PRODUCT_ARCHITECTURE.md`](architecture/PRODUCT_ARCHITECTURE.md) |
+| 技术架构（模块职责、接口稳定性分级） | [`architecture/TECHNICAL_ARCHITECTURE.md`](architecture/TECHNICAL_ARCHITECTURE.md) |
+| 模块边界与依赖规则 | [`architecture/MODULE_BOUNDARIES.md`](architecture/MODULE_BOUNDARIES.md) |
 | 9-10 件 artifact 各表示什么 | [`ARTIFACTS.md`](ARTIFACTS.md) |
 | 测试纪律与 strict xfail 制度 | [`TESTING.md`](TESTING.md) |
 | 接入 / 10 分钟路径 | [`ONBOARDING.md`](ONBOARDING.md) |
-| 进度与能力边界 | [`ROADMAP.md`](ROADMAP.md) |
+| 里程碑总览（v0.1 → v2.0 → v3.0 候选） | [`roadmap/MILESTONES.md`](roadmap/MILESTONES.md) |
+| v2.0 之后的下一步决策框架 | [`roadmap/NEXT_STEPS.md`](roadmap/NEXT_STEPS.md) |
+| 完整 Roadmap（工程日志） | [`roadmap/ROADMAP.md`](roadmap/ROADMAP.md) |
+| Scenario 设计（eval 用例数据模型与生成） | [`modules/SCENARIO_DESIGN.md`](modules/SCENARIO_DESIGN.md) |
+| Runner 设计（EvalRunner 编排逻辑） | [`modules/RUNNER_DESIGN.md`](modules/RUNNER_DESIGN.md) |
+| Evaluator 设计（RuleJudge + JudgeProvider） | [`modules/EVALUATOR_DESIGN.md`](modules/EVALUATOR_DESIGN.md) |
+| Reporter 设计（MarkdownReport + CostTracker） | [`modules/REPORTER_DESIGN.md`](modules/REPORTER_DESIGN.md) |
+| Tool Adapter 设计（AgentAdapter + ToolRegistry） | [`modules/TOOL_ADAPTER_DESIGN.md`](modules/TOOL_ADAPTER_DESIGN.md) |
+| Code Review / PR Review 通用检查清单 | [`review/ENGINEERING_REVIEW_CHECKLIST.md`](review/ENGINEERING_REVIEW_CHECKLIST.md) |
+| 历史文档审计与分类 | [`review/STALE_DOCS_AUDIT.md`](review/STALE_DOCS_AUDIT.md) |
 
 ---
 

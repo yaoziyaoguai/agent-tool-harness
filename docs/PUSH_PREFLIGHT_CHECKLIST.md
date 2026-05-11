@@ -1,3 +1,6 @@
+> [HISTORICAL] 本文档属于历史层，保留作为演进参考。新读者请通过 [docs/INDEX.md](INDEX.md) 查找 canonical 入口。
+> 标记日期：2026-05-11（Documentation Consolidation Milestone）
+
 # Push Preflight Checklist — v2.x
 
 > **面向**：维护者自己；**篇幅**：可在 5 分钟内执行完。
