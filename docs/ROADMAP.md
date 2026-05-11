@@ -29,38 +29,45 @@
 **当前 signal_quality 上限：** `tautological_replay`（mock replay）和
 `recorded_trajectory`（transcript replay）。这些不是真实 Agent 能力信号。
 
-## 下一步
+## 下一步（按三条 Track 组织）
 
-### Anthropic lineage repair and evaluation model alignment（当前）
-- 补齐 ANTHROPIC_LINEAGE.md 和 BACKLOG.md
-- 在所有核心文档中恢复 Anthropic 设计来源引用
-- 明确 mock replay ≠ real eval，deterministic rules ≠ LLM judge
-- 见 [BACKLOG.md](BACKLOG.md) P0
+三条 Track 的边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
+Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 
-### 强化当前 tool-design audit 信号（P1）
-- ToolDesignAuditor 覆盖更多边界 case，decoy 检测更精确
-- TranscriptAnalyzer failure attribution 验证和可读性提升
-- Bootstrap / scaffold UX 硬化（端到端 < 5s）
-- 见 [BACKLOG.md](BACKLOG.md) P1
+### Track A: Demo（当前可跑，维护不膨胀）
 
-### 定义 RealAgentAdapter / JudgeProvider / ProviderConfig spec（P2）
-- AgentAdapter Protocol 扩展为支持真实 LLM agentic loop（仅 spec）
-- JudgeProvider Protocol 定义完整语义评分接口（仅 spec）
-- ProviderConfig 定义 model / API key / base URL / budget 配置格式（仅 spec）
-- EvidenceStore Protocol 定义证据存储 / 查询 / 追溯接口（仅 spec）
-- Opt-in 安全模型设计文档（`--live --confirm-i-have-real-key`）
-- **不实现任何真实 LLM 调用**
-- 见 [BACKLOG.md](BACKLOG.md) P2
+| ID | 事项 | 状态 |
+|----|------|------|
+| A1 | README 区分 demo / prototype / future | in progress |
+| A2 | Mock replay 不被描述为 real eval | in progress |
+| A3 | Bootstrap / scaffold UX 硬化 | not started |
+| A4 | Demo ↔ Core 依赖审计（CLI 硬编码解耦） | not started |
+| A5 | examples/ 维护与 contract 同步 | not started |
 
-### Fake JudgeProvider 先行验证（P3）
-- 在接真实 LLM judge 之前，先用 fake provider 验证 JudgeProvider 接口
-- 见 [BACKLOG.md](BACKLOG.md) P3.1
+### Track B: Core / Harness（定义契约，当前优先）
 
-### opt-in 真实 LLM trial（P3，需 P2 全部完成）
-- 需要双标志：`--live --confirm-i-have-real-key`
-- 需要 4 个 env var
-- 仅限内部、有明确安全边界的环境
-- 见 [BACKLOG.md](BACKLOG.md) P3.2
+| ID | 事项 | 状态 |
+|----|------|------|
+| B1 | 提取 Core contracts 为显式层 | not started |
+| B2 | AgentAdapter Protocol 硬化 | not started |
+| B3 | JudgeProvider Protocol 硬化 | not started |
+| B4 | ToolExecutor Protocol spec | not started |
+| B5 | ProviderConfig spec | not started |
+| B6 | EvidenceStore spec | not started |
+| B7 | Core contract tests | not started |
+| B8 | Forbidden dependency tests | not started |
+
+### Track C: Real Integration（future，全部 blocked）
+
+| ID | 事项 | 状态 |
+|----|------|------|
+| C1 | Opt-in 安全模型 spec | not started |
+| C2 | Fake JudgeProvider 先行验证 | not started |
+| C3 | RealAgentAdapter skeleton | blocked (needs B2 + C1) |
+| C4 | Real provider opt-in | blocked (needs B5 + C1) |
+| C5 | Cost / latency evidence capture | blocked (needs B5 + C4) |
+| C6 | Deterministic + LLM judge 组合 | blocked (needs B3 + C4) |
+| C7 | LiveAnthropicTransport 验证或删除 | not started |
 
 ## 明确不做
 

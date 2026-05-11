@@ -7,22 +7,47 @@
 **Harness** = 把工具配置、执行、评测、证据收集、报告生成、人工 Review 串起来的
 执行与约束框架。它不是"调一下 API 看结果"的工具，而是强制执行完整评测链路的约束系统。
 
-## 2. 核心概念
+## 2. 核心概念：One Core Flow, two material sources
+
+Demo 和 Real 不是两套独立的流程。它们共用同一套 **Core Flow**——Harness 定义了
+对象、流程、接口和边界。Demo 使用假材料（mock adapter / fake fixture / sample
+evidence）跑 Core Flow，Real 未来使用真实材料（real agent / real tool call /
+live LLM judge）跑同一套 Core Flow。
 
 ```
-Config (YAML)
-  → Tool Adapter (Agent 工具调用)
-    → Runner (编排)
-      → Evaluator (判定)
-        → Reporter (报告)
-          → Evidence (证据)
-            → Human Review (人工审查)
-              → Decision (决策)
+                    Core Flow
+               （对象 + 流程 + 契约）
+              ┌──────────────────────┐
+              │  Config → Adapter    │
+              │    → Runner          │
+              │    → Evaluator       │
+              │    → Recorder        │
+              │    → Reporter        │
+              │    → Evidence        │
+              │    → Human Review    │
+              └──────┬───────────────┘
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+  ┌─────▼──────┐          ┌───────▼────────┐
+  │   Demo     │          │  Real (future) │
+  │ materials  │          │  materials     │
+  │            │          │                │
+  │ mock       │          │ live agent     │
+  │ fake       │          │ real tool call │
+  │ sample     │          │ LLM judge      │
+  │ RuleJudge  │          │ real cost      │
+  └────────────┘          └────────────────┘
 ```
 
 每一步都生成结构化 artifact，每一步的输入输出都可追溯。
 
-## 3. 当前实现链路
+详见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
+
+## 3. 当前实现链路（Demo materials on Core Flow）
+
+> 以下链路使用假材料（MockReplayAdapter、fake fixtures、RuleJudge）跑通 Core
+> Flow。**这不是另一套流程，而是同一套 Core Flow 的 demo 实例化。**
 
 ### Config → Spec
 
@@ -65,19 +90,20 @@ type checks），失败即拒绝。
 
 人工判断失败归因于：工具设计 / eval 设计 / Agent 路径 / 证据处理。
 
-## 4. 未来真实链路
+## 4. 未来真实链路（Real materials on Core Flow）
 
-```
-ProjectAdapter   → 适配用户项目的真实 runtime
-RealAgentAdapter → 调用真实 LLM (OpenAI/Anthropic/DeepSeek)
-ProviderConfig   → 模型配置 (API Key / Base URL / Model)
-JudgeProvider    → LLM judge (语义评分，替代 deterministic rules)
-EvidenceStore    → 结构化证据存储与追溯
-ReviewDecision   → 从人工 Review 到自动化决策
-```
+> 以下模块是 Real Integration 的扩展点。它们通过 Protocol 接口接入 Core Flow，
+> **不替代 Core、不修改 Core**。所有模块当前**均未实现**。
 
-> 这些模块当前**均未实现**。它们是未来独立设计的目标，**不允许**和当前
-> rule checks / mock replay 混成一个 evaluator 巨石。
+| 未来模块 | 接入方式 | 状态 |
+|---------|---------|------|
+| `RealAgentAdapter` | 实现 `AgentAdapter` Protocol | ❌ not supported |
+| `ProviderConfig` | 独立配置模块 | ❌ not supported |
+| `JudgeProvider` (live LLM) | 实现 `JudgeProvider` Protocol | ❌ not supported |
+| `EvidenceStore` | 替代 `RunRecorder` 的存储层 | ❌ not supported |
+| `ReviewDecision` | 从人工 Review 到自动化决策 | ❌ not supported |
+
+**不允许**把这些模块和当前 rule checks / mock replay 混成一个 evaluator 巨石。
 
 ## 5. 当前实现状态矩阵
 

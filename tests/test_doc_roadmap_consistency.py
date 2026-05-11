@@ -41,6 +41,9 @@ DOCS = [
     REPO_ROOT / "docs" / "CONFIGURATION.md",
     REPO_ROOT / "docs" / "PROJECT_INTEGRATION.md",
     REPO_ROOT / "docs" / "REVIEW_CHECKLIST.md",
+    REPO_ROOT / "docs" / "DEMO_CORE_REAL_BOUNDARY.md",
+    REPO_ROOT / "docs" / "ANTHROPIC_LINEAGE.md",
+    REPO_ROOT / "docs" / "BACKLOG.md",
 ]
 
 

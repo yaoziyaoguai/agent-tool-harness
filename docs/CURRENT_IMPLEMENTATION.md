@@ -48,6 +48,56 @@ agent-tool-harness v2.0.0 是一个 **Headless CLI Agent Tool Harness Prototype*
 | `LiveAnthropicTransport` | **代码存在但未验证** | 使用 stdlib http.client，从不对真实端点测试 |
 | `AnthropicCompatibleJudgeProvider` | **offline 模式可用，live 模式未验证** | live 模式需要双标志 + 4 个 env var |
 
+## 模块按 Demo / Core / Real 分类
+
+> 边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
+
+### Core candidate（定义契约、流程、对象——不依赖 demo 或真实 provider）
+
+| 模块 | 路径 | 职责 |
+|------|------|------|
+| Config / Spec | `config/` | ProjectSpec, ToolSpec, EvalSpec 定义 |
+| AgentAdapter Protocol | `agents/agent_adapter_base.py` | AgentAdapter + AgentRunResult |
+| JudgeProvider Protocol | `judges/provider.py` | JudgeProvider + ProviderJudgeResult |
+| ToolExecutor Protocol | `tools/executor_base.py` | 执行器接口 |
+| ToolRegistry | `tools/registry.py` | 工具注册与发现 |
+| EvalRunner | `runner/eval_runner.py` | 编排器（接受 adapter/judge 接口） |
+| RunRecorder | `recorder/run_recorder.py` | 10 个 artifact 写入契约 |
+| Artifact Schema | `artifact_schema.py` | schema_version + run_metadata |
+| Signal Quality | `signal_quality.py` | 5 级信号质量枚举 |
+| ToolDesignAuditor | `audit/tool_design_auditor.py` | 五类原则审计（不依赖 Agent runtime） |
+| EvalQualityAuditor | `audit/eval_quality_auditor.py` | eval 结构完整性 |
+| TranscriptAnalyzer | `diagnose/transcript_analyzer.py` | failure attribution（消费已记录事实） |
+| TraceSignalAnalyzer | `diagnose/trace_signal_analyzer.py` | trace 信号分析 |
+| MarkdownReport | `reports/markdown_report.py` | 报告渲染（消费 JSON artifact） |
+| CostTracker | `reports/cost_tracker.py` | 成本聚合（不区分数据源） |
+
+### Demo-only（假材料，教学和 smoke test）
+
+| 模块 | 路径 | 说明 |
+|------|------|------|
+| MockReplayAdapter | `agents/mock_replay_adapter.py` | good/bad 分支回放 |
+| TranscriptReplayAdapter | `agents/transcript_replay_adapter.py` | 历史轨迹重放 |
+| RuleJudge | `judges/rule_judge.py` | deterministic baseline（Core 接口的 Demo 实现） |
+| RuleJudgeProvider | `judges/provider.py` | RuleJudge 的 provider 包装 |
+| RecordedJudgeProvider | `judges/provider.py` | fixture 回放 |
+| CompositeJudgeProvider | `judges/provider.py` | 多 advisory 聚合 |
+| JudgePromptAuditor | `audit/judge_prompt_auditor.py` | judge prompt 审计 |
+| Bootstrap/Scaffold | `scaffold/` | AST 扫描生成 draft |
+| FakeTransport | `judges/provider.py` | fake HTTP transport (CI safe) |
+| examples/ | `examples/` | 教学样例数据 |
+
+### Real Integration 雏形或未验证代码
+
+| 模块 | 路径 | 状态 |
+|------|------|------|
+| LiveAnthropicTransport | `judges/provider.py` | ⚠️ code exists, unverified |
+| AnthropicCompatibleJudgeProvider | `judges/provider.py` | ⚠️ offline ok, live unverified |
+| JudgeProvider Preflight | `judges/preflight.py` | ⚠️ local only, 不联网 |
+
+> Real Integration 所有功能模块（RealAgentAdapter、ProviderConfig、
+> EvidenceStore、ReviewWorkflow）当前**均未实现**。
+
 ## 当前输出（10 个 artifact）
 
 `run` 命令每次输出：`transcript.jsonl`, `tool_calls.jsonl`, `tool_responses.jsonl`,

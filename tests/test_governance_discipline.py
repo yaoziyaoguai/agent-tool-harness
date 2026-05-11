@@ -47,6 +47,14 @@ def test_docs_preserve_core_invariants():
     harness_model = Path("docs/HEADLESS_HARNESS_MODEL.md").read_text(encoding="utf-8")
     current_impl = Path("docs/CURRENT_IMPLEMENTATION.md").read_text(encoding="utf-8")
     roadmap = Path("docs/ROADMAP.md").read_text(encoding="utf-8")
+    boundary = Path("docs/DEMO_CORE_REAL_BOUNDARY.md").read_text(encoding="utf-8")
+
+    # DEMO_CORE_REAL_BOUNDARY 必须定义核心边界
+    assert "One Core Flow" in boundary
+    assert "Forbidden dependencies" in boundary or "禁止" in boundary
+    assert "What belongs to Core" in boundary or "Core 负责" in boundary
+    assert "What belongs to Demo" in boundary or "Demo 负责" in boundary
+    assert "Real Integration" in boundary
 
     # HEADLESS_HARNESS_MODEL 必须保留架构边界
     assert "架构边界" in harness_model
@@ -57,10 +65,13 @@ def test_docs_preserve_core_invariants():
     # CURRENT_IMPLEMENTATION 必须诚实声明限制
     assert "当前不支持" in current_impl or "not supported" in current_impl.lower()
     assert "signal_quality" in current_impl.lower() or "tautological_replay" in current_impl.lower()
+    assert "Core candidate" in current_impl
+    assert "Demo-only" in current_impl
 
     # ROADMAP 必须明确阶段与边界
     assert "设计原则" in roadmap
     assert "明确不做" in roadmap or "暂不做" in roadmap
+    assert "Track A" in roadmap or "Track B" in roadmap
 
     # README 必须声明能力边界
     assert "What does not work yet" in readme or "不支持" in readme
