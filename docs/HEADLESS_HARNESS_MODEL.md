@@ -44,6 +44,8 @@ live LLM judge）跑同一套 Core Flow。
 
 详见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
 
+Core Contract 对象定义见 [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md)。
+
 ## 3. 当前实现链路（Demo materials on Core Flow）
 
 > 以下链路使用假材料（MockReplayAdapter、fake fixtures、RuleJudge）跑通 Core

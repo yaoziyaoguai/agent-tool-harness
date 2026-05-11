@@ -41,21 +41,26 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 | A1 | README 区分 demo / prototype / future | in progress |
 | A2 | Mock replay 不被描述为 real eval | in progress |
 | A3 | Bootstrap / scaffold UX 硬化 | not started |
-| A4 | Demo ↔ Core 依赖审计（CLI 硬编码解耦） | not started |
+| A4 | Demo ↔ Core 依赖审计（CLI 硬编码解耦） | done (2026-05-11) |
 | A5 | examples/ 维护与 contract 同步 | not started |
 
 ### Track B: Core / Harness（定义契约，当前优先）
 
 | ID | 事项 | 状态 |
 |----|------|------|
-| B1 | 提取 Core contracts 为显式层 | not started |
-| B2 | AgentAdapter Protocol 硬化 | not started |
+| B1 | 提取 Core contracts 为显式层 | in progress (2026-05-11) |
+| B2 | AgentAdapter Protocol 硬化 | in progress (Agent2HarnessAdapter defined) |
 | B3 | JudgeProvider Protocol 硬化 | not started |
 | B4 | ToolExecutor Protocol spec | not started |
 | B5 | ProviderConfig spec | not started |
 | B6 | EvidenceStore spec | not started |
-| B7 | Core contract tests | not started |
-| B8 | Forbidden dependency tests | not started |
+| B7 | Core contract tests | in progress (19 tests) |
+| B8 | Forbidden dependency tests | in progress (AST-based check) |
+
+**Track B 最新进展（2026-05-11）：** `agent_tool_harness/core_contract.py` 新增 10 个
+Core dataclass + Agent2HarnessAdapter Protocol，`docs/AGENT2HARNESS_CORE_SPEC.md` 定义
+完整 Core Spec（10 节），`tests/test_core_contract.py` 含 19 个 contract test。
+详见 commit 记录和 [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md)。
 
 ### Track C: Real Integration（future，全部 blocked）
 

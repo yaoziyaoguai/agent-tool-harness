@@ -60,12 +60,17 @@
 > Core 不 import examples，不读 .env，不知道 OpenAI/Anthropic/DeepSeek。
 
 ### B1. Extract Core contracts as explicit layer
-- **Status**: not started
+- **Status**: in progress (2026-05-11: core_contract.py created, see AGENT2HARNESS_CORE_SPEC.md)
 - **Why**: 当前 Core 对象和流程散落在各模块中，没有显式的"这里是 Core"标记
 - **Acceptance**:
   - Core 模块清单文档化（见 CURRENT_IMPLEMENTATION.md 的模块分类）
   - Core Protocol 接口集中的 `core/` 或明确的模块内标注
-- **Not doing**: 不移动源码文件（除非必要）；不修改 Core 行为
+  - [x] `core_contract.py` — 10 个运行时 dataclass + Agent2HarnessAdapter Protocol
+  - [x] `AGENT2HARNESS_CORE_SPEC.md` — Core Spec 文档（10 节）
+  - [x] `test_core_contract.py` — 19 个 contract test
+  - [ ] 现有 Demo adapter 适配 Core Contract（后续轮次）
+  - [ ] EvalRunner 消费 Core Contract（后续轮次）
+- **Not doing**: 不移动源码文件（除非必要）；不修改 Core 行为；本轮不迁移现有 adapter
 
 ### B2. AgentAdapter Protocol hardening
 - **Status**: not started
@@ -101,21 +106,27 @@
 - **Not doing**: 不替换当前 RunRecorder
 
 ### B7. Core contract tests
-- **Status**: not started
+- **Status**: in progress (2026-05-11: 19 contract tests in test_core_contract.py)
 - **Why**: 当前没有显式的"这是 contract test"标记
 - **Acceptance**:
   - 所有 Protocol 有对应的 contract test（测试接口而非实现）
   - Contract tests 在 CI 中跑（0 联网）
+  - [x] Agent2HarnessAdapter Protocol 的 contract test
+  - [x] 所有 Core dataclass 的 immutability / 聚合测试
+  - [x] Core 不 import demo/cli/provider 的 forbidden dependency 测试
+  - [ ] JudgeProvider Protocol contract test（后续轮次）
+  - [ ] ToolExecutor Protocol contract test（后续轮次）
 - **Not doing**: 不替换现有测试
 
 ### B8. Forbidden dependency tests
-- **Status**: not started
+- **Status**: in progress (2026-05-11: AST-based dependency check in test_core_contract.py)
 - **Why**: 当前没有自动化检查 Core 是否依赖了 Demo 或 Real
 - **Acceptance**: 测试验证：
-  - Core 模块不 import `examples/`
-  - Core 模块不 import `mock_replay_adapter`
-  - Core 模块不 import `LiveAnthropicTransport`
-  - Core 模块不读取 `.env`
+  - [x] Core 模块不 import `examples/`
+  - [x] Core 模块不 import `mock_replay_adapter`
+  - [x] Core 模块不 import `LiveAnthropicTransport`
+  - [x] Core 模块不读取 `.env`
+  - [ ] 扩展到所有 config/ 模块（后续轮次）
 - **Not doing**: 不修改现有 import 结构（先检测，后修复）
 
 ---
