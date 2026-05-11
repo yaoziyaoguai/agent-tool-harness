@@ -93,4 +93,4 @@ cat runs/quickstart-run-bad/report.md
 - `llm_cost.json` 是 advisory，**永远不是真实账单**，以 provider 官方
   console 为准；
 - 真实 live LLM Judge / MCP / HTTP / Shell / Web UI **当前不做**，
-  v2.0 不包含，详见 `docs/ROADMAP.md` "v2.0 不包含" 段。
+  v2.0 不包含，详见 `docs/roadmap/ROADMAP.md` "v2.0 不包含" 段。

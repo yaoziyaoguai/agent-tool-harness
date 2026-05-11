@@ -43,6 +43,6 @@ def test_readme_and_architecture_link_artifact_doc():
     """README 与 ARCHITECTURE 必须引用 ARTIFACTS.md，避免它成为孤岛文档。"""
 
     readme = Path("README.md").read_text(encoding="utf-8")
-    architecture = Path("docs/ARCHITECTURE.md").read_text(encoding="utf-8")
+    architecture = Path("docs/architecture/TECHNICAL_ARCHITECTURE.md").read_text(encoding="utf-8")
     assert "docs/ARTIFACTS.md" in readme or "ARTIFACTS.md" in readme
     assert "ARTIFACTS.md" in architecture

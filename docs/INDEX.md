@@ -10,9 +10,9 @@
 | 角色 | 看 1 份 canonical | 然后看 1 份 fallback | 其它一律先不看 |
 |---|---|---|---|
 | **第一次跑 harness 的内部团队同事**（试用者） | [`INTERNAL_TRIAL_QUICKSTART.md`](INTERNAL_TRIAL_QUICKSTART.md) — 5 行命令跑通 | [`INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md`](INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md) — 跑完填反馈 | 别的 INTERNAL_TRIAL_*.md 都是历史层 |
-| **第一次给非维护者发邀请的 maintainer** | [`FIRST_REAL_TRIAL_EXECUTION_PLAN.md`](FIRST_REAL_TRIAL_EXECUTION_PLAN.md) — 1 页执行包 | [`PUSH_PREFLIGHT_CHECKLIST.md`](PUSH_PREFLIGHT_CHECKLIST.md) §② 复制中文 IM 直接发 | FIRST_INTERNAL_TRIAL_HANDOFF 是详细背景，可选 |
+| **第一次给非维护者发邀请的 maintainer** | [`INTERNAL_TRIAL_QUICKSTART.md`](INTERNAL_TRIAL_QUICKSTART.md) — 了解试用者会看到什么 | [`FEEDBACK_TRIAGE_WORKFLOW.md`](FEEDBACK_TRIAGE_WORKFLOW.md) — 提前准备反馈分流流程 | FIRST_INTERNAL_TRIAL_HANDOFF / FIRST_REAL_TRIAL_EXECUTION_PLAN 等是历史层，保留供参考 |
 | **收到反馈、要做分流的 maintainer** | [`FEEDBACK_TRIAGE_WORKFLOW.md`](FEEDBACK_TRIAGE_WORKFLOW.md) — 5 桶决策表 | [`INTERNAL_TRIAL_FEEDBACK_SUMMARY.md`](INTERNAL_TRIAL_FEEDBACK_SUMMARY.md) — 真实反馈数与 v3.0 gate | DOGFOODING_LOG 是历史/dry-run 记录，仅追加 |
-| **决定要不要 tag / release 的 maintainer** | [`V2_X_RELEASE_CANDIDATE_NOTES.md`](V2_X_RELEASE_CANDIDATE_NOTES.md) — 封板判断 | [`ROADMAP.md`](ROADMAP.md) — 完整阶段表 | 历史 RELEASE_NOTES_v*.md 仅 archive |
+| **决定要不要 tag / release 的 maintainer** | [`V2_X_RELEASE_CANDIDATE_NOTES.md`](V2_X_RELEASE_CANDIDATE_NOTES.md) — 封板判断 | [`roadmap/ROADMAP.md`](roadmap/ROADMAP.md) — 完整阶段表 | 历史 RELEASE_NOTES_v*.md 仅 archive |
 
 ---
 

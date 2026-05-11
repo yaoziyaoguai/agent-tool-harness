@@ -53,7 +53,7 @@
 - **谁**：Review 工具设计和 eval 质量的人——可能是 TL、架构师或 on-call reviewer
 - **痛点**：Agent 的行为难以复盘——最终回答看起来对，但工具调用链路可能完全错误（用了错误工具、跳过了关键步骤、证据来自不该用的工具）
 - **使用方式**：读 `report.md` 看评估摘要 → 回到 `transcript.jsonl` / `tool_calls.jsonl` / `tool_responses.jsonl` 三件套复盘子路径 → 用 `analyze-artifacts` 离线复盘 trace 信号
-- **关键文档**：`docs/ARTIFACTS.md`、`docs/ARCHITECTURE.md` §失败归因流程
+- **关键文档**：`docs/ARTIFACTS.md`、`docs/architecture/TECHNICAL_ARCHITECTURE.md` §失败归因流程
 
 ### 当前阶段**不是**为以下用户设计的
 
@@ -75,7 +75,7 @@
 
 **现状**：真实 AI Agent 的行为是非确定性的——同一个 prompt，两次运行可能选择不同工具、不同参数顺序。这导致"这次 Agent 用对了工具"无法被固化成一个可复现的评估。
 
-**Harness 的解法**：使用 deterministic mock replay（`MockReplayAdapter`），把 eval 中声明的期望工具调用路径直接回放，产生完全可复现的 PASS/FAIL 信号。同时通过 `signal_quality: tautological_replay` 诚实披露"这不是真实 Agent 行为"。（详见 `docs/ARCHITECTURE.md` §信号质量披露）
+**Harness 的解法**：使用 deterministic mock replay（`MockReplayAdapter`），把 eval 中声明的期望工具调用路径直接回放，产生完全可复现的 PASS/FAIL 信号。同时通过 `signal_quality: tautological_replay` 诚实披露"这不是真实 Agent 行为"。（详见 `docs/architecture/TECHNICAL_ARCHITECTURE.md` §信号质量披露）
 
 ### 问题 3：失败无法归因
 

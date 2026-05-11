@@ -101,7 +101,7 @@ generate-evals --source tools|tests
 
 CLI **不提供**交互式 reviewer，但 P1B 已落地非交互 promoter；它只做"已审核条目
 机械搬运 + 硬约束二次校验"，不做 audit、不改 prompt、不替人决定，也不 fallback
-（任何缺字段都拒绝该候选并写明 reason）。完整能力边界见 `docs/ROADMAP.md` 中
+（任何缺字段都拒绝该候选并写明 reason）。完整能力边界见 `docs/roadmap/ROADMAP.md` 中
 "v0.1 — 最小 harness 跑起来" 一节关于 candidate review / promote-evals 的说明，以及
 v0.2 backlog 中标注为"P1B"的 promoter 根因约束。
 
@@ -137,7 +137,7 @@ v0.2 候选 A 已新增 `right_tools.shallow_wrapper`（捷径话术诱饵）/
 仍然存在的根因型 gap：当诱饵工具**字段齐全 + 无捷径话术 + 用完全不同词汇描述与主
 工具同一职责**时（词袋几乎不重合），deterministic 启发式仍判 5.0 满分。这一 gap
 由 `tests/test_tool_design_audit_subtle_decoy_xfail.py` 用 strict xfail 钉根因，
-转正条件需要 transcript-based 工具调用样本或 LLM judge——详见 `docs/ROADMAP.md`。
+转正条件需要 transcript-based 工具调用样本或 LLM judge——详见 `docs/roadmap/ROADMAP.md`。
 
 `EvalQualityAuditor` 审计 eval 是否真实、多步、可验证、不过拟合唯一策略，并检查 split/fixture/runnable。
 
@@ -267,7 +267,7 @@ provider_error`）+ `_safe_message` 模板化错误消息（绝不 echo raw exce
 （artifact 中 entry.error.type=`missing_config`）。新增 8 条契约测试
 `tests/test_anthropic_compatible_provider.py` 钉死：6 类错误脱敏 / 配置
 不泄漏 / artifact 不泄漏 fake key/base_url / monkeypatch 禁 socket 仍跑通。
-详见 `docs/ROADMAP.md` v1.x 第二轮段、`.env.example` 占位符。
+详见 `docs/roadmap/ROADMAP.md` v1.x 第二轮段、`.env.example` 占位符。
 
 **v1.x 第三轮 / v1.4**：新增 `agent_tool_harness/judges/preflight.py` +
 `judge-provider-preflight` CLI —— 真实 LLM judge live **之前**的"本地侧
@@ -299,7 +299,7 @@ fake fixture > LiveAnthropicTransport(双标志) > 永远先过 `missing_config`
 `TranscriptAnalyzer` 把 raw artifacts（transcript / tool_calls / tool_responses /
 judge_results / audit_tools / audit_evals）交叉关联，派生 **failure attribution**：
 每条 finding 含 `type / severity / category / evidence_refs / why_it_matters /
-suggested_fix / related_tool_or_eval`。当前共 11 类 finding，落到四个 category：
+suggested_fix / related_tool_or_eval`。当前共 12 类 finding，落到四个 category：
 
 - `tool_design`：工具描述/契约/audit 信号弱（`audit_signal_low` 等）。
 - `eval_definition`：eval 写得不完整或 audit 判 not_runnable

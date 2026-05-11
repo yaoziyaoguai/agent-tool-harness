@@ -20,7 +20,7 @@
 | **v1.6** | ✅ 已完成 | Retry/backoff + cost + judge prompt audit | `v1.6` | retry/backoff + llm_cost.json + audit-judge-prompts CLI |
 | **v1.7** | ✅ 已完成 | Product hardening + release-readiness | `v1.7` | artifact consistency + doc/CLI drift 防回归 + TRY_IT_v1.7 |
 | **v2.0** | ✅ 已完成 | Internal Trial Ready | `v2.0` | bootstrap + internal trial 文档 + feedback loop |
-| **Doc Consolidation** | 🔵 当前 | 文档收口里程碑 | （未 tag） | 补齐产品/架构/约束/Roadmap/Milestone/模块文档 |
+| **Doc Consolidation** | ✅ 已完成 | 文档收口里程碑 | `cf9831c` | 补齐产品/架构/约束/Roadmap/Milestone/模块文档 |
 | **v2.x patch** | ⏳ 候选 | 内部试用反馈驱动的小版本 | 未来 | 取决于真实反馈内容 |
 | **v3.0** | ⏳ 候选 | 真实 LLM judge + MCP executor + Web UI | 未来 | 触发条件：≥3 份真实非维护者反馈 |
 
@@ -34,23 +34,27 @@
 
 ### 完成定义（Definition of Done）
 
-- [ ] `docs/product/PRODUCT_INTENT.md` 创建并通过人工 Review
-- [ ] `docs/product/USER_SCENARIOS.md` 创建并通过人工 Review
-- [ ] `docs/product/PROJECT_CONSTRAINTS.md` 创建并通过人工 Review
-- [ ] `docs/architecture/PRODUCT_ARCHITECTURE.md` 创建并通过人工 Review
-- [ ] `docs/architecture/TECHNICAL_ARCHITECTURE.md` 迁移并增强（+ 接口稳定性分级）
-- [ ] `docs/architecture/MODULE_BOUNDARIES.md` 创建并通过人工 Review
-- [ ] `docs/roadmap/ROADMAP.md` 迁移（保留全部内容）
-- [ ] `docs/roadmap/MILESTONES.md` 创建（从 ROADMAP 提炼）
-- [ ] `docs/roadmap/NEXT_STEPS.md` 创建
-- [ ] `docs/modules/` 下 5 份模块设计文档创建
-- [ ] `docs/review/ENGINEERING_REVIEW_CHECKLIST.md` 创建
-- [ ] `docs/review/STALE_DOCS_AUDIT.md` 创建
-- [ ] `docs/INDEX.md` 更新新目录结构导航
-- [ ] `README.md` 更新文档链接
-- [ ] 10 份历史层文档标记 `[HISTORICAL]`
-- [ ] `git diff --check` 干净
-- [ ] 无遗留 `TODO` / `TBD` / `待补充`（除非明确标注为未来工作）
+- [x] `docs/product/PRODUCT_INTENT.md` 创建并通过人工 Review
+- [x] `docs/product/USER_SCENARIOS.md` 创建并通过人工 Review
+- [x] `docs/product/PROJECT_CONSTRAINTS.md` 创建并通过人工 Review
+- [x] `docs/architecture/PRODUCT_ARCHITECTURE.md` 创建并通过人工 Review
+- [x] `docs/architecture/TECHNICAL_ARCHITECTURE.md` 迁移并增强（+ 接口稳定性分级）
+- [x] `docs/architecture/MODULE_BOUNDARIES.md` 创建并通过人工 Review
+- [x] `docs/roadmap/ROADMAP.md` 迁移（保留全部内容）
+- [x] `docs/roadmap/MILESTONES.md` 创建（从 ROADMAP 提炼）
+- [x] `docs/roadmap/NEXT_STEPS.md` 创建
+- [x] `docs/modules/` 下 5 份模块设计文档创建
+- [x] `docs/review/ENGINEERING_REVIEW_CHECKLIST.md` 创建
+- [x] `docs/review/STALE_DOCS_AUDIT.md` 创建
+- [x] `docs/INDEX.md` 更新新目录结构导航
+- [x] `README.md` 更新文档链接
+- [x] 10 份历史层文档标记 `[HISTORICAL]`
+- [x] `git diff --check` 干净
+- [x] 无遗留 `TODO` / `TBD` / `待补充`（除非明确标注为未来工作）
+
+**验证方式**：DoD 达成情况由独立 Coding Agent 于 2026-05-11 完成只读审计（审计报告见 plan `ai-agent-robust-tiger.md`），审计确认所有 17 项全部完成。审计发现 5 个 P0/P1 收口问题（版本号不一致、INDEX.md 路由至 HISTORICAL 文档、finding type 计数不一致、旧路径引用），于 `docs: fix consolidation audit findings` commit 修复。
+
+**完成日期**：2026-05-11
 
 ### 验收标准
 

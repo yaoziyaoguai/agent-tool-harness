@@ -73,7 +73,7 @@ def test_roadmap_xfail_section_points_to_real_test() -> None:
     这里用启发式做最小校验：扫描 ROADMAP 中所有 ``tests/...py`` 路径以及
     ``::test_xxx`` 函数引用，对照仓库实际 ``tests/`` 文件 + AST 函数定义。
     """
-    roadmap = _read(REPO_ROOT / "docs" / "ROADMAP.md")
+    roadmap = _read(REPO_ROOT / "docs" / "roadmap" / "ROADMAP.md")
     # 仅取 §xfail 测试 一节的内容（避免把 candidate A 分支段落也卷进来）
     section_marker = "## xfail 测试"
     assert section_marker in roadmap, "ROADMAP 应有 '## xfail 测试' 章节"

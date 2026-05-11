@@ -17,7 +17,7 @@
 > 3. **`ToolDesignAuditor` 不是语义级审计。** 它检查命名/描述/契约是否齐全，不会判断
 >    "这套工具能不能完成业务"。强语义审计需要人工 review，框架只把候选 evals 标 `review_status="candidate"` 等你审。
 >
-> 不在 MVP 范围内的能力请见 [docs/ROADMAP.md](./ROADMAP.md)。
+> 不在 MVP 范围内的能力请见 [docs/roadmap/ROADMAP.md](./roadmap/ROADMAP.md)。
 
 ---
 
@@ -219,6 +219,6 @@ python -m agent_tool_harness.cli analyze-artifacts \
 - 想直接复制粘贴跑一遍 v0.2 完整闭环（含 `analyze-artifacts`）→ [`docs/TRY_IT.md`](./TRY_IT.md)。
 - 想接真实 LLM？写一个 `AgentAdapter` 子类挂上去。**不要修改核心框架去耦合某家 SDK。**
 - 想看常见错误对照？读 `examples/bad_configs/README.md`。
-- 想知道哪些路线尚未实现？读 [docs/ROADMAP.md](./ROADMAP.md)。
+- 想知道哪些路线尚未实现？读 [docs/roadmap/ROADMAP.md](./roadmap/ROADMAP.md)。
 - 想知道每个 artifact 字段含义？读 [docs/ARTIFACTS.md](./ARTIFACTS.md)。
 - 想了解测试纪律？读 [docs/TESTING.md](./TESTING.md)。

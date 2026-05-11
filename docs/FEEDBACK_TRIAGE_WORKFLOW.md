@@ -127,7 +127,7 @@
 4. 跑 §2 决策表，给出 5 类之一；
 5. 按 §3 决定：
    - v2.x patch → 开 1 个小 patch + 补回归测试 + 不引入新依赖；
-   - v3.0 backlog candidate → 入 `docs/ROADMAP.md` v3.0 backlog 区，**不**启动；
+   - v3.0 backlog candidate → 入 `docs/roadmap/ROADMAP.md` v3.0 backlog 区，**不**启动；
    - closed-as-design → 在反馈条目加 1 句"为什么不做 + 设计依据链接"；
    - needs-more-evidence → 回反馈人；
    - security-blocker → 走 §3 security-blocker 6 步。

@@ -26,7 +26,7 @@
   钉住 deterministic 启发式的根本限制：当诱饵工具**字段齐全 + 无捷径话术 + 用完全
   不同词汇描述与主工具同一职责**时（词袋 Jaccard 远低于 0.4 阈值），`shallow_wrapper`
   / `semantic_overlap` 都不会触发，auditor 仍判 5.0 满分。转正需要 transcript-based
-  工具调用样本或 LLM judge——详见 `docs/ROADMAP.md`。
+  工具调用样本或 LLM judge——详见 `docs/roadmap/ROADMAP.md`。
   历史背景：v0.1 期间的 `tests/test_tool_design_audit_decoy_xfail.py` 已被 v0.2 候选 A
   解决（`right_tools.shallow_wrapper` + `right_tools.semantic_overlap`）并转正为
   `tests/test_tool_design_audit_decoy.py` 普通 passing 测试；剩余更深一层的诱饵
@@ -56,7 +56,7 @@
 - adapter 没声明时必须兜底 `unknown` 而不是裸崩。
 
 任何修改 `signal_quality` 等级或披露行为的改动都必须同步更新这组测试和
-`docs/ROADMAP.md` 的“信号质量”章节。
+`docs/roadmap/ROADMAP.md` 的“信号质量”章节。
 
 ## 改测试前的判断顺序
 

@@ -138,7 +138,7 @@ Agent 实际发出的工具调用流水。每行一条。
 排查指引：
 
 - `signal_quality == tautological_replay` 时，PASS/FAIL **不能**作为“工具对真实
-  Agent 好用”的证据，详见 `agent_tool_harness/signal_quality.py` 与 `docs/ROADMAP.md`。
+  Agent 好用”的证据，详见 `agent_tool_harness/signal_quality.py` 与 `docs/roadmap/ROADMAP.md`。
 
 ## audit_tools.json
 
@@ -185,7 +185,7 @@ Agent 实际发出的工具调用流水。每行一条。
   解决并转正为 `tests/test_tool_design_audit_decoy.py`；剩余更深一层
   "字段齐全 + 无捷径话术 + 用完全不同词汇描述同一职责" 的诱饵 gap 由
   `tests/test_tool_design_audit_subtle_decoy_xfail.py` 用 strict xfail 钉
-  根因，转正条件需 transcript / LLM judge，详见 `docs/ROADMAP.md`。
+  根因，转正条件需 transcript / LLM judge，详见 `docs/roadmap/ROADMAP.md`。
 
 ## audit_evals.json
 
@@ -627,7 +627,7 @@ prompts:
 - 用户项目自定义入口：项目通过 `project.yaml` / `tools.yaml` / `evals.yaml` /
   自定义 ToolSpec.executor 控制行为，不通过修改 artifact 写入流程介入。
 - 不在范围内：本文档不描述真实 LLM transcript schema、MCP/HTTP/Shell executor 行为、
-  Web UI、LLM Judge；它们都属未来路线，详见 `docs/ROADMAP.md`。
+  Web UI、LLM Judge；它们都属未来路线，详见 `docs/roadmap/ROADMAP.md`。
 - 想要"复制粘贴跑一遍"的最短试用路径（含 `analyze-artifacts` 离线复盘）→
   见 [`docs/TRY_IT.md`](./TRY_IT.md)。
 
@@ -697,4 +697,4 @@ artifact 而不必重跑 Agent。
   工具集还会做出同样选择"。
 - 详细模块边界、未来扩展点（`--diff PREV_RUN` 等）见
   `agent_tool_harness/agents/transcript_replay_adapter.py` 顶层 docstring
-  和 `docs/ROADMAP.md` v0.3 段。
+  和 `docs/roadmap/ROADMAP.md` v0.3 段。

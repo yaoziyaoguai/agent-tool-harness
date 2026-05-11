@@ -359,7 +359,7 @@ Harness**。
   `missing_response_format` + 扩 generic name token + signal_quality 披露 +
   原 strict xfail 转正 + 新隐蔽诱饵 strict xfail）。
 - 工作区状态：`agent_tool_harness/audit/tool_design_auditor.py` +
-  `docs/ARCHITECTURE.md` / `docs/ROADMAP.md`（被本轮重写覆盖）/ `docs/TESTING.md`
+  `docs/architecture/TECHNICAL_ARCHITECTURE.md` / `docs/roadmap/ROADMAP.md`（被本轮重写覆盖）/ `docs/TESTING.md`
   + `tests/test_tool_design_audit_decoy.py` + `tests/test_tool_design_audit_semantic.py` +
   `tests/test_tool_design_audit_subtle_decoy_xfail.py`。
 - 测试结果：127 passed / 1 xfailed，ruff clean，demo 端到端正确。

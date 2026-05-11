@@ -44,7 +44,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-ROADMAP = REPO_ROOT / "docs" / "ROADMAP.md"
+ROADMAP = REPO_ROOT / "docs" / "roadmap" / "ROADMAP.md"
 README = REPO_ROOT / "README.md"
 INTERNAL_TRIAL = REPO_ROOT / "docs" / "INTERNAL_TRIAL.md"
 INTERNAL_TRIAL_QUICKSTART = REPO_ROOT / "docs" / "INTERNAL_TRIAL_QUICKSTART.md"

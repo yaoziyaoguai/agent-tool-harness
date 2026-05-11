@@ -41,8 +41,8 @@ def test_critical_classes_keep_chinese_learning_docstrings():
 
 
 def test_docs_preserve_evidence_first_and_testing_discipline():
-    architecture = Path("docs/ARCHITECTURE.md").read_text(encoding="utf-8")
-    roadmap = Path("docs/ROADMAP.md").read_text(encoding="utf-8")
+    architecture = Path("docs/architecture/TECHNICAL_ARCHITECTURE.md").read_text(encoding="utf-8")
+    roadmap = Path("docs/roadmap/ROADMAP.md").read_text(encoding="utf-8")
     testing = Path("docs/TESTING.md").read_text(encoding="utf-8")
     readme = Path("README.md").read_text(encoding="utf-8")
 
