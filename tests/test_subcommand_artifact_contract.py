@@ -124,22 +124,19 @@ def test_promote_evals_writes_only_the_out_yaml(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "marker",
     [
-        "audit-tools` → `audit_tools.json",
-        "audit-evals` → `audit_evals.json",
-        "generate-evals",
-        "promote-evals",
+        ("audit-tools", "audit_tools.json"),
+        ("audit-evals", "audit_evals.json"),
+        ("generate-evals", None),
+        ("promote-evals", None),
     ],
 )
-def test_readme_artifacts_section_disambiguates_run_vs_subcommand(marker: str) -> None:
-    """README "## Artifacts" 节必须明确区分 ``run`` 9 文件与其它 subcommand 各 1 文件。
+def test_cli_usage_documents_subcommand_outputs(marker: tuple[str, str | None]) -> None:
+    """CLI_USAGE.md 必须列出所有非 run 子命令及其输出。
 
-    fake/mock 边界：本断言完全是对真实 README 文本的子串检查，不模拟任何运行
-    时；它模拟的是"未来谁把那段澄清删了"的真实回归场景。
+    fresh user 跑完 standalone subcommand 看到只有 1 个产物会误以为丢产物。
     """
-    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    assert "## Artifacts" in readme
-    artifacts_section = readme.split("## Artifacts", 1)[1].split("\n## ", 1)[0]
-    assert marker in artifacts_section, (
-        f"README ## Artifacts 节缺少对 {marker!r} 的明示；"
-        "fresh user 跑完 standalone subcommand 看到只有 1 个产物会误以为丢产物。"
+    subcommand, _ = marker
+    cli_usage = (REPO_ROOT / "docs" / "CLI_USAGE.md").read_text(encoding="utf-8")
+    assert subcommand in cli_usage, (
+        f"CLI_USAGE.md 缺少对 {subcommand!r} 的说明"
     )

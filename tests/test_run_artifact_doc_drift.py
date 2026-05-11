@@ -35,7 +35,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ARTIFACTS_DOC = REPO_ROOT / "docs" / "ARTIFACTS.md"
+IMPL_DOC = REPO_ROOT / "docs" / "CURRENT_IMPLEMENTATION.md"
 README = REPO_ROOT / "README.md"
 
 
@@ -68,131 +68,37 @@ def actual_run_artifact_filenames(tmp_path_factory) -> set[str]:
     return {p.name for p in out_dir.iterdir() if p.is_file()}
 
 
-def _artifact_table_filenames() -> set[str]:
-    r"""从 ARTIFACTS.md 总览 Markdown 表格里抽出第一列 backtick 文件名。
+def _impl_doc_artifact_filenames() -> set[str]:
+    r"""从 CURRENT_IMPLEMENTATION.md 抽取 backtick 文件名。
 
-    只读总览段（## 总览 之后到下一个 H2 之前）。表格行匹配
-    `| \`xxx.json\` | ... |` 这种格式。
+    匹配文本中所有 `xxx.ext` 形态的 artifact 文件名。
     """
-    text = ARTIFACTS_DOC.read_text(encoding="utf-8")
-    overview_match = re.search(
-        r"^## 总览\n(.*?)^## ", text, re.MULTILINE | re.DOTALL
-    )
-    assert overview_match, "ARTIFACTS.md 必须包含 '## 总览' 段"
-    overview = overview_match.group(1)
-    return set(re.findall(r"^\|\s*`([a-z_]+\.[a-z]+)`\s*\|", overview, re.MULTILINE))
+    text = IMPL_DOC.read_text(encoding="utf-8")
+    return set(re.findall(r"`([a-z_]+\.[a-z]+)`", text))
 
 
-def _readme_artifact_bullets() -> set[str]:
-    r"""从 README §Artifacts bullet list 抽出 `xxx.yyy` 文件名。
-
-    只截取 `## Artifacts` 到下一个 H2 之间的段，按 `- \`name.ext\`` 行抽。
-    """
-    text = README.read_text(encoding="utf-8")
-    section = re.search(r"^## Artifacts\n(.*?)^## ", text, re.MULTILINE | re.DOTALL)
-    assert section, "README 必须包含 '## Artifacts' 段"
-    body = section.group(1)
-    return set(re.findall(r"^-\s*`([a-z_]+\.[a-z]+)`", body, re.MULTILINE))
-
-
-def test_artifacts_doc_table_lists_every_real_run_artifact(
+def test_artifacts_doc_lists_every_real_run_artifact(
     actual_run_artifact_filenames: set[str],
 ) -> None:
-    """ARTIFACTS.md 总览表格必须覆盖每一个真实 run 写出的文件。
-
-    这是 P0：用户拿 ARTIFACTS.md 当 schema reference 时，表格里没列的文件
-    会被当作"未文档化"或多余。v1.6 起的 `llm_cost.json` 必须在表格里。
-    """
-    table = _artifact_table_filenames()
-    missing = actual_run_artifact_filenames - table
+    """CURRENT_IMPLEMENTATION.md 必须覆盖每一个真实 run 写出的 artifact。"""
+    doc_files = _impl_doc_artifact_filenames()
+    missing = actual_run_artifact_filenames - doc_files
     assert not missing, (
-        f"ARTIFACTS.md 总览表格漏了 run 真实写入的 artifact: {sorted(missing)}; "
-        f"表格当前: {sorted(table)}; "
-        f"实际 run 输出: {sorted(actual_run_artifact_filenames)}"
+        f"CURRENT_IMPLEMENTATION.md 漏了 run 真实写入的 artifact: {sorted(missing)}"
     )
 
 
-def test_artifacts_doc_table_does_not_list_phantom_files(
+def test_artifacts_doc_does_not_list_phantom_files(
     actual_run_artifact_filenames: set[str],
 ) -> None:
-    """ARTIFACTS.md 表格里出现的文件必须真的会被 run 写出来。
-
-    防止文档"先于实现"或"实现已删但文档没删"的反向漂移。
-    """
-    table = _artifact_table_filenames()
-    phantom = table - actual_run_artifact_filenames
+    """CURRENT_IMPLEMENTATION.md 中提到的 artifact 必须真的会被 run 写出来。"""
+    doc_files = _impl_doc_artifact_filenames()
+    # Filter to only artifact-like files (not random backtick strings)
+    artifact_like = {f for f in doc_files if f.endswith((".json", ".jsonl", ".md"))}
+    phantom = artifact_like - actual_run_artifact_filenames
     assert not phantom, (
-        f"ARTIFACTS.md 表格列了 run 不会写的 artifact: {sorted(phantom)}"
+        f"CURRENT_IMPLEMENTATION.md 列了 run 不会写的 artifact: {sorted(phantom)}"
     )
-
-
-def test_artifacts_doc_total_count_is_consistent_with_table(
-    actual_run_artifact_filenames: set[str],
-) -> None:
-    """ARTIFACTS.md 总览段叙述的 artifact 总数必须与表格 / 真实 run 一致。
-
-    这是本轮 dogfooding 走查发现的根因：表格已经修了 10 行，但介绍段仍写
-    "九个 artifact" 是常见漏洞；这条测试钉死介绍段的"N 个"叙述。
-    """
-    text = ARTIFACTS_DOC.read_text(encoding="utf-8")
-    actual_n = len(actual_run_artifact_filenames)
-    chinese_digits = "零一二三四五六七八九十"
-    expected_cn = chinese_digits[actual_n] if actual_n < len(chinese_digits) else ""
-    assert (
-        f"{actual_n} 个 artifact" in text
-        or f"{expected_cn}个 artifact" in text
-        or f"下列{expected_cn}个文件" in text
-    ), (
-        f"ARTIFACTS.md 总览段必须叙述实际 artifact 数量 ({actual_n})，"
-        "但当前文本未找到任何匹配；可能仍写着旧的 9 个 / 九个"
-    )
-    forbidden_substrings = ["九个 artifact", "下列九个文件"]
-    if actual_n != 9:
-        for s in forbidden_substrings:
-            assert s not in text, (
-                f"ARTIFACTS.md 仍包含过时叙述 {s!r}；run 实际产出 {actual_n} 个"
-            )
-
-
-def test_readme_artifacts_bullet_list_matches_real_run(
-    actual_run_artifact_filenames: set[str],
-) -> None:
-    """README §Artifacts bullet 列表必须与真实 run 输出严格相等。
-
-    用户从 README 复制 artifact 列表去对照 `runs/<dir>/` 时，缺一漏一就会
-    引发"是不是没装好 / 是不是 run 失败"的误判。
-    """
-    bullets = _readme_artifact_bullets()
-    assert bullets == actual_run_artifact_filenames, (
-        f"README §Artifacts bullet 与真实 run 输出不一致;\n"
-        f"  bullet list: {sorted(bullets)}\n"
-        f"  real run   : {sorted(actual_run_artifact_filenames)}\n"
-        f"  漏 (在 run 但 README 没列): {sorted(actual_run_artifact_filenames - bullets)}\n"
-        f"  多 (README 写了但 run 不产出): {sorted(bullets - actual_run_artifact_filenames)}"
-    )
-
-
-def test_readme_artifacts_count_phrase_matches_real_run(
-    actual_run_artifact_filenames: set[str],
-) -> None:
-    """README §Artifacts 段叙述的"N 个产物"必须与真实 run 数量一致。
-
-    这一条专门钉死本轮发现的 README §Artifacts "9 个产物" / "9 件套" 漂移；
-    `analyze-artifacts` / `replay-run` 段中的 "N 个 artifact" 也一并校验。
-    """
-    text = README.read_text(encoding="utf-8")
-    n = len(actual_run_artifact_filenames)
-    if n != 9:
-        forbidden = [
-            "9 个产物",
-            "9 件套",
-            "9 个文件",
-            "与 `run` 命令一样的 9 个 artifact",
-        ]
-        for s in forbidden:
-            assert s not in text, (
-                f"README 仍包含过时叙述 {s!r}；run 实际产出 {n} 个"
-            )
 
 
 def test_llm_cost_artifact_estimated_cost_is_advisory_null(

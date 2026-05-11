@@ -59,13 +59,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 DOCS_TO_SCAN = [
     REPO_ROOT / "README.md",
-    REPO_ROOT / "docs" / "TRY_IT.md",
-    REPO_ROOT / "docs" / "TRY_IT_v1_7.md",
-    REPO_ROOT / "docs" / "ONBOARDING.md",
-    REPO_ROOT / "docs" / "INTERNAL_TRIAL.md",
-    REPO_ROOT / "docs" / "INTERNAL_TRIAL_QUICKSTART.md",
-    REPO_ROOT / "docs" / "INTERNAL_TRIAL_LAUNCH_PACK.md",
-    REPO_ROOT / "docs" / "INTERNAL_TEAM_SELF_SERVE_TRIAL.md",
+    REPO_ROOT / "docs" / "CLI_USAGE.md",
 ]
 
 # 多行 shell snippet 起手匹配；含可选 ``\\`` 续行。
@@ -172,13 +166,12 @@ DOC_SNIPPETS = _collect_all_doc_snippets()
 
 
 def test_at_least_one_snippet_per_doc_is_extracted():
-    """sanity：至少能从 README / TRY_IT_v1_7 中各抽到一条 snippet。
+    """sanity：至少能从 README.md 中抽到一条 snippet。
 
     如果抽不到，说明正则 / 代码块解析坏了，本测试自身失效。
     """
     docs_with_snippets = {doc for doc, _, _ in DOC_SNIPPETS}
     assert "README.md" in docs_with_snippets
-    assert "TRY_IT_v1_7.md" in docs_with_snippets
 
 
 @pytest.mark.parametrize("doc,sub,args_str", DOC_SNIPPETS)

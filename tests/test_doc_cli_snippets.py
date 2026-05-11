@@ -1,38 +1,11 @@
-"""校验 README / docs/ONBOARDING.md 的 CLI 命令片段与真实 argparse 一致。
+"""校验 README / docs/CLI_USAGE.md 的 CLI 命令片段与真实 argparse 一致。
 
-为什么要写这个测试（请先读完再改）：
-=====================================
-v0.1 收口期间真人 onboarding 走查发现 ``docs/ONBOARDING.md §3`` 给出的
-``generate-evals`` 命令缺 ``--project`` / ``--source``，新用户照抄第 3 步会
-立刻被 argparse 拒收（``error: the following arguments are required:
---project, --source``）——也就是说"10 分钟接入"在第 3 步直接断掉。
-
-根因不是某个文档作者写错了一行，而是仓库**没有任何机制**把"文档里宣告的
-CLI 接口"和"真实 argparse 接受的参数"绑在一起；只要有人改 parser 忘了同步
-README，新用户就会再次踩坑。所以这个测试**不是为了通过率**而存在，它的目标
-是：在每次 PR 触发 pytest 时立刻发现这种 doc-vs-CLI drift，把"新用户第一次
-照抄就崩"的真实 bug 钉死在 CI 上。
-
-这个测试**会发现**的真实 bug 类型：
-- 文档命令缺必填参数（本轮 P0 命中过的实际类型）；
-- 文档把 ``--source bogus`` / ``--mock-path neither`` 写错；
-- 重命名 / 删除 subcommand 后忘了更新 README / ONBOARDING；
-- 新增 subcommand 后只改了一份文档没改另一份；
-- 文档里把可选参数当成位置参数误写。
-
-这个测试**不负责**的边界（请勿扩到这里）：
-- 不验证命令真的能跑通（路径是否存在、YAML 是否合法都不查）——那是
-  end-to-end smoke 的职责；这里只校验"参数是 argparse 能接受的形状"。
-- 不强制文档代码块的风格 / 缩进 / 行长。
+把"文档里宣告的 CLI 接口"和"真实 argparse 接受的参数"绑在一起，防止
+doc-vs-CLI drift 导致新用户照抄命令失败。
 
 实现要点：
-- 直接复用 ``agent_tool_harness.cli._build_parser``——这是 v0.1 收口时把
-  parser 从 ``main()`` 抽出来的根因修复，让 CLI 的"接口形状"成为可被测试
-  独立校验的产物。如果未来有人把 parser 又内联回 ``main()``，本测试会因
-  ``ImportError`` 立刻失败。
-- 只扫 ``README.md`` + ``docs/ONBOARDING.md``（外部接入路径必读文档）；其它
-  docs（ARTIFACTS/ROADMAP/TESTING）也含 CLI 片段，但它们是参考资料、不是
-  10 分钟接入路径，新用户不会照抄；如果未来想扩，把 path 加进 ``DOC_PATHS``。
+- 复用 ``agent_tool_harness.cli._build_parser``
+- 只扫 ``README.md`` + ``docs/CLI_USAGE.md``（外部接入路径必读文档）
 """
 
 from __future__ import annotations
@@ -52,10 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # 顺序"排列，便于失败信息直观对应到接入步骤。
 DOC_PATHS = [
     REPO_ROOT / "README.md",
-    REPO_ROOT / "docs" / "ONBOARDING.md",
-    # v0.2 product trial 路径文档：用户最直接的"复制粘贴跑一遍"入口，必须
-    # 与 argparse 严格对齐——一旦 drift，新用户在第一遍试用就会被卡住。
-    REPO_ROOT / "docs" / "TRY_IT.md",
+    REPO_ROOT / "docs" / "CLI_USAGE.md",
 ]
 
 # 我们关心的 CLI 调用前缀。``python -m agent_tool_harness.cli`` 是文档统一的
@@ -159,36 +129,13 @@ def test_required_args_are_actually_required(argv):
 
 
 def test_readme_quickstart_audits_the_just_promoted_file():
-    """README "## 快速开始" 中：promote-evals → audit-evals 流程必须连贯。
-
-    走查 v0.1 第二个 example 时发现的真实 bug：README 快速开始第 4 步把候选 promote
-    到 ``runs/generated/evals.promoted.yaml``，第 5 步却 audit-evals 一个完全不同的
-    文件 ``examples/runtime_debug/evals.yaml``。一个按顺序照抄的 fresh user 会困惑
-    "我刚 promote 的文件去哪了？流程是不是断了？" —— 这正是 ONBOARDING walk-through
-    的隐性断点（ONBOARDING §6 流程是对的，README 漂移）。
-
-    本测试只钉一条最小不变量：**README 快速开始代码块中，只要出现
-    ``promote-evals --out PATH``，同一代码块内必须存在至少一条 ``audit-evals --evals PATH``
-    引用同一个文件。** 不强制是紧邻的下一步——允许中间插入对照 baseline 之类的
-    audit。这样既抓住流程断裂，又不会过度约束未来文档结构。
-
-    **不**负责：检查 ONBOARDING（它的 promote→audit 路径是用户自己项目目录，路径
-    形态不同，已有人工流程描述兜底）；检查具体路径是否真实存在（端到端 smoke
-    职责）。
-    """
+    """README 代码块中如有 promote-evals → audit-evals，路径必须连贯。"""
 
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    # 仅取 "## 快速开始" 一节内容（截到下一个 "## " 标题）。
-    marker = "## 快速开始"
-    assert marker in readme, "README 应有 '## 快速开始' 章节"
-    section = readme.split(marker, 1)[1]
-    next_h2 = section.find("\n## ")
-    if next_h2 != -1:
-        section = section[:next_h2]
 
     promoted_paths: list[str] = []
     audited_paths: list[str] = []
-    for block in re.findall(r"```bash\n(.*?)```", section, flags=re.DOTALL):
+    for block in re.findall(r"```bash\n(.*?)```", readme, flags=re.DOTALL):
         joined = re.sub(r"\\\s*\n\s*", " ", block)
         for raw_line in joined.splitlines():
             line = raw_line.strip()
@@ -204,12 +151,11 @@ def test_readme_quickstart_audits_the_just_promoted_file():
                     audited_paths.append(argv[argv.index("--evals") + 1])
 
     if not promoted_paths:
-        pytest.skip("README 快速开始当前未演示 promote-evals；流程一致性约束不适用。")
+        pytest.skip("README 当前未演示 promote-evals；流程一致性约束不适用。")
 
     missing = [p for p in promoted_paths if p not in audited_paths]
     assert not missing, (
-        "README 快速开始中 promote-evals 输出未被任何 audit-evals 验证，流程会让 fresh "
-        "user 误以为 promoted 文件无需校验：\n"
+        "README 中 promote-evals 输出未被任何 audit-evals 验证：\n"
         + "\n".join(f"  - promoted but never audited: {p}" for p in missing)
-        + f"\n  audited paths in same section: {audited_paths!r}"
+        + f"\n  audited paths: {audited_paths!r}"
     )
