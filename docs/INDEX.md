@@ -29,6 +29,7 @@
 | 9-10 件 artifact 各表示什么 | [`ARTIFACTS.md`](ARTIFACTS.md) |
 | 测试纪律与 strict xfail 制度 | [`TESTING.md`](TESTING.md) |
 | 接入 / 10 分钟路径 | [`ONBOARDING.md`](ONBOARDING.md) |
+| 试用后接入自己的工具和 eval | [`SELF_SERVE_TRIAL.md`](SELF_SERVE_TRIAL.md) |
 | 里程碑总览（v0.1 → v2.0 → v3.0 候选） | [`roadmap/MILESTONES.md`](roadmap/MILESTONES.md) |
 | v2.0 之后的下一步决策框架 | [`roadmap/NEXT_STEPS.md`](roadmap/NEXT_STEPS.md) |
 | 完整 Roadmap（工程日志） | [`roadmap/ROADMAP.md`](roadmap/ROADMAP.md) |

@@ -79,8 +79,8 @@ cat runs/quickstart-run-bad/report.md
 
 ## 4. 接下来
 
-- ✅ 跑通了 → 进 [INTERNAL_TRIAL.md §3 接入你自己的工具和 eval](INTERNAL_TRIAL.md#3-接入你自己的工具和-eval)；
-- ✅ 想配 pricing / budget cap → [INTERNAL_TRIAL.md §4](INTERNAL_TRIAL.md#4-设置-pricing-与-per-eval-budget-cap)；
+- ✅ 跑通了 → 进 [SELF_SERVE_TRIAL.md](SELF_SERVE_TRIAL.md) 接入你自己的工具和 eval；
+- ✅ 想配 pricing / budget cap → [SELF_SERVE_TRIAL.md](SELF_SERVE_TRIAL.md)（pricing/budget 是可选的，无配置也能跑通）；
 - ✅ 想提反馈 → 5 分钟极简版见 [INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md "5 分钟极简版"段](INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md#0-5-分钟极简版可选)；
 - ❌ 跑不通 → 在反馈中精确到文件名 + 命令 + 行号，**不要**贴真实 key /
   Authorization / 完整请求/响应体。

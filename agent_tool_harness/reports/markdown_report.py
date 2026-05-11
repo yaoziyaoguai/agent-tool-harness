@@ -115,7 +115,8 @@ class MarkdownReport:
             "",
             (
                 "> ⚠️  当前 Agent Tool Harness 是 MVP；signal_quality 反映本次 run 的信号边界。"
-                "PASS/FAIL 不能替代真实 LLM agentic loop 的评估，详见 README 与 docs/ROADMAP.md。"
+                "PASS/FAIL 不能替代真实 LLM agentic loop 的评估，"
+                "详见 README 与 docs/roadmap/ROADMAP.md。"
             ),
             "",
             "## Methodology Caveats",
@@ -133,7 +134,7 @@ class MarkdownReport:
             (
                 "- **Tool Design Audit 当前只做 structural / completeness 检查**，"
                 "不读 Python 源码、不调用工具、不识别语义诱饵；"
-                "高分 ≠ 工具语义上好用，详见 docs/ROADMAP.md。"
+                "高分 ≠ 工具语义上好用，详见 docs/roadmap/ROADMAP.md。"
             ),
             (
                 "- **Failure attribution 是 deterministic heuristic，不是 LLM Judge**："
@@ -886,7 +887,8 @@ class MarkdownReport:
         if status == "PASS":
             return [
                 "复盘 tool_calls.jsonl / tool_responses.jsonl，确认调用顺序合理且 evidence 真实。",
-                "若想增强信号，请等待真实 LLM adapter 上线（见 docs/ROADMAP.md 信号质量章节）。",
+                "若想增强信号，请等待真实 LLM adapter 上线"
+                "（见 docs/roadmap/ROADMAP.md 信号质量章节）。",
             ]
         if status == "SKIPPED":
             return [

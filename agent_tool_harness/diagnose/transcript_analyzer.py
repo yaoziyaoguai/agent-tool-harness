@@ -694,7 +694,8 @@ class TranscriptAnalyzer:
         if passed and not findings:
             return [
                 "复盘 tool_calls.jsonl / tool_responses.jsonl，确认调用顺序与 evidence 真实；",
-                "若想增强信号，请等待真实 LLM adapter（详见 docs/ROADMAP.md 信号质量章节）。",
+                "若想增强信号，请等待真实 LLM adapter"
+                "（详见 docs/roadmap/ROADMAP.md 信号质量章节）。",
             ]
         refs: list[str] = []
         for finding in findings:

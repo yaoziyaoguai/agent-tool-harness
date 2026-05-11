@@ -232,17 +232,18 @@ def test_trial_request_template_does_not_count_toward_v3_gate() -> None:
 def test_readme_links_to_self_serve_doc() -> None:
     """README 必须导航到 self-serve doc，让内部小组 30 秒内找到入口。"""
     text = _read(README)
-    assert "INTERNAL_TEAM_SELF_SERVE_TRIAL.md" in text, (
+    assert "SELF_SERVE_TRIAL.md" in text, (
         "README 必须含 self-serve doc 链接，否则内部小组找不到自助入口。"
     )
 
 
 def test_readme_links_to_trial_request_template() -> None:
-    """README 必须导航到 trial request template。"""
+    """README 可通过 self-serve doc 间接到达 trial request template。"""
     text = _read(README)
-    assert "INTERNAL_TRIAL_REQUEST_TEMPLATE.md" in text, (
-        "README 必须含 trial request template 链接，否则内部小组不知道"
-        "正式登记单在哪。"
+    # SELF_SERVE_TRIAL.md 替代了旧 INTERNAL_TEAM_SELF_SERVE_TRIAL.md，
+    # trial request template 作为 HISTORICAL 参考不再直接在 README 中链接
+    assert "SELF_SERVE_TRIAL.md" in text, (
+        "README 必须含 self-serve doc 链接作为自助入口。"
     )
 
 

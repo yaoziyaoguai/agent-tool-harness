@@ -77,17 +77,11 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 > v1.7 release notes：见 [RELEASE_NOTES_v1.7.md](RELEASE_NOTES_v1.7.md)。
 
 > **v2.0 Internal Trial Ready（已 release）**：v2.0 是主线终点，定位为
-> **公司内部小团队可以本地 clone / 安装 / 按 [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)
-> 端到端跑通**的离线优先 Agent Tool Evaluation Harness。第一次接入的内部
-> 团队请直接进入 [docs/INTERNAL_TRIAL_QUICKSTART.md](docs/INTERNAL_TRIAL_QUICKSTART.md)
-> 一页 5 条命令版（10-15 分钟最小闭环），完整版见
-> [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)；想拿一份**统一启动包导航**
-> （把定位 / Quickstart / 接入 / 看结果 / 排查 / 命令 / 反馈 / 不包含能力 /
-> v3.0 触发条件 / 安全 9 区块串好的 umbrella 页）见
-> [docs/INTERNAL_TRIAL_LAUNCH_PACK.md](docs/INTERNAL_TRIAL_LAUNCH_PACK.md)；
-> 想拿自己的 AI Tool 自助跑（不依赖 maintainer）见
-> [docs/INTERNAL_TEAM_SELF_SERVE_TRIAL.md](docs/INTERNAL_TEAM_SELF_SERVE_TRIAL.md)
-> 与 [docs/templates/INTERNAL_TRIAL_REQUEST_TEMPLATE.md](docs/templates/INTERNAL_TRIAL_REQUEST_TEMPLATE.md)；
+> **公司内部小团队可以本地 clone / 安装 / 端到端跑通**的离线优先 Agent Tool
+> Evaluation Harness。第一次接入的内部团队请直接进入
+> [docs/INTERNAL_TRIAL_QUICKSTART.md](docs/INTERNAL_TRIAL_QUICKSTART.md)
+> 一页 5 条命令版（10-15 分钟最小闭环）；跑通后接入自己的工具和 eval 见
+> [docs/SELF_SERVE_TRIAL.md](docs/SELF_SERVE_TRIAL.md)；
 > 反馈用 [docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md](docs/INTERNAL_TRIAL_FEEDBACK_TEMPLATE.md)
 > 提交结构化反馈（含 5 分钟极简版）。
 >
@@ -116,13 +110,9 @@ v1.1 release-ready 摘要见 [`RELEASE_NOTES_v1.1.md`](RELEASE_NOTES_v1.1.md)（
 >
 > **内部小组试用（推荐先看）**：复制 5 条命令跑通 10-15 分钟最小闭环 →
 > [docs/INTERNAL_TRIAL_QUICKSTART.md](docs/INTERNAL_TRIAL_QUICKSTART.md)；
-> 完整接入路径见 [docs/INTERNAL_TRIAL.md](docs/INTERNAL_TRIAL.md)；
-> 拿自己的 AI Tool 自助跑见
-> [docs/INTERNAL_TEAM_SELF_SERVE_TRIAL.md](docs/INTERNAL_TEAM_SELF_SERVE_TRIAL.md)。
+> 跑通后接入自己的工具 → [docs/SELF_SERVE_TRIAL.md](docs/SELF_SERVE_TRIAL.md)。
 >
 > 第一次接入的开发者团队可看 [docs/ONBOARDING.md](docs/ONBOARDING.md)（10 分钟接入路径）；
-> 想直接复制粘贴跑一遍 v0.2 完整闭环（含 `analyze-artifacts`）请看
-> [docs/TRY_IT.md](docs/TRY_IT.md)；
 > 常见坏配置对照表见 [examples/bad_configs/README.md](examples/bad_configs/README.md)。
 >
 > 下面命令统一使用 `python -m`，假设你**已经激活当前项目的虚拟环境**

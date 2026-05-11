@@ -73,11 +73,10 @@ def test_launch_pack_exists() -> None:
 
 
 def test_launch_pack_is_referenced_from_readme_and_internal_trial() -> None:
-    """Launch pack 必须从 README + INTERNAL_TRIAL 完整版可达，否则等于
-    隐藏入口，试用者根本不知道有这份 umbrella。"""
-    assert "INTERNAL_TRIAL_LAUNCH_PACK.md" in _read(README), (
-        "README 必须链接 launch pack，否则试用者找不到 umbrella 入口。"
-    )
+    """Launch pack 从 INTERNAL_TRIAL 完整版可达。
+    README 已通过 SELF_SERVE_TRIAL.md 提供 canonical 入口，
+    不再直接链接 HISTORICAL launch pack。"""
+    # INTERNAL_TRIAL.md（HISTORICAL）仍链接 launch pack
     assert "INTERNAL_TRIAL_LAUNCH_PACK.md" in _read(INTERNAL_TRIAL), (
         "INTERNAL_TRIAL.md 顶部 TL;DR 必须链接 launch pack。"
     )
