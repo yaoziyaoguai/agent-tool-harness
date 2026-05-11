@@ -5,8 +5,8 @@ import json
 import sys
 from pathlib import Path
 
-from agent_tool_harness.agents.mock_replay_adapter import MockReplayAdapter
 from agent_tool_harness.artifact_schema import make_run_metadata, stamp_artifact
+from agent_tool_harness.assembly import build_demo_runtime
 from agent_tool_harness.audit.eval_quality_auditor import EvalQualityAuditor
 from agent_tool_harness.audit.tool_design_auditor import ToolDesignAuditor
 from agent_tool_harness.config.loader import ConfigError, load_evals, load_project, load_tools
@@ -233,8 +233,8 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="source_run",
         required=True,
         help="已有 run 目录（必须包含 tool_calls.jsonl / tool_responses.jsonl 之一，"
-             "建议同时含 transcript.jsonl 以重建 final_answer）。"
-             "为统一 CLI 体验，本参数同时接受 --run 别名（与 analyze-artifacts 一致）。",
+        "建议同时含 transcript.jsonl 以重建 final_answer）。"
+        "为统一 CLI 体验，本参数同时接受 --run 别名（与 analyze-artifacts 一致）。",
     )
     replay.add_argument("--project", required=True)
     replay.add_argument("--tools", required=True)
@@ -551,17 +551,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "audit-judge-prompts":
             return _audit_judge_prompts(prompts=args.prompts, out=args.out)
         if args.command == "scaffold-tools":
-            return _scaffold_tools(
-                source=args.source, out=args.out, force=args.force
-            )
+            return _scaffold_tools(source=args.source, out=args.out, force=args.force)
         if args.command == "scaffold-evals":
-            return _scaffold_evals(
-                tools=args.tools, out=args.out, force=args.force
-            )
+            return _scaffold_evals(tools=args.tools, out=args.out, force=args.force)
         if args.command == "scaffold-fixtures":
-            return _scaffold_fixtures(
-                tools=args.tools, out_dir=args.out_dir, force=args.force
-            )
+            return _scaffold_fixtures(tools=args.tools, out_dir=args.out_dir, force=args.force)
         if args.command == "validate-generated":
             return _validate_generated(
                 tools=args.tools,
@@ -571,9 +565,7 @@ def main(argv: list[str] | None = None) -> int:
                 strict_reviewed=args.strict_reviewed,
             )
         if args.command == "bootstrap":
-            return _bootstrap(
-                source=args.source, out=args.out, force=args.force
-            )
+            return _bootstrap(source=args.source, out=args.out, force=args.force)
     except ConfigError as exc:
         # ConfigError 表示用户配置存在“框架无法理解”的结构问题。这里只显示消息，
         # 避免把内部 traceback 推给真实团队；他们应该得到一条直接告诉他们改哪个字段
@@ -599,8 +591,7 @@ def main(argv: list[str] | None = None) -> int:
         # 把它转成 CLI 友好错误，避免用户看到内部 traceback。
         print(f"error: tool registry — {exc}", file=sys.stderr)
         print(
-            "hint: 确保 tools.yaml 中每个 namespace.name 唯一；"
-            "使用短名调用前请先消除歧义。",
+            "hint: 确保 tools.yaml 中每个 namespace.name 唯一；使用短名调用前请先消除歧义。",
             file=sys.stderr,
         )
         return 2
@@ -680,8 +671,7 @@ def _generate_evals(
             # 显式拒绝 `--source tests` 缺 `--tests` 的组合；这是真实团队最容易踩的坑。
             # 用 CLIError 而不是 SystemExit 字符串，是为了让 main() 的 except 走统一格式。
             raise CLIError(
-                "--source tests requires --tests <path>; "
-                "示例：--source tests --tests tests/"
+                "--source tests requires --tests <path>; 示例：--source tests --tests tests/"
             )
         candidates = generator.from_tests(tests_path)
     writer = CandidateWriter()
@@ -767,14 +757,11 @@ def _audit_judge_prompts(prompts: str, out: str) -> int:
     stamped = stamp_artifact(
         result,
         run_metadata=make_run_metadata(
-            extra={"command": "audit-judge-prompts",
-                   "input_file": str(path)},
+            extra={"command": "audit-judge-prompts", "input_file": str(path)},
         ),
     )
     _write_json(out_dir / "audit_judge_prompts.json", stamped)
-    (out_dir / "audit_judge_prompts.md").write_text(
-        render_markdown(result), encoding="utf-8"
-    )
+    (out_dir / "audit_judge_prompts.md").write_text(render_markdown(result), encoding="utf-8")
     print(f"wrote {out_dir / 'audit_judge_prompts.json'}")
     print(f"wrote {out_dir / 'audit_judge_prompts.md'}")
     return 0
@@ -888,23 +875,18 @@ def _validate_generated(
     if bootstrap_dir is not None:
         if tools is not None or evals is not None or fixtures_dir is not None:
             print(
-                "error: --bootstrap-dir is mutually exclusive with "
-                "--tools/--evals/--fixtures-dir",
+                "error: --bootstrap-dir is mutually exclusive with --tools/--evals/--fixtures-dir",
                 file=sys.stderr,
             )
             return 2
         bd = Path(bootstrap_dir)
         if not bd.is_dir():
-            print(
-                f"error: --bootstrap-dir not a directory: {bd}", file=sys.stderr
-            )
+            print(f"error: --bootstrap-dir not a directory: {bd}", file=sys.stderr)
             return 2
         tools = str(bd / "tools.generated.yaml")
         evals = str(bd / "evals.generated.yaml")
         fixtures_candidate = bd / "fixtures"
-        fixtures_dir = (
-            str(fixtures_candidate) if fixtures_candidate.is_dir() else None
-        )
+        fixtures_dir = str(fixtures_candidate) if fixtures_candidate.is_dir() else None
         # Bootstrap UX hardening 额外契约：reviewer 不能误删 review checklist
         # / summary，否则后续命令链会断。这些只是 stderr warning 不阻塞 exit
         # code（真正的 fail 仍由 validate_generated 决定），但能让 reviewer
@@ -924,9 +906,7 @@ def _validate_generated(
             )
             return 2
 
-    report = validate_generated(
-        tools, evals, fixtures_dir, strict_reviewed=strict_reviewed
-    )
+    report = validate_generated(tools, evals, fixtures_dir, strict_reviewed=strict_reviewed)
     print(report.to_json())
     summary_line = (
         f"validate-generated: status={report.status} "
@@ -1149,9 +1129,7 @@ def _run(
         recordings = _load_judge_recording(judge_recording)
         if judge_provider == "anthropic_compatible_offline":
             cfg = AnthropicCompatibleConfig.from_env()
-            advisory = AnthropicCompatibleJudgeProvider(
-                config=cfg, offline_fixture=recordings
-            )
+            advisory = AnthropicCompatibleJudgeProvider(config=cfg, offline_fixture=recordings)
             dry_provider = CompositeJudgeProvider(
                 deterministic=RuleJudgeProvider(),
                 advisory=advisory,
@@ -1188,9 +1166,7 @@ def _run(
                 live_enabled=live,
                 live_confirmed=confirm_i_have_real_key,
             )
-        advisory = AnthropicCompatibleJudgeProvider(
-            config=cfg, transport=transport
-        )
+        advisory = AnthropicCompatibleJudgeProvider(config=cfg, transport=transport)
         dry_provider = CompositeJudgeProvider(
             deterministic=RuleJudgeProvider(),
             advisory=advisory,
@@ -1199,7 +1175,7 @@ def _run(
         load_project(project_path),
         tools,
         evals,
-        MockReplayAdapter(mock_path),
+        build_demo_runtime(mock_path),
         out,
     )
     print(
@@ -1309,9 +1285,7 @@ def _build_judge_advisories(specs: list[str]):
                 responses=fake_data.get("responses"),
                 raise_error=fake_data.get("raise_error"),
             )
-            advisories.append(
-                AnthropicCompatibleJudgeProvider(config=cfg, transport=transport)
-            )
+            advisories.append(AnthropicCompatibleJudgeProvider(config=cfg, transport=transport))
     return advisories
 
 
@@ -1343,9 +1317,7 @@ def _load_fake_transport_fixture(path: str) -> dict:
 
     data = _read_yaml_or_json(Path(path))
     if not isinstance(data, dict):
-        raise ConfigError(
-            f"--judge-fake-transport-fixture 顶层必须是 mapping：{path}"
-        )
+        raise ConfigError(f"--judge-fake-transport-fixture 顶层必须是 mapping：{path}")
     if "responses" not in data and "raise_error" not in data:
         raise ConfigError(
             f"--judge-fake-transport-fixture 必须含 responses 或 raise_error 字段：{path}"
@@ -1553,16 +1525,14 @@ def _replay_run(
     - stdout 打一行 JSON 摘要 ``{out_dir, metrics, source_run}``，便于 CI grep。
     """
 
-    from agent_tool_harness.agents.transcript_replay_adapter import (
-        TranscriptReplayAdapter,
-    )
+    from agent_tool_harness.assembly import build_replay_runtime
 
     tools = load_tools(tools_path)
     evals = load_evals(evals_path)
     _warn_if_empty(tools, "tools", tools_path)
     _warn_if_empty(evals, "evals", evals_path)
 
-    adapter = TranscriptReplayAdapter(source_run)
+    adapter = build_replay_runtime(source_run)
     result = EvalRunner().run(
         load_project(project_path),
         tools,
@@ -1687,8 +1657,7 @@ def _render_trace_signals_markdown(
             related = sig.get("related_tool")
             related_part = f" (tool: `{related}`)" if related else ""
             lines.append(
-                f"- [{sig.get('severity', '?')}] **{sig.get('signal_type', '?')}**"
-                f"{related_part}"
+                f"- [{sig.get('severity', '?')}] **{sig.get('signal_type', '?')}**{related_part}"
             )
             why = sig.get("why_it_matters")
             if why:
