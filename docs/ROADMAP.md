@@ -9,7 +9,7 @@
 5. **诚实声明** — signal_quality 必须在每次 run 输出中显式披露
 6. **范围可控** — 新功能通过独立模块 + Protocol 接口实现，不往现有模块塞逻辑
 
-## 当前阶段：Headless CLI Demo Prototype
+## 当前阶段：Agent2Harness Main Flow Landing
 
 **已完成：**
 - [x] 13 个 CLI 子命令
@@ -23,7 +23,14 @@
 - [x] TraceSignalAnalyzer（5 类 deterministic 信号）
 - [x] TranscriptAnalyzer（failure attribution）
 - [x] Bootstrap/Scaffold（AST 扫描生成 draft）
-- [x] 58 个测试文件
+- [x] Core Contract（10 个 dataclass + Agent2HarnessAdapter Protocol）
+- [x] Demo-to-Core Bridge（6 个桥接函数）
+- [x] Agent2HarnessAdapter Wrapper（DemoAgent2HarnessAdapter + ReplayAgent2HarnessAdapter）
+- [x] CoreEvaluation（Evidence → EvaluationResult 编排层）
+- [x] Core Report Bridge（EvaluationResult / ReportSummary → dict）
+- [x] Assembly Core Flow（build_demo_core_flow() 端到端入口）
+- [x] Agent2Harness Main Flow 集成测试（18 个）
+- [x] 58+ 个测试文件
 - [x] 6 个可运行 example
 
 **当前 signal_quality 上限：** `tautological_replay`（mock replay）和
@@ -48,8 +55,8 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 
 | ID | 事项 | 状态 |
 |----|------|------|
-| B1 | 提取 Core contracts 为显式层 | in progress (2026-05-11) |
-| B2 | AgentAdapter Protocol 硬化 | in progress (Agent2HarnessAdapter defined) |
+| B1 | 提取 Core contracts 为显式层 | in progress (main flow landed 2026-05-11) |
+| B2 | AgentAdapter Protocol 硬化 | in progress (Agent2HarnessAdapter + wrapper landed) |
 | B3 | JudgeProvider Protocol 硬化 | not started |
 | B4 | ToolExecutor Protocol spec | not started |
 | B5 | ProviderConfig spec | not started |
@@ -57,12 +64,13 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 | B7 | Core contract tests | in progress (19 tests) |
 | B8 | Forbidden dependency tests | in progress (AST-based check) |
 
-**Track B 最新进展（2026-05-11）：** `agent_tool_harness/core_contract.py` 新增 10 个
-Core dataclass + Agent2HarnessAdapter Protocol，`docs/AGENT2HARNESS_CORE_SPEC.md` 定义
-完整 Core Spec（10 节），`tests/test_core_contract.py` 含 19 个 contract test。
-`agent_tool_harness/demo_core_bridge.py` 新增 5 个旧→新映射函数，
-`tests/test_demo_to_core_bridge.py` 含 21 个 bridge 表征测试。
-详见 commit 记录和 [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md)、
+**Track B 最新进展（2026-05-11）：** Agent2Harness main flow 端到端落地完成。
+新增 4 个模块（`agent2harness_adapter.py`, `core_evaluation.py`, `core_report_bridge.py`,
+`assembly.py` 扩展），新增 3 个文档（`AGENT2HARNESS_MAIN_FLOW.md` + 2 个更新），
+新增 18 个集成测试（`test_agent2harness_main_flow.py`）。完整 Core Flow 链路已验证：
+ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → ReportSummary，
+ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT2HARNESS_MAIN_FLOW.md)、
+[AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md)、
 [DEMO_TO_CORE_MIGRATION.md](DEMO_TO_CORE_MIGRATION.md)。
 
 ### Track C: Real Integration（future，全部 blocked）

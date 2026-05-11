@@ -15,6 +15,21 @@ PR review 和代码变更前的自检清单。
 - [ ] Demo 没有 import Real Integration 模块
 - [ ] Real Integration 雏形代码没有污染 Demo path
 
+## Agent2Harness Main Flow
+
+> 主流程定义见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT2HARNESS_MAIN_FLOW.md)。
+
+- [ ] Agent2HarnessAdapter wrapper 不改旧 inner adapter 行为
+- [ ] CoreEvaluation 不自动生成 ReviewDecision
+- [ ] core_report_bridge 只做数据转换，不做 pass/fail 裁决
+- [ ] report_summary_to_report_dict 不添加 decision / reviewer 字段
+- [ ] evaluation_result_to_report_dict 不添加 decision / reviewer 字段
+- [ ] build_demo_core_flow() 返回的 DemoCoreFlowResult 是纯数据（无 IO 引用）
+- [ ] assembly.py 中旧路径（build_demo_runtime）和新路径（build_demo_core_flow）并存
+- [ ] Core Flow 新模块不 import dotenv / os.environ
+- [ ] Core Flow 新模块不 import 真实 provider（LiveAnthropicTransport 等）
+- [ ] ReviewDecision 必须人工显式创建，EvaluationResult 无 decision 字段
+
 ## 架构边界
 
 - [ ] 没有往 `MockReplayAdapter` 里塞真实 Agent 逻辑

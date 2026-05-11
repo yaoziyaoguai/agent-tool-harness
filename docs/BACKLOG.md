@@ -60,7 +60,7 @@
 > Core 不 import examples，不读 .env，不知道 OpenAI/Anthropic/DeepSeek。
 
 ### B1. Extract Core contracts as explicit layer
-- **Status**: in progress (2026-05-11: core_contract.py created, demo_core_bridge.py created)
+- **Status**: in progress (2026-05-11: main flow 端到端落地完成)
 - **Why**: 当前 Core 对象和流程散落在各模块中，没有显式的"这里是 Core"标记
 - **Acceptance**:
   - Core 模块清单文档化（见 CURRENT_IMPLEMENTATION.md 的模块分类）
@@ -68,19 +68,26 @@
   - [x] `core_contract.py` — 10 个运行时 dataclass + Agent2HarnessAdapter Protocol
   - [x] `AGENT2HARNESS_CORE_SPEC.md` — Core Spec 文档（10 节）
   - [x] `test_core_contract.py` — 19 个 contract test
-  - [x] `demo_core_bridge.py` — 旧 Demo → Core Contract 桥接层（5 个映射函数）
+  - [x] `demo_core_bridge.py` — 旧 Demo → Core Contract 桥接层（6 个映射函数）
   - [x] `test_demo_to_core_bridge.py` — 21 个 bridge 表征测试
-  - [ ] 现有 Demo adapter 适配 Core Contract（后续轮次）
+  - [x] `agent2harness_adapter.py` — DemoAgent2HarnessAdapter + ReplayAgent2HarnessAdapter wrapper
+  - [x] `core_evaluation.py` — CoreEvaluation（Evidence → EvaluationResult）
+  - [x] `core_report_bridge.py` — EvaluationResult / ReportSummary → dict bridge
+  - [x] `assembly.py` — build_demo_core_flow() + DemoCoreFlowResult
+  - [x] `AGENT2HARNESS_MAIN_FLOW.md` — 主流程架构文档
+  - [x] `test_agent2harness_main_flow.py` — 18 个集成测试
   - [ ] EvalRunner 消费 Core Contract（后续轮次）
-- **Not doing**: 不移动源码文件（除非必要）；不修改 Core 行为；本轮不迁移现有 adapter
+  - [ ] RuleJudge 原生消费 Core Contract（后续轮次，删除反向桥接）
+- **Not doing**: 不移动源码文件（除非必要）；不修改 Core 行为
 
 ### B2. AgentAdapter Protocol hardening
-- **Status**: not started
+- **Status**: in progress (2026-05-11: Agent2HarnessAdapter Protocol defined, DemoAdapter wrapper implemented)
 - **Why**: 当前 Protocol 只有一个 `run` 方法，未来真实 Agent 需要更丰富的 lifecycle
 - **Acceptance**: AgentAdapter Protocol 扩展为支持：
-  - `SIGNAL_QUALITY` 声明（已有）
-  - agentic loop 的 step-by-step observation（spec only）
-  - 错误分类与部分结果返回（spec only）
+  - [x] `SIGNAL_QUALITY` 声明（已有）
+  - [x] `run(ScenarioSpec) → ExecutionTrace` 接口（Agent2HarnessAdapter Protocol + Demo/Replay wrapper 实现）
+  - [ ] agentic loop 的 step-by-step observation（spec only）
+  - [ ] 错误分类与部分结果返回（spec only）
 - **Not doing**: 不实现 RealAgentAdapter
 
 ### B3. JudgeProvider Protocol hardening
@@ -108,12 +115,14 @@
 - **Not doing**: 不替换当前 RunRecorder
 
 ### B7. Core contract tests
-- **Status**: in progress (2026-05-11: 19 contract tests in test_core_contract.py)
+- **Status**: in progress (2026-05-11: 58 tests across 3 test files)
 - **Why**: 当前没有显式的"这是 contract test"标记
 - **Acceptance**:
   - 所有 Protocol 有对应的 contract test（测试接口而非实现）
   - Contract tests 在 CI 中跑（0 联网）
-  - [x] Agent2HarnessAdapter Protocol 的 contract test
+  - [x] Agent2HarnessAdapter Protocol 的 contract test（19 个）
+  - [x] Demo-to-Core bridge 表征测试（21 个）
+  - [x] Agent2Harness main flow 集成测试（18 个）
   - [x] 所有 Core dataclass 的 immutability / 聚合测试
   - [x] Core 不 import demo/cli/provider 的 forbidden dependency 测试
   - [ ] JudgeProvider Protocol contract test（后续轮次）

@@ -188,6 +188,55 @@ def _build_eval_summary(
 
 
 # ---------------------------------------------------------------------------
+# ExecutionTrace → AgentRunResult（反向映射，供 CoreEvaluation 使用）
+# ---------------------------------------------------------------------------
+
+
+def execution_trace_to_agent_run_result(trace: ExecutionTrace) -> AgentRunResult:
+    """把 Core Contract ExecutionTrace 反向映射为旧 AgentRunResult。
+
+    这是正向映射 ``agent_run_result_to_execution_trace`` 的逆操作。
+    存在理由：CoreEvaluation 内部需要调用 RuleJudge.judge()，而 RuleJudge 的
+    签名是 ``judge(case: EvalSpec, run: AgentRunResult) -> JudgeResult``。
+    在 RuleJudge 适配 Core Contract 之前（后续轮次），本函数充当临时桥接。
+
+    本轮不改 RuleJudge——这是刻意选择：RuleJudge 是稳定的 deterministic baseline，
+    不应为了类型迁移引入风险。反向桥接是纯数据转换，风险可控。
+
+    架构边界：
+    - **负责**：ToolCall→dict, ToolResult→dict 的反向映射。
+    - **不负责**：不调用 RuleJudge（那是 CoreEvaluation 的事）。
+    """
+    tool_calls: list[dict[str, Any]] = [
+        {
+            "call_id": c.call_id,
+            "tool_name": c.tool_name,
+            "arguments": c.arguments,
+        }
+        for c in trace.tool_calls
+    ]
+    tool_responses: list[dict[str, Any]] = []
+    for r in trace.tool_results:
+        response_dict: dict[str, Any] = {
+            "call_id": r.call_id,
+            "tool_name": "",
+            "response": {
+                "success": r.status == "success",
+                "content": r.output,
+            },
+        }
+        if r.error:
+            response_dict["response"]["error"] = r.error
+        tool_responses.append(response_dict)
+    return AgentRunResult(
+        eval_id=trace.scenario_id,
+        final_answer=trace.final_answer,
+        tool_calls=tool_calls,
+        tool_responses=tool_responses,
+    )
+
+
+# ---------------------------------------------------------------------------
 # metrics dict → ReportSummary
 # ---------------------------------------------------------------------------
 

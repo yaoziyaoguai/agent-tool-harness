@@ -168,33 +168,55 @@ EvalSpec
 
 ## 6. 分阶段方法
 
-### Phase 5a（本轮）：桥接函数 + 表征测试
+### Phase 5a（已完成 2026-05-11）：桥接函数 + 表征测试
 
-- 新增 `demo_core_bridge.py`（5 个纯函数）
-- 新增 `test_demo_to_core_bridge.py`（12+ 测试）
-- 验证旧对象可以正确映射到 Core Contract 对象
+- [x] 新增 `demo_core_bridge.py`（5 个纯函数 + 1 个反向桥接）
+- [x] 新增 `test_demo_to_core_bridge.py`（21 个测试）
+- [x] 验证旧对象可以正确映射到 Core Contract 对象
 
-### Phase 5b（后续）：EvalRunner 消费 Core Contract
+### Phase 5b（已完成 2026-05-11）：Demo Core Flow 端到端落地
 
-- EvalRunner 内部使用 bridge 函数，产出 `Evidence` + `EvaluationResult`
+- [x] 新增 `agent2harness_adapter.py` — DemoAgent2HarnessAdapter / ReplayAgent2HarnessAdapter wrapper
+- [x] 新增 `core_evaluation.py` — CoreEvaluation（Evidence → EvaluationResult 编排层）
+- [x] 新增 `core_report_bridge.py` — EvaluationResult / ReportSummary → dict bridge
+- [x] 扩展 `assembly.py` — build_demo_core_flow() 端到端编排入口 + DemoCoreFlowResult
+- [x] 新增 `demo_core_bridge.py` 反向桥接 `execution_trace_to_agent_run_result()` — RuleJudge 临时适配
+- [x] 新增 `docs/AGENT2HARNESS_MAIN_FLOW.md` — 主流程架构文档
+- [x] 新增 `tests/test_agent2harness_main_flow.py` — 18 个集成测试验证完整 Core Flow
+- [x] Core Flow 端到端可跑：ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → ReportSummary
+- [x] ReviewDecision 必须人工显式创建（EvaluationResult 无 decision 字段）
+- [x] Report bridge 不承担最终裁决
+
+### Phase 5c（后续）：EvalRunner 消费 Core Contract
+
+- EvalRunner 内部使用 Core Flow，产出 `Evidence` + `EvaluationResult`
 - artifact 写入逻辑不变（仍写 JSON）
-- 这是让 Core Flow 真正跑起来的步骤
+- 这是让 Core Flow 替换旧编排层的步骤
 
-### Phase 5c（后续）：旧 Adapter 适配 Agent2HarnessAdapter
+### Phase 5d（后续）：RuleJudge 原生消费 Core Contract
 
-- `MockReplayAdapter` / `TranscriptReplayAdapter` 新增 `run_scenario(ScenarioSpec) -> ExecutionTrace` 方法
-- 或创建 wrapper class 实现 `Agent2HarnessAdapter` Protocol
+- RuleJudge 新增 `judge_core(Evidence, EvalSpec) → EvaluationResult` 方法
+- 删除 CoreEvaluation 中的反向桥接 `execution_trace_to_agent_run_result()`
+- 旧 `judge(case, run) → JudgeResult` 保留供 CLI 路径使用
 
 ---
 
 ## 7. 验收标准
 
-- [ ] `demo_core_bridge.py` 包含 5 个桥接函数
-- [ ] `test_demo_to_core_bridge.py` 包含 12+ 个测试
-- [ ] 所有 contract test 继续通过（19 个）
-- [ ] 所有现有测试继续通过（无 regression）
-- [ ] bridge 模块不 import demo/cli/provider 模块
-- [ ] bridge 模块不读取 .env
-- [ ] ruff 检查通过
-- [ ] `ReviewDecision` 不由任何 bridge 函数自动生成
-- [ ] CLI 行为不变（`run --mock-path good` 仍然通过）
+### Phase 5a + 5b 完成情况
+
+- [x] `demo_core_bridge.py` 包含 6 个桥接函数（5 正向 + 1 反向）
+- [x] `agent2harness_adapter.py` — DemoAgent2HarnessAdapter + ReplayAgent2HarnessAdapter wrapper
+- [x] `core_evaluation.py` — CoreEvaluation（Evidence → EvaluationResult）
+- [x] `core_report_bridge.py` — EvaluationResult / ReportSummary → dict
+- [x] `assembly.py` — build_demo_core_flow() + DemoCoreFlowResult
+- [x] `test_demo_to_core_bridge.py` 包含 21 个测试
+- [x] `test_agent2harness_main_flow.py` 包含 18 个集成测试
+- [x] 所有 contract test 继续通过（19 个）
+- [x] 所有现有测试继续通过（无 regression）
+- [x] 新模块不 import demo/cli/provider 模块
+- [x] 新模块不读取 .env
+- [x] ruff 检查通过
+- [x] `ReviewDecision` 不由任何函数自动生成
+- [x] CLI 行为不变（`run --mock-path good` 仍然通过）
+- [x] build_demo_core_flow() 端到端可跑（good + bad path）

@@ -1,21 +1,46 @@
 """Runtime assembly 层 — Demo/Core/Real 边界的第一道闸门。
 
-当前只支持 demo/mock runtime。
+提供两套装配函数：
+1. 旧 AgentAdapter 装配（CLI 使用，保持向后兼容）
+   - build_demo_runtime() → MockReplayAdapter
+   - build_replay_runtime() → TranscriptReplayAdapter
+
+2. Core Flow 装配（本轮新增，与旧路径并存）
+   - build_demo_core_flow() → (ExecutionTrace, Evidence, EvaluationResult, ReportSummary)
+
 未来 RealAgentAdapter / JudgeProvider / ProviderConfig 必须通过这里显式 opt-in 接入。
 
 架构边界：
-- **负责**：把 CLI 参数转成 AgentAdapter 实例，隐藏具体 adapter 类型。
+- **负责**：把参数转成实例，隐藏具体类型。
 - **不负责**：不实现真实 Agent、不读取 .env、不调用外部 API。
-- **为什么 CLI 不应该直接硬编码 MockReplayAdapter**：
+- **为什么 CLI 不应该直接硬编码 adapter 类型**：
   CLI 是 Core 的装配层，不应直接依赖 Demo 实现。
   通过 assembly 函数接入，让未来 Real Integration 可以替换 adapter 而不修改 CLI 结构。
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from agent_tool_harness.agents.agent_adapter_base import AgentAdapter
+from agent_tool_harness.core_contract import EvaluationResult, Evidence, ExecutionTrace
+
+
+@dataclass
+class DemoCoreFlowResult:
+    """一次 demo Core Flow 的完整产物。
+
+    包含从 ScenarioSpec 到 ReportSummary 的所有 Core Contract 对象。
+    这是纯数据——不包含 IO 引用、不包含 adapter 实例、不包含 file path。
+    """
+
+    trace: ExecutionTrace
+    evidence: Evidence
+    eval_result: EvaluationResult
+    signal_quality: str = ""
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 def build_demo_runtime(mock_path: str = "good") -> AgentAdapter:
@@ -47,3 +72,103 @@ def build_replay_runtime(source_run: str | Path) -> AgentAdapter:
     )
 
     return TranscriptReplayAdapter(source_run)
+
+
+# ---------------------------------------------------------------------------
+# Core Flow 装配（本轮新增）
+# ---------------------------------------------------------------------------
+
+
+def build_demo_core_flow(
+    *,
+    tool_specs: list[Any],
+    eval_spec: Any,
+    mock_path: str = "good",
+) -> DemoCoreFlowResult:
+    """装配并运行一次完整的 demo Core Flow。
+
+    这是 Agent2Harness 主流程的最小端到端入口：
+    ScenarioSpec → DemoAgent2HarnessAdapter → ExecutionTrace
+    → Evidence → CoreEvaluation → EvaluationResult → ReportSummary
+
+    当前仅支持 demo/mock 材料——所有工具调用来自 MockReplayAdapter，
+    signal_quality = tautological_replay。未来 Real Integration 将提供
+    平行的 build_real_core_flow()，接受 RealAgentAdapter + JudgeProvider。
+
+    Args:
+        tool_specs: ToolSpec 列表
+        eval_spec: EvalSpec 实例
+        mock_path: "good" 或 "bad"
+
+    Returns:
+        DemoCoreFlowResult: 包含 trace, evidence, eval_result, signal_quality, metrics
+    """
+    from agent_tool_harness.agent2harness_adapter import DemoAgent2HarnessAdapter
+    from agent_tool_harness.core_evaluation import CoreEvaluation
+    from agent_tool_harness.demo_core_bridge import (
+        build_report_summary,
+        execution_trace_to_evidence,
+    )
+
+    # EvalSpec → ScenarioSpec
+    scenario = _eval_to_scenario(eval_spec, tool_specs)
+
+    # 装配旧 MockReplayAdapter（不改旧组件）
+    inner = build_demo_runtime(mock_path)
+
+    # 包装为 DemoAgent2HarnessAdapter
+    wrapper = DemoAgent2HarnessAdapter(
+        inner=inner,
+        tool_specs=list(tool_specs),
+        eval_spec=eval_spec,
+    )
+
+    # Step 1: ScenarioSpec → ExecutionTrace
+    trace = wrapper.run(scenario)
+
+    # Step 2: ExecutionTrace → Evidence
+    evidence = execution_trace_to_evidence(
+        trace, signal_quality=wrapper.SIGNAL_QUALITY
+    )
+
+    # Step 3: Evidence → EvaluationResult（通过 CoreEvaluation + RuleJudge）
+    evaluation = CoreEvaluation()
+    eval_result = evaluation.evaluate(evidence, eval_spec)
+
+    # Step 4: metrics → ReportSummary
+    metrics = {
+        "total_evals": 1,
+        "passed": 1 if eval_result.passed else 0,
+        "failed": 0 if eval_result.passed else 1,
+        "error_evals": 0,
+        "signal_quality": wrapper.SIGNAL_QUALITY,
+    }
+    report_summary = build_report_summary(metrics)
+
+    return DemoCoreFlowResult(
+        trace=trace,
+        evidence=evidence,
+        eval_result=eval_result,
+        signal_quality=wrapper.SIGNAL_QUALITY,
+        metrics={
+            "report_summary": report_summary,
+            **metrics,
+        },
+    )
+
+
+def _eval_to_scenario(eval_spec: Any, tool_specs: list[Any]) -> Any:
+    """从 EvalSpec + ToolSpec 列表构造 ScenarioSpec。"""
+    from agent_tool_harness.config.eval_spec import EvalSpec
+    from agent_tool_harness.config.tool_spec import ToolSpec
+    from agent_tool_harness.core_contract import ScenarioSpec
+
+    available_tools = [t.qualified_name for t in tool_specs if isinstance(t, ToolSpec)]
+    return ScenarioSpec(
+        scenario_id=eval_spec.id if isinstance(eval_spec, EvalSpec) else str(eval_spec),
+        goal=getattr(eval_spec, "user_prompt", ""),
+        available_tools=available_tools,
+        success_criteria=list(
+            getattr(eval_spec, "success_criteria", []) or []
+        ),
+    )

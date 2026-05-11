@@ -60,6 +60,23 @@
 
 **关键边界：** 虚线以上的所有步骤都是机器执行的（automated）；`ReviewDecision` 是人工裁决，**不由** `EvaluationResult` 自动派生。
 
+### 1.1 Main Flow 落地状态（2026-05-11）
+
+Main flow 已通过 demo 材料端到端落地。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT2HARNESS_MAIN_FLOW.md)。
+
+**已实现模块：**
+
+| 模块 | 文件 | 职责 |
+|------|------|------|
+| Agent2HarnessAdapter wrapper | `agent2harness_adapter.py` | DemoAgent2HarnessAdapter / ReplayAgent2HarnessAdapter 包装旧 adapter |
+| CoreEvaluation | `core_evaluation.py` | Evidence + EvalSpec → RuleJudge → EvaluationResult |
+| Core Report Bridge | `core_report_bridge.py` | EvaluationResult / ReportSummary → 旧 reporter 可消费 dict |
+| Assembly (Core Flow) | `assembly.py` | build_demo_core_flow() 端到端编排入口 |
+
+**已验证链路：** ScenarioSpec → DemoAgent2HarnessAdapter → ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → ReportSummary。ReviewDecision 由人工 Reviewer 显式创建，不自动生成。
+
+测试：`tests/test_agent2harness_main_flow.py`（18 个集成测试），`tests/test_core_contract.py`（19 个 contract test），`tests/test_demo_to_core_bridge.py`（21 个 bridge 测试）。
+
 ---
 
 ## 2. Core Objects
