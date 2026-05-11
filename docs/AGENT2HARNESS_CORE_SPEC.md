@@ -138,8 +138,9 @@ Core Contract **不**包含以下任何内容：
 | `RuleJudge` | `EvalSpec` + `AgentRunResult` → `JudgeResult` | 产出 `RuleFinding` 列表而非 `RuleCheckResult` 列表 |
 | `EvalRunner` | `AgentAdapter` (旧) + 各模块 | 消费 `Agent2HarnessAdapter` + 组装 `Evidence` |
 | `TranscriptReplayAdapter` | `AgentAdapter` Protocol (旧) | 同 MockReplayAdapter |
+| `demo_core_bridge` | — | **已实现**：`AgentRunResult` → `ExecutionTrace`，`JudgeResult` → `EvaluationResult` 等 5 个映射函数 |
 
-**当前本轮不变更 Demo 组件的行为**——Core Contract 对象定义先行，适配在后。
+详见 [DEMO_TO_CORE_MIGRATION.md](DEMO_TO_CORE_MIGRATION.md)。
 
 ---
 

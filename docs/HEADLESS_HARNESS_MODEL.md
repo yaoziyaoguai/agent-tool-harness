@@ -68,6 +68,18 @@ type checks），失败即拒绝。
 
 > 关键约束：`run` 命令当前硬编码 `MockReplayAdapter`。不支持注入自定义 `AgentAdapter`。
 
+### Demo → Core Bridge
+
+`demo_core_bridge.py` 提供 5 个纯函数把旧 Demo 对象映射到 Core Contract 对象：
+- `agent_run_result_to_execution_trace()` — `AgentRunResult` → `ExecutionTrace`
+- `execution_trace_to_evidence()` — `ExecutionTrace` → `Evidence`
+- `rule_check_to_rule_finding()` — `RuleCheckResult` → `RuleFinding`
+- `judge_result_to_evaluation_result()` — `JudgeResult` → `EvaluationResult`
+- `build_report_summary()` — `metrics dict` → `ReportSummary`
+
+桥接层不改旧组件行为，所有函数为纯数据转换。详见
+[DEMO_TO_CORE_MIGRATION.md](DEMO_TO_CORE_MIGRATION.md)。
+
 ### Deterministic Checks
 
 `RuleJudge` 做确定性规则匹配：

@@ -60,7 +60,7 @@
 > Core 不 import examples，不读 .env，不知道 OpenAI/Anthropic/DeepSeek。
 
 ### B1. Extract Core contracts as explicit layer
-- **Status**: in progress (2026-05-11: core_contract.py created, see AGENT2HARNESS_CORE_SPEC.md)
+- **Status**: in progress (2026-05-11: core_contract.py created, demo_core_bridge.py created)
 - **Why**: 当前 Core 对象和流程散落在各模块中，没有显式的"这里是 Core"标记
 - **Acceptance**:
   - Core 模块清单文档化（见 CURRENT_IMPLEMENTATION.md 的模块分类）
@@ -68,6 +68,8 @@
   - [x] `core_contract.py` — 10 个运行时 dataclass + Agent2HarnessAdapter Protocol
   - [x] `AGENT2HARNESS_CORE_SPEC.md` — Core Spec 文档（10 节）
   - [x] `test_core_contract.py` — 19 个 contract test
+  - [x] `demo_core_bridge.py` — 旧 Demo → Core Contract 桥接层（5 个映射函数）
+  - [x] `test_demo_to_core_bridge.py` — 21 个 bridge 表征测试
   - [ ] 现有 Demo adapter 适配 Core Contract（后续轮次）
   - [ ] EvalRunner 消费 Core Contract（后续轮次）
 - **Not doing**: 不移动源码文件（除非必要）；不修改 Core 行为；本轮不迁移现有 adapter

@@ -60,7 +60,10 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 **Track B 最新进展（2026-05-11）：** `agent_tool_harness/core_contract.py` 新增 10 个
 Core dataclass + Agent2HarnessAdapter Protocol，`docs/AGENT2HARNESS_CORE_SPEC.md` 定义
 完整 Core Spec（10 节），`tests/test_core_contract.py` 含 19 个 contract test。
-详见 commit 记录和 [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md)。
+`agent_tool_harness/demo_core_bridge.py` 新增 5 个旧→新映射函数，
+`tests/test_demo_to_core_bridge.py` 含 21 个 bridge 表征测试。
+详见 commit 记录和 [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md)、
+[DEMO_TO_CORE_MIGRATION.md](DEMO_TO_CORE_MIGRATION.md)。
 
 ### Track C: Real Integration（future，全部 blocked）
 
