@@ -32,6 +32,8 @@ README.md                     ← 第一站：了解项目 + 跑 demo
    ↓
 START_HERE.md                 ← 你在这里：判断是否继续
    ↓
+ANTHROPIC_LINEAGE.md          ← 设计来源：为什么这样设计
+   ↓
 CURRENT_IMPLEMENTATION.md     ← 诚实了解当前实现边界
    ↓
 HEADLESS_HARNESS_MODEL.md     ← 理解 Harness 执行模型
@@ -42,7 +44,9 @@ CONFIGURATION.md              ← 配置文件格式
    ↓
 PROJECT_INTEGRATION.md        ← 接入你的项目
    ↓
-ROADMAP.md                    ← 未来路线
+BACKLOG.md                    ← 当前 backlog 与优先级
+   ↓
+ROADMAP.md                    ← 完整演进路线
    ↓
 REVIEW_CHECKLIST.md           ← Review 检查清单
 ```

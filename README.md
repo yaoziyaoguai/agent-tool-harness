@@ -5,6 +5,10 @@
 它把工具配置、mock 执行、确定性规则检查、证据收集、报告生成、人工 Review 串成
 一条可复现的评测链路，用于探索 Agent 工具设计质量评测流程。当前不是成熟平台。
 
+## Design lineage
+
+本项目源于 Anthropic Engineering 的 [Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents) 工具设计方法论。当前项目是 headless CLI prototype，实现了其中的工具设计审计和 deterministic rule checks。当前还不是完整的真实 LLM Agent evaluation platform。详细设计来源见 [docs/ANTHROPIC_LINEAGE.md](docs/ANTHROPIC_LINEAGE.md)。
+
 ## Current status
 
 **Headless CLI Demo Prototype — 本地 mock replay + deterministic rule checks。**

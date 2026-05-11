@@ -76,6 +76,27 @@ agent-tool-harness v2.0.0 是一个 **Headless CLI Agent Tool Harness Prototype*
 - `run` 命令硬编码 `MockReplayAdapter`，不支持注入自定义 AgentAdapter
 - 无 Python SDK（`__init__.py` 只导出 `__version__`）
 
+## Current coverage against Anthropic intent
+
+以下表格逐项对照 Anthropic *Writing effective tools for agents* 的主张与当前实现状态：
+
+| 能力 | 当前状态 | 实现证据 | 尚未支持 | 未来模块 |
+|------|---------|---------|---------|---------|
+| 工具 schema / 设计审计 | ✅ 已实现 | `ToolDesignAuditor` 五类原则 | — | 可扩展更深 |
+| Mock replay 执行 | ✅ 已实现 | `MockReplayAdapter` good/bad 分支 | 不是真实 Agent eval | `RealAgentAdapter` |
+| Deterministic rule checks | ✅ 已实现 | `RuleJudge` 5 类规则 | 不是 LLM 语义判定 | `JudgeProvider` (LLM) |
+| 报告生成 | ✅ 已实现 | `MarkdownReport` + `signal_quality` 声明 | — | `ReviewDecision` |
+| Failure attribution | ✅ 已实现 | `TranscriptAnalyzer` 四分类 | 基于 mock 数据未验证 | — |
+| 可观测性 artifact | ✅ 已实现 | 10 个结构化 artifact | `llm_cost.json` advisory-only | `EvidenceStore` |
+| Human review 支持 | ✅ 已实现 | Report + artifact 追溯链 | 不自动裁决 | — |
+| 工具选择正确性评测 | ❌ 未实现 | — | 需真实 Agent 选择工具 | `RealAgentAdapter` |
+| 真实 Agent runtime | ❌ 未实现 | — | 需 `AgentAdapter` 扩展 | `RealAgentAdapter` |
+| LLM judge 语义评分 | ❌ 未实现 | — | 需独立 `JudgeProvider` | `JudgeProvider` (LLM) |
+| Provider cost / latency evidence | ❌ 未实现 | — | 需真实 API 调用 | `ProviderConfig` |
+
+> 表格中的 ❌ 是 **knowingly not yet supported**，不是产品缺陷。当前项目处于
+> headless CLI prototype 阶段，这些能力在 BACKLOG.md P2/P3 中规划。
+
 ## 当前最小可用路径
 
 1. clone → install → pytest

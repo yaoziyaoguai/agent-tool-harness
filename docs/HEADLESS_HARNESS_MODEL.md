@@ -103,7 +103,33 @@ ReviewDecision   → 从人工 Review 到自动化决策
 | HTTP/Shell executor | ❌ not supported | — |
 | Python SDK | ❌ not supported | `__init__.py` 只导出版本号 |
 
-## 6. 架构边界
+## 6. Design lineage from Anthropic tool-use guidance
+
+Harness 的设计 lineage 来源于 Anthropic Engineering 的
+[Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
+文章。该文章关注一个核心问题：**如何为 AI Agent 设计高质量的工具**。
+
+当前实现与该文章的对齐点：
+
+1. **5 类工具设计原则审计** — `ToolDesignAuditor` 直接实现了文章的五类原则：
+   choosing the right tools / namespacing / returning meaningful context /
+   optimizing for token efficiency / prompt-engineering descriptions。
+   每条 finding 携带 `principle` / `principle_title` / `why_it_matters` / `suggestion`。
+
+2. **Failure attribution 四分类** — `TranscriptAnalyzer` 的四个归因类别
+   (`tool_design` / `eval_definition` / `agent_tool_choice` / `runtime`)
+   对应该文章对失败来源的分析框架。
+
+3. **signal_quality 体系** — `signal_quality.py` 实现该文章对 "honest evaluation" 的要求：
+   每次 run 必须显式声明信号质量级别（`tautological_replay` / `rule_deterministic` /
+   `recorded_trajectory` / `real_agent`），让 reviewer 知道当前信号的置信度边界。
+
+4. **接口隔离** — 严格区分 mock replay / real agent adapter，rule judge / LLM judge，
+   reporter / decision maker，遵循该文章对 evaluation architecture 的模块化主张。
+
+详见 [ANTHROPIC_LINEAGE.md](ANTHROPIC_LINEAGE.md)。
+
+## 7. 架构边界
 
 ### CLI 是 thin adapter
 CLI 只负责解析参数、装配组件、调用 runner。不允许在 CLI 层写业务逻辑。
@@ -123,7 +149,7 @@ Reporter 只生成报告。最终判定由 Human Review 完成。报告不得自
 在 Harness 链路中，人是最终解释者和决策者。所有 artifact 是辅助人类判断的证据，
 不是自动裁决的结果。
 
-## 7. Coding Agent 修改守则
+## 8. Coding Agent 修改守则
 
 后续任何 Coding Agent 在修改本项目时必须遵守：
 

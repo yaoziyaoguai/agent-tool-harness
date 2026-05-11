@@ -31,20 +31,36 @@
 
 ## 下一步
 
-### 文档瘦身 + 入口收敛（当前）
-- 从 56 份文档精简到 9 份核心文档
-- 删除所有历史层、内部试用、push preflight 文档
-- 新用户入口收敛为 `README.md` → `docs/START_HERE.md`
+### Anthropic lineage repair and evaluation model alignment（当前）
+- 补齐 ANTHROPIC_LINEAGE.md 和 BACKLOG.md
+- 在所有核心文档中恢复 Anthropic 设计来源引用
+- 明确 mock replay ≠ real eval，deterministic rules ≠ LLM judge
+- 见 [BACKLOG.md](BACKLOG.md) P0
 
-### RealAgentAdapter / JudgeProvider / ProviderConfig 设计
-- 独立模块 + Protocol 接口实现
-- 不往 MockReplayAdapter / RuleJudge 里塞逻辑
-- LiveAnthropicTransport 代码已存在但从未验证，需在真实端点测试
+### 强化当前 tool-design audit 信号（P1）
+- ToolDesignAuditor 覆盖更多边界 case，decoy 检测更精确
+- TranscriptAnalyzer failure attribution 验证和可读性提升
+- Bootstrap / scaffold UX 硬化（端到端 < 5s）
+- 见 [BACKLOG.md](BACKLOG.md) P1
 
-### opt-in 真实 LLM trial
+### 定义 RealAgentAdapter / JudgeProvider / ProviderConfig spec（P2）
+- AgentAdapter Protocol 扩展为支持真实 LLM agentic loop（仅 spec）
+- JudgeProvider Protocol 定义完整语义评分接口（仅 spec）
+- ProviderConfig 定义 model / API key / base URL / budget 配置格式（仅 spec）
+- EvidenceStore Protocol 定义证据存储 / 查询 / 追溯接口（仅 spec）
+- Opt-in 安全模型设计文档（`--live --confirm-i-have-real-key`）
+- **不实现任何真实 LLM 调用**
+- 见 [BACKLOG.md](BACKLOG.md) P2
+
+### Fake JudgeProvider 先行验证（P3）
+- 在接真实 LLM judge 之前，先用 fake provider 验证 JudgeProvider 接口
+- 见 [BACKLOG.md](BACKLOG.md) P3.1
+
+### opt-in 真实 LLM trial（P3，需 P2 全部完成）
 - 需要双标志：`--live --confirm-i-have-real-key`
 - 需要 4 个 env var
 - 仅限内部、有明确安全边界的环境
+- 见 [BACKLOG.md](BACKLOG.md) P3.2
 
 ## 明确不做
 
