@@ -232,15 +232,15 @@
 - **Not doing**: 不保留"代码存在但未验证"的灰色状态
 
 ### C8. TraceImportAdapter
-- **Status**: **设计阶段** (spec: docs/TRACE_IMPORT_ADAPTER_SPEC.md, 2026-05-12)
+- **Status**: **native schema 已实现** (2026-05-12: `agent_tool_harness/trace_import.py`, 52 tests)
 - **Why**: 用户已有 trace 文件需要导入为 Agent2Harness ExecutionTrace，不运行 Agent
 - **Acceptance**:
-  - native mode: 直接导入 ExecutionTrace JSON
-  - simple mapping mode: YAML 字段映射
-  - 完整校验 + 明确错误信息
-  - 不猜测/不修复/不 LLM 解析
+  - [x] native mode: 直接导入 ExecutionTrace JSON
+  - [ ] simple mapping mode: YAML 字段映射（Phase B next）
+  - [x] 完整校验 + 明确错误信息
+  - [x] 不猜测/不修复/不 LLM 解析
 - **Not doing**: 不做复杂 JSONPath DSL（第一版），不自动推断格式
-- **Phase**: A (native) → B (simple mapping)
+- **Phase**: A (native) ✅ → B (simple mapping) next
 
 ### C9. CLIAgentAdapter
 - **Status**: **设计阶段** (spec: docs/CLI_AGENT_ADAPTER_SPEC.md, 2026-05-12)

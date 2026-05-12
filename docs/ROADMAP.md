@@ -36,6 +36,10 @@
 **当前 signal_quality 上限：** `tautological_replay`（mock replay）和
 `recorded_trajectory`（transcript replay）。这些不是真实 Agent 能力信号。
 
+**当前阶段：TraceImportAdapter native schema**（2026-05-12）
+用户可通过 `trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report` 导入已有 trace。
+下一步是 simple mapping mode（Phase B）。
+
 ## 下一步（按三条 Track 组织）
 
 三条 Track 的边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
@@ -94,15 +98,16 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | C5 | Cost / latency evidence capture | **deferred** (推迟到 Real Agent Integration 之后——先让 trace 跑通，再加成本预算) |
 | C6 | Deterministic + LLM judge 组合 | done (2026-05-12: CoreEvaluation judge_provider 接入; passed 仍由 RuleJudge 决定, JudgeFinding 为 advisory) |
 | C7 | LiveAnthropicTransport 验证或删除 | not started (legacy LiveAnthropicTransport 保持不动，新 transport 独立) |
-| C8 | **TraceImportAdapter** | **设计阶段** (docs/TRACE_IMPORT_ADAPTER_SPEC.md 2026-05-12) |
+| C8 | **TraceImportAdapter** | **native schema done** (2026-05-12: trace_import.py + 52 tests); simple mapping next |
 | C9 | **CLIAgentAdapter** | **设计阶段** (docs/CLI_AGENT_ADAPTER_SPEC.md 2026-05-12) |
-| C10 | **Real agent dogfood (本地项目)** | **blocked** (needs C8 + C9) |
+| C10 | **Real agent dogfood (本地项目)** | **blocked** (needs C9) |
 
-**Track C 最新进展（2026-05-12）：** Real Agent Integration SDD 进入设计阶段。
-两个接入模块已完成 spec 设计：
+**Track C 最新进展（2026-05-12）：** TraceImportAdapter native schema 已实现（52 tests）。
+用户可通过 `trace_import.py` 导入符合 native schema 的 trace JSON，进入 Core Flow：
 
-1. **TraceImportAdapter** — 导入用户已有 trace JSON（native schema / simple mapping）
-2. **CLIAgentAdapter** — 通过 CLI 命令运行用户 Agent，复用 TraceImportAdapter
+```
+trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report
+```
 
 详见 [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)、
 [TRACE_IMPORT_ADAPTER_SPEC.md](TRACE_IMPORT_ADAPTER_SPEC.md)、

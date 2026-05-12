@@ -1,0 +1,55 @@
+{
+  "scenario_id": "knowledge_search_regression",
+  "tool_calls": [
+    {
+      "call_id": "call-1",
+      "tool_name": "kb.search.search_articles",
+      "arguments": {
+        "query": "SSO session loss after password reset",
+        "limit": 5
+      },
+      "timestamp": "2025-01-15T10:30:00Z"
+    },
+    {
+      "call_id": "call-2",
+      "tool_name": "kb.search.get_article",
+      "arguments": {
+        "article_id": "kb-0042"
+      },
+      "timestamp": "2025-01-15T10:30:05Z"
+    }
+  ],
+  "tool_results": [
+    {
+      "call_id": "call-1",
+      "tool_name": "kb.search.search_articles",
+      "status": "success",
+      "output": {
+        "articles": [
+          {"id": "kb-0042", "title": "SSO Session Loss: Root Cause Analysis"},
+          {"id": "kb-0071", "title": "Password Reset and Session Invalidation"}
+        ]
+      },
+      "error": null
+    },
+    {
+      "call_id": "call-2",
+      "tool_name": "kb.search.get_article",
+      "status": "success",
+      "output": {
+        "article": {
+          "id": "kb-0042",
+          "title": "SSO Session Loss: Root Cause Analysis",
+          "body": "Root cause: SSO session storage layer fails to handle password-reset-triggered session invalidation correctly. When a user resets their password, the old session token is not properly invalidated before the new session is created, resulting in a race condition that drops the session entirely."
+        }
+      },
+      "error": null
+    }
+  ],
+  "final_answer": "The likely root cause is a race condition in the SSO session storage layer: when a user resets their password, the old session token is not properly invalidated before the new session is created. This causes the session to be dropped entirely. Recommendation: fix the session invalidation ordering in the password reset flow.",
+  "messages": [
+    {"role": "user", "content": "Investigate why users lose SSO session after password reset"},
+    {"role": "assistant", "content": "I'll search for relevant knowledge base articles."}
+  ],
+  "observations": []
+}

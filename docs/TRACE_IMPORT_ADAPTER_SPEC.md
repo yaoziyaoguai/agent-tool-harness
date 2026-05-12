@@ -1,6 +1,7 @@
 # TraceImportAdapter Specification
 
-> **状态**: Draft — Design phase. No implementation yet.
+> **状态**: Implementation in progress — native schema complete (2026-05-12).
+> simple mapping mode 尚未实现。
 > **父文档**: [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)
 
 ---
@@ -35,7 +36,12 @@
 
 **优势**: 最稳定——不经过任何字段映射，反序列化后直接校验。
 
+**状态**: ✅ 已实现。代码位于 `agent_tool_harness/trace_import.py`。
+示例文件位于 `examples/trace_import/native_trace.json`。
+
 ### 2.2 Mode B: Simple Mapping
+
+**状态**: ❌ 尚未实现（Phase B）。
 
 用户提供普通 JSON + 字段映射 YAML。Adapter 按映射关系提取字段。
 
@@ -223,3 +229,37 @@ class TraceImportAdapter:
 | 16 | 不 import os.environ | native |
 
 所有测试零网络依赖，纯 deterministic。
+
+---
+
+## 8. Implementation Status (2026-05-12)
+
+### 8.1 Native schema — 已实现
+
+| 组件 | 位置 |
+|------|------|
+| TraceImportAdapter | `agent_tool_harness/trace_import.py` |
+| 示例 native trace | `examples/trace_import/native_trace.json` |
+| 示例 README | `examples/trace_import/README.md` |
+| 测试 | `tests/test_trace_import_adapter.py`（52 tests） |
+
+实现的方法：
+- `TraceImportAdapter.import_file(path)` → `ExecutionTrace`
+- `TraceImportAdapter.import_dict(data)` → `ExecutionTrace`
+- `TraceImportAdapter.to_evidence(trace)` → `Evidence`
+- `import_trace_as_evidence(path)` → `Evidence`（便捷函数）
+
+### 8.2 Simple mapping — 尚未实现
+
+用户如果 trace 字段名与 native schema 不一致，建议先用自己的脚本转成 native schema。
+
+### 8.3 CLIAgentAdapter — 尚未实现
+
+当前无法通过 CLI 命令运行真实 Agent 并自动导入 trace。
+
+### 8.4 已知局限
+
+- `ExecutionTrace` 当前没有 `observations` 字段——`observations` 被存入
+  `Evidence.artifacts["observations"]`
+- `status: "ok"` 会被 normalize 为 `"success"`（匹配 core_contract）
+- 交叉引用校验（tool_result.call_id 找不到对应 tool_call）直接报错

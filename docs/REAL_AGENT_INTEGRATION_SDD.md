@@ -1,6 +1,7 @@
 # Real Agent Integration SDD (Software Design Document)
 
-> **状态**: Draft — Design phase. No implementation yet.
+> **状态**: Implementation in progress — Phase A (TraceImportAdapter native schema) complete (2026-05-12).
+> Phase B (simple mapping) next. CLIAgentAdapter (Phase C/D) 尚未实现。
 > **依赖**: Agent2Harness Core Flow (landed), CoreJudgeProvider (landed), LLMJudgeProvider (landed), explicit --env-file secret loading (landed).
 
 ---
@@ -205,7 +206,34 @@ CLIAgentAdapter **不自己解析 trace**。它负责运行命令，然后把 tr
 
 ---
 
-## 9. References
+## 9. Implementation Progress
+
+### Phase A: TraceImportAdapter — Native Schema ✅ (2026-05-12)
+
+| Acceptance Criteria | Status |
+|----------------------|--------|
+| AC 1: 能导入 native ExecutionTrace JSON → ExecutionTrace dataclass | ✅ 52 tests |
+| AC 2: 格式错误时产生明确错误信息，不静默吞错 | ✅ 20+ error path tests |
+| AC 12: 所有测试零网络依赖 | ✅ |
+| AC 13: 所有测试 deterministic | ✅ |
+
+实现位置:
+- `agent_tool_harness/trace_import.py` — TraceImportAdapter
+- `examples/trace_import/native_trace.json` — 示例 trace
+- `tests/test_trace_import_adapter.py` — 52 tests
+
+### Phase B: TraceImportAdapter — Simple Mapping Mode ❌
+
+下一步。
+用户当前如果 trace 格式不一致，先用脚本转成 native schema。
+
+### Phase C/D/E: CLIAgentAdapter / Integration / Dogfood ❌
+
+尚未实现。详见 [CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md)。
+
+---
+
+## 10. References
 
 - [AGENT2HARNESS_MAIN_FLOW.md](AGENT2HARNESS_MAIN_FLOW.md) — Core Flow 架构
 - [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md) — Core Contract 对象定义

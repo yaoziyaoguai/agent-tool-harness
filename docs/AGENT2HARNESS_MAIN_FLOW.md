@@ -27,12 +27,15 @@
 | **JudgeFinding + LLM provider config** | ✅ 已完成（2026-05-12） | `llm_config.py` + `fake_judge.py` |
 | Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
 | **Real LLM infrastructure & safety gate verified** | ⚠️ transport verified, semantic judge pending (2026-05-12) | `docs/DOGFOOD_REAL_LLM_001.md` |
-| **TraceImportAdapter** | 📐 设计阶段（2026-05-12） | `docs/TRACE_IMPORT_ADAPTER_SPEC.md` |
+| **TraceImportAdapter (native schema)** | ✅ 已实现（2026-05-12） | `agent_tool_harness/trace_import.py` |
+| **TraceImportAdapter (simple mapping)** | ❌ 尚未实现 | `docs/TRACE_IMPORT_ADAPTER_SPEC.md` |
 | **CLIAgentAdapter** | 📐 设计阶段（2026-05-12） | `docs/CLI_AGENT_ADAPTER_SPEC.md` |
 | RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
 
 **结论：** Main Flow 已落地。LLM provider 配置模型（四类 provider）和
 FakeJudgeProvider（接口验证骨架）已就绪。真实 LLM 调用仍默认不启用。
+TraceImportAdapter native schema 已实现（`agent_tool_harness/trace_import.py`），
+用户可通过 `trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report` 导入已有 trace。
 
 ---
 
