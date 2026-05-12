@@ -90,6 +90,7 @@ def build_demo_core_flow(
     tool_specs: list[Any],
     eval_spec: Any,
     mock_path: str = "good",
+    judge_provider: Any = None,
 ) -> DemoCoreFlowResult:
     """装配并运行一次完整的 demo Core Flow。
 
@@ -105,6 +106,8 @@ def build_demo_core_flow(
         tool_specs: ToolSpec 列表
         eval_spec: EvalSpec 实例
         mock_path: "good" 或 "bad"
+        judge_provider: 可选 CoreJudgeProvider（如 FakeJudgeProvider），
+            传入后 CoreEvaluation 将并列产出 RuleFinding + JudgeFinding
 
     Returns:
         DemoCoreFlowResult: 包含 trace, evidence, eval_result, signal_quality, metrics
@@ -138,7 +141,7 @@ def build_demo_core_flow(
     )
 
     # Step 3: Evidence → EvaluationResult（通过 CoreEvaluation + RuleJudge）
-    evaluation = CoreEvaluation()
+    evaluation = CoreEvaluation(judge_provider=judge_provider)
     eval_result = evaluation.evaluate(evidence, eval_spec)
 
     # Step 4: metrics → ReportSummary
@@ -168,6 +171,7 @@ def build_demo_core_flow_batch(
     tool_specs: list[Any],
     eval_specs: list[Any],
     mock_path: str = "good",
+    judge_provider: Any = None,
 ) -> dict[str, Any]:
     """装配并运行批量 demo Core Flow——一条命令跑多个 eval。
 
@@ -178,6 +182,7 @@ def build_demo_core_flow_batch(
         tool_specs: ToolSpec 列表
         eval_specs: EvalSpec 列表
         mock_path: "good" 或 "bad"
+        judge_provider: 可选 CoreJudgeProvider，转发给每个 build_demo_core_flow() 调用
 
     Returns:
         dict 包含:
@@ -194,6 +199,7 @@ def build_demo_core_flow_batch(
             tool_specs=tool_specs,
             eval_spec=eval_spec,
             mock_path=mock_path,
+            judge_provider=judge_provider,
         )
         results.append(result)
 

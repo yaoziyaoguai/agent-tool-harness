@@ -291,6 +291,40 @@ def _parse_provider_dict(name: str, raw: dict[str, Any]) -> LLMProviderConfig:
     return cfg
 
 
+def load_provider_registry_from_file(path: str) -> LLMProviderRegistry:
+    """从 YAML/JSON 文件加载 provider 配置注册表。
+
+    这是 CLI ``--llm-config`` / ``--dry-run-provider`` 的文件加载入口。
+    不读取环境变量，不调用外部 API。
+
+    Args:
+        path: provider 配置文件的路径（.yaml / .yml / .json）
+
+    Returns:
+        校验通过后的 LLMProviderRegistry
+
+    Raises:
+        FileNotFoundError: 文件不存在
+        ConfigValidationError: 配置校验失败
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    import yaml as _yaml
+
+    _path = _Path(path) if not isinstance(path, _Path) else path
+    if not _path.exists():
+        raise FileNotFoundError(f"provider config file not found: {_path}")
+    text = _path.read_text(encoding="utf-8")
+    if _path.suffix in {".yaml", ".yml"}:
+        data = _yaml.safe_load(text)
+    else:
+        data = _json.loads(text)
+    if not isinstance(data, dict):
+        raise ConfigValidationError("(root)", "provider config 顶层必须是 dict")
+    return load_provider_registry(data)
+
+
 def load_provider_registry(data: dict[str, Any]) -> LLMProviderRegistry:
     """从 dict 加载 provider 配置注册表。
 

@@ -57,16 +57,20 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 |----|------|------|
 | B1 | 提取 Core contracts 为显式层 | in progress (main flow landed 2026-05-11) |
 | B2 | AgentAdapter Protocol 硬化 | in progress (Agent2HarnessAdapter + wrapper landed) |
-| B3 | JudgeProvider Protocol 硬化 | in progress (CoreJudgeProvider + FakeJudgeProvider landed 2026-05-12) |
+| B3 | JudgeProvider Protocol 硬化 | in progress (CoreJudgeProvider + FakeJudgeProvider + CLI 集成 landed 2026-05-12) |
 | B4 | ToolExecutor Protocol spec | not started |
 | B5 | ProviderConfig spec | done (2026-05-12: llm_config.py landed) |
 | B6 | EvidenceStore spec | not started |
-| B7 | Core contract tests | in progress (19 tests) |
+| B7 | Core contract tests | in progress (61+ tests across 6 test files) |
 | B8 | Forbidden dependency tests | in progress (AST-based check) |
 
 **Track B/C 最新进展（2026-05-12）：** LLM provider 配置模型 + Fake Judge 基础 +
-CoreEvaluation JudgeProvider 接入落地完成。Phase 2：CoreEvaluation 可选消费
-FakeJudgeProvider，RuleFinding + JudgeFinding 在 EvaluationResult 中并列。
+CoreEvaluation JudgeProvider 接入 + CLI 集成落地完成。Phase 3：新增
+`--judge-provider fake`（配合 `--core-flow`）、`--llm-config` / `--llm-provider` /
+`--dry-run-provider` CLI flags、`load_provider_registry_from_file()` 文件加载。
+`build_demo_core_flow()` / `_run_core_flow()` 接受 `judge_provider` 参数。
+新增 30 个测试（12 file loading + 11 CLI flags + 7 integration）。
+616 全量测试通过。
 passed 仍由 RuleJudge 决定，JudgeFinding 仅作为辅助信号。
 新增 `llm_config.py`（LLMProviderConfig + Registry + resolve_api_key）、
 `fake_judge.py`（CoreJudgeProvider Protocol + FakeJudgeProvider）、

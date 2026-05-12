@@ -153,25 +153,33 @@ ReviewDecision         — 仍然由人类显式创建
 - `tests/test_llm_provider_config.py` — 配置解析测试
 - `tests/test_fake_judge_provider.py` — FakeJudgeProvider 测试
 
-### Phase 2（未来）：JudgeFinding + fake judge integration into Core Flow
-- 让 CoreEvaluation 可选消费 JudgeProvider
+### Phase 2（已完成 2026-05-12）：JudgeFinding + fake judge integration into Core Flow
+- CoreEvaluation 可选消费 JudgeProvider（`judge_provider` 参数）
 - EvaluationResult 聚合 RuleFinding + JudgeFinding
+- 12 个 core evaluation 测试
 
-### Phase 3（未来）：OpenAI-compatible transport skeleton
+### Phase 3（已完成 2026-05-12）：CLI flags + dry-run + fake judge
+- `--judge-provider fake` CLI flag（仅与 `--core-flow` 配合）
+- `--llm-config` / `--llm-provider` CLI flags
+- `--dry-run-provider` 校验配置不读 key
+- `load_provider_registry_from_file()` 文件加载入口
+- 30 个新测试（12 file loading + 11 CLI flags + 7 integration）
+
+### Phase 4（未来）：OpenAI-compatible transport skeleton
 - 基于已有 `LiveAnthropicTransport` 抽象出通用 `LiveOpenAITransport`
 - 复用 `JudgeTransport` Protocol
 
-### Phase 4（未来）：Anthropic-compatible transport skeleton
+### Phase 5（未来）：Anthropic-compatible transport 收敛
 - `LiveAnthropicTransport` 已经实现，需要收敛到新配置模型
 
-### Phase 5（未来）：opt-in real LLM trial
+### Phase 6（未来）：opt-in real LLM trial
 - CLI `--live` + `--confirm-real-api` + `--llm-provider openai-native`
 - transport 真实调 API
 - 成本追踪、错误分类
 
-### Phase 6（未来）：real evaluation hardening
+### Phase 7（未来）：real evaluation hardening
 - prompt 工程 + rubric 设计
 - 多 provider 分歧率分析
 - 成本治理 + 预算上限
 
-本轮目标：**仅覆盖 Phase 1**，最多 Phase 2 skeleton（JudgeFinding 数据类）。
+Phase 1—3 已完成。Phase 4—7 为未来工作。

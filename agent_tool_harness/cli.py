@@ -99,6 +99,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "composite",
             "anthropic_compatible_offline",
             "anthropic_compatible_live",
+            "fake",
         ],
         default=None,
         help="可选 dry-run judge provider；'recorded' 仅写 advisory，"
@@ -189,6 +190,31 @@ def _build_parser() -> argparse.ArgumentParser:
         "ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation → "
         "EvaluationResult → ReportSummary 链路。**不**调用真实 LLM、**不**自动生成 "
         "ReviewDecision。默认关闭，保持旧 EvalRunner 路径兼容。",
+    )
+    # Phase 3：LLM provider config CLI flags
+    run.add_argument(
+        "--llm-config",
+        default=None,
+        dest="llm_config",
+        metavar="PATH",
+        help="LLM provider 配置文件的路径（yaml/json）。用于 --dry-run-provider "
+        "或未来的真实 LLM judge。不读取环境变量，不调用外部 API。",
+    )
+    run.add_argument(
+        "--llm-provider",
+        default=None,
+        dest="llm_provider",
+        metavar="NAME",
+        help="从 --llm-config 中选择的 provider 名称。当前仅用于 dry-run 校验；"
+        "真实 LLM transport 尚未实现。",
+    )
+    run.add_argument(
+        "--dry-run-provider",
+        action="store_true",
+        default=False,
+        dest="dry_run_provider",
+        help="校验 --llm-config 中的 provider 配置并打印摘要后退出。"
+        "**不**读取 API key、**不**调用外部 API、**不**运行 eval。",
     )
 
     promote = subparsers.add_parser(
@@ -541,6 +567,9 @@ def main(argv: list[str] | None = None) -> int:
                 judge_fake_transport_fixture=args.judge_fake_transport_fixture,
                 judge_advisory=args.judge_advisory,
                 core_flow=args.core_flow,
+                llm_config=args.llm_config,
+                llm_provider=args.llm_provider,
+                dry_run_provider=args.dry_run_provider,
             )
         if args.command == "promote-evals":
             return _promote_evals(args.candidates, args.out, force=args.force)
@@ -1060,6 +1089,9 @@ def _run(
     judge_fake_transport_fixture: str | None = None,
     judge_advisory: list[str] | None = None,
     core_flow: bool = False,
+    llm_config: str | None = None,
+    llm_provider: str | None = None,
+    dry_run_provider: bool = False,
 ) -> int:
     """CLI ``run`` 命令实现。
 
@@ -1074,6 +1106,11 @@ def _run(
     ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation →
     EvaluationResult → ReportSummary。**不**调用真实 LLM、**不**自动生成
     ReviewDecision。
+
+    Phase 3 新增：
+    - ``--judge-provider fake`` 可配合 ``--core-flow``，注入 FakeJudgeProvider
+    - ``--dry-run-provider`` + ``--llm-config`` 校验配置并退出
+    - ``--live`` 在 ``--core-flow`` 路径下报错（transport 未实现）
 
     本函数**不**负责什么
     --------------------
@@ -1097,14 +1134,42 @@ def _run(
     _warn_if_empty(tools, "tools", tools_path)
     _warn_if_empty(evals, "evals", evals_path)
 
+    # --judge-provider fake 只能配合 --core-flow 使用
+    if judge_provider == "fake" and not core_flow:
+        print(
+            "error: --judge-provider fake 只能配合 --core-flow 使用。",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Phase 3：--dry-run-provider 校验 provider config 后退出
+    if dry_run_provider:
+        return _dry_run_provider_config(llm_config=llm_config, llm_provider=llm_provider)
+
     # Phase 5c：--core-flow opt-in 路径。在旧 EvalRunner 逻辑之前拦截，
-    # 走独立的 Core Contract 链路。与 --judge-provider / --judge-advisory
-    # 互斥——Core Flow 有自己的 CoreEvaluation + RuleJudge。
+    # 走独立的 Core Contract 链路。
     if core_flow:
-        if judge_provider or judge_advisory:
+        # --live 在 core-flow 路径下报错：真实 LLM transport 尚未实现
+        if live or confirm_i_have_real_key:
             print(
-                "error: --core-flow 与 --judge-provider / --judge-advisory 互斥；"
+                "error: --live / --confirm-i-have-real-key 在 --core-flow 路径下"
+                "尚未实现。真实 LLM transport 当前不可用，仅支持 --judge-provider fake。",
+                file=sys.stderr,
+            )
+            return 2
+        # --judge-advisory 与 core-flow 互斥
+        if judge_advisory:
+            print(
+                "error: --core-flow 与 --judge-advisory 互斥；"
                 "Core Flow 使用内置 CoreEvaluation + RuleJudge。",
+                file=sys.stderr,
+            )
+            return 2
+        # --judge-provider: 仅 "fake" 允许通过 core-flow
+        if judge_provider and judge_provider != "fake":
+            print(
+                f"error: --core-flow 不支持 --judge-provider {judge_provider}；"
+                "Core Flow 仅支持 --judge-provider fake。",
                 file=sys.stderr,
             )
             return 2
@@ -1113,6 +1178,7 @@ def _run(
             evals=evals,
             out=out,
             mock_path=mock_path,
+            judge_provider=judge_provider,
         )
 
     dry_provider = None
@@ -1212,6 +1278,7 @@ def _run_core_flow(
     evals: list,
     out: str,
     mock_path: str,
+    judge_provider: str | None = None,
 ) -> int:
     """Phase 5c：--core-flow 路径实现。
 
@@ -1224,9 +1291,10 @@ def _run_core_flow(
       report_summary.json / report.md）。
     - **不负责**：不调用真实 LLM、不读 .env、不自动生成 ReviewDecision、
       不改旧 EvalRunner 路径。
-    - **为什么另开函数而非改 EvalRunner**：Core Flow 走独立的 adapter wrapper
-      和 CoreEvaluation，不复用 EvalRunner 的 audit/diagnose 段。旧路径和新路径
-      通过 bool 路由并存，互不污染。
+
+    Phase 3 新增：
+    - ``judge_provider="fake"`` 时构造 FakeJudgeProvider，传入
+      build_demo_core_flow_batch() → CoreEvaluation
 
     Artifacts 输出（--out 目录）：
     - execution_trace.json — 每个 eval 的 ExecutionTrace
@@ -1248,11 +1316,18 @@ def _run_core_flow(
     from agent_tool_harness.reports.markdown_report import MarkdownReport
     from agent_tool_harness.signal_quality import describe as describe_sq
 
+    # Phase 3：--judge-provider fake → FakeJudgeProvider
+    core_judge_provider = None
+    if judge_provider == "fake":
+        from agent_tool_harness.fake_judge import FakeJudgeProvider
+        core_judge_provider = FakeJudgeProvider()
+
     # 装配并运行批量 Core Flow
     batch = build_demo_core_flow_batch(
         tool_specs=tools,
         eval_specs=evals,
         mock_path=mock_path,
+        judge_provider=core_judge_provider,
     )
     results = batch["results"]
     report_summary_obj = batch["report_summary"]
@@ -1796,6 +1871,74 @@ def _judge_provider_preflight(
             ensure_ascii=False,
         )
     )
+    return 0
+
+
+def _dry_run_provider_config(
+    *,
+    llm_config: str | None,
+    llm_provider: str | None,
+) -> int:
+    """Phase 3：校验 provider config 并打印摘要后退出。
+
+    不读取 API key、不调用外部 API、不运行 eval。
+
+    行为：
+    1. 若未提供 --llm-config，打印错误并 exit 2
+    2. 加载并校验配置文件中所有 provider
+    3. 若指定 --llm-provider，额外校验该名称存在
+    4. 打印摘要（provider 名、model、family、compatibility）到 stdout
+    5. exit 0（校验通过）或 exit 2（校验失败）
+    """
+    if not llm_config:
+        print(
+            "error: --dry-run-provider 需要 --llm-config PATH（provider 配置文件的路径）。",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        from agent_tool_harness.llm_config import load_provider_registry_from_file
+
+        registry = load_provider_registry_from_file(llm_config)
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"error: provider config 校验失败 — {exc}", file=sys.stderr)
+        return 2
+
+    names = registry.list_providers()
+    print(f"provider config: {llm_config}")
+    print(f"providers: {len(names)} ({', '.join(names)})")
+    print()
+
+    # 若用户指定了 --llm-provider，校验其存在
+    if llm_provider:
+        try:
+            cfg = registry.get(llm_provider)
+            print(f"selected provider: {llm_provider}")
+            print(f"  family:        {cfg.family.value}")
+            print(f"  compatibility: {cfg.compatibility.value}")
+            print(f"  model:         {cfg.model}")
+            print(f"  api_key_env:   {cfg.api_key_env}")
+            if cfg.base_url:
+                print(f"  base_url:      {cfg.base_url}")
+        except KeyError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+
+    # 打印所有 provider 摘要
+    print("registered providers:")
+    for name in names:
+        cfg = registry.get(name)
+        base_info = f"  {name}: {cfg.family.value}/{cfg.compatibility.value} model={cfg.model}"
+        if cfg.base_url:
+            base_info += f" base_url={cfg.base_url}"
+        print(base_info)
+
+    print()
+    print("dry-run: all provider configs validated (no API key read, no network call)")
     return 0
 
 

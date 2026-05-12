@@ -270,9 +270,15 @@ ScenarioSpec (from EvalSpec 构造)
   - `evaluate()` 调用 `judge_provider.evaluate(evidence)`，追加 JudgeFinding 到 findings
   - `EvaluationResult.passed` 仍由 RuleJudge 决定
   - 12 个新测试（`tests/test_core_evaluation.py`）
-  - 586 全量测试通过
+- [x] **Phase 3：CLI flags + dry-run + fake judge 集成**（2026-05-12）
+  - `--judge-provider fake` CLI flag（仅与 `--core-flow` 配合）
+  - `--llm-config` / `--llm-provider` / `--dry-run-provider` flags
+  - `load_provider_registry_from_file()` 文件加载入口
+  - `build_demo_core_flow()` / `_run_core_flow()` 接受 `judge_provider`
+  - 30 个新测试（12 file loading + 11 CLI flags + 7 integration）
+  - 616 全量测试通过
 
-**下一阶段（Phase 3-5）：**
+**下一阶段（Phase 4-7）：**
 - OpenAI-compatible transport skeleton
 - Anthropic-compatible transport 收敛
 - opt-in real LLM trial（`--live` + `--confirm-real-api`）
