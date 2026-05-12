@@ -64,7 +64,10 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 | B7 | Core contract tests | in progress (19 tests) |
 | B8 | Forbidden dependency tests | in progress (AST-based check) |
 
-**Track B/C 最新进展（2026-05-12）：** LLM provider 配置模型和 Fake Judge 基础落地完成。
+**Track B/C 最新进展（2026-05-12）：** LLM provider 配置模型 + Fake Judge 基础 +
+CoreEvaluation JudgeProvider 接入落地完成。Phase 2：CoreEvaluation 可选消费
+FakeJudgeProvider，RuleFinding + JudgeFinding 在 EvaluationResult 中并列。
+passed 仍由 RuleJudge 决定，JudgeFinding 仅作为辅助信号。
 新增 `llm_config.py`（LLMProviderConfig + Registry + resolve_api_key）、
 `fake_judge.py`（CoreJudgeProvider Protocol + FakeJudgeProvider）、
 `core_contract.py` 新增 JudgeFinding 数据类、`examples/llm_providers.example.yaml`、

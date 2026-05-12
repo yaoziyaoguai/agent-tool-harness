@@ -264,15 +264,21 @@ ScenarioSpec (from EvalSpec 构造)
 - [x] FakeJudgeProvider（`fake_judge.py`）— deterministic fake，零网络依赖
 - [x] 示例配置（`examples/llm_providers.example.yaml`）
 - [x] 设计文档（`docs/LLM_PROVIDER_CONFIG.md`）
-- [x] 30 个新测试（19 config + 11 fake judge）
+- [x] 30 个测试（19 config + 11 fake judge）
+- [x] **Phase 2：CoreEvaluation 可选消费 JudgeProvider**（2026-05-12）
+  - `CoreEvaluation.__init__` 新增 `judge_provider: CoreJudgeProvider | None = None`
+  - `evaluate()` 调用 `judge_provider.evaluate(evidence)`，追加 JudgeFinding 到 findings
+  - `EvaluationResult.passed` 仍由 RuleJudge 决定
+  - 12 个新测试（`tests/test_core_evaluation.py`）
+  - 586 全量测试通过
 
-**下一阶段（Phase 2）：JudgeFinding + fake judge integration into Core Flow**
-1. 让 CoreEvaluation 可选消费 JudgeProvider
-2. EvaluationResult 聚合 RuleFinding + JudgeFinding
-
-**后续阶段（Phase 3-5）：**
+**下一阶段（Phase 3-5）：**
 - OpenAI-compatible transport skeleton
 - Anthropic-compatible transport 收敛
 - opt-in real LLM trial（`--live` + `--confirm-real-api`）
 
-**关键边界：** 真实 LLM 调用仍未默认启用。FakeJudgeProvider 保持默认。
+**关键边界：**
+- 真实 LLM 调用仍未默认启用
+- FakeJudgeProvider 是默认 judge provider
+- JudgeFinding 是辅助信号，不改变 deterministic passed
+- ReviewDecision 必须人工创建

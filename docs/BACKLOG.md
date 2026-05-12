@@ -91,13 +91,15 @@
 - **Not doing**: 不实现 RealAgentAdapter
 
 ### B3. JudgeProvider Protocol hardening
-- **Status**: in progress (2026-05-12: CoreJudgeProvider Protocol + FakeJudgeProvider + contract tests landed)
+- **Status**: in progress (2026-05-12: CoreJudgeProvider Protocol + FakeJudgeProvider + CoreEvaluation 接入 landed)
 - **Why**: 当前 Protocol 已定义，但需要验证 contract test 覆盖
 - **Acceptance**: JudgeProvider Protocol 的 contract test 覆盖所有已知 provider 实现
 - **Not doing**: 不实现真实 LLM judge（FakeJudgeProvider 用于接口验证）
 - [x] CoreJudgeProvider Protocol（`fake_judge.py`）
-- [x] FakeJudgeProvider（9 个 contract tests）
+- [x] FakeJudgeProvider（11 个 contract tests）
 - [x] JudgeFinding 数据类（`core_contract.py`）
+- [x] CoreEvaluation 可选消费 JudgeProvider（Phase 2，12 个 tests）
+- [x] RuleFinding + JudgeFinding 在 EvaluationResult 中并列
 - [ ] 真实 LLM judge provider（后续轮次）
 
 ### B4. ToolExecutor Protocol spec
