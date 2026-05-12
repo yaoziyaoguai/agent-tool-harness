@@ -68,6 +68,10 @@ class LLMJudgeProvider:
     name: str = "llm"
 
     @property
+    def model(self) -> str:
+        return self._model
+
+    @property
     def mode(self) -> str:
         return "live" if getattr(self._transport, "is_live_ready", False) else "disabled"
 

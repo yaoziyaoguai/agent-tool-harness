@@ -1429,7 +1429,7 @@ def _run_core_flow(
             core_judge_provider = result.provider
             # 记录 signal_quality 升级
             signal_quality_note = (
-                f"real_llm_judge provider={result.provider_name} model={result.config.model}"
+                f"real_llm_judge provider={result.provider_name} model={result.provider.model}"
             )
             print(f"[core-flow] {signal_quality_note}", file=sys.stderr)
         except FactoryError as exc:

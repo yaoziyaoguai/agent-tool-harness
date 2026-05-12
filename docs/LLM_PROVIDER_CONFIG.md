@@ -239,7 +239,7 @@ ReviewDecision              — 仍然由人类显式创建
 
 ### Phase 4（已完成 2026-05-12）：OpenAI + Anthropic transport with CLI wiring
 
-### Phase 4.5（本轮 2026-05-12）：Explicit env file provider settings
+### Phase 4.5（已完成 2026-05-12）：Explicit env file provider settings
 - `agent_tool_harness/secrets.py` — SecretSource Protocol + EnvFileSecretSource + OsEnvSecretSource + MappingSecretSource
 - `base_url_env` / `model_env` 字段支持
 - `ResolvedLLMProviderConfig` — runtime resolved config with repr hiding api_key
@@ -248,7 +248,51 @@ ReviewDecision              — 仍然由人类显式创建
 - 安全闸门：真实 LLM 调用必须指定 secret source
 - dry-run 不触碰 SecretSource
 
-### Phase 5（未来）：real evaluation hardening
+### Phase 5（已验证 2026-05-12）：Real LLM dogfood success
+真实 LLM judge dogfood 已验证通过（详见 `docs/DOGFOOD_REAL_LLM_001.md`）。
+
+**命令：**
+```bash
+python -m agent_tool_harness.cli run \
+  --project examples/knowledge_search/project.yaml \
+  --tools examples/knowledge_search/tools.yaml \
+  --evals examples/knowledge_search/evals.yaml \
+  --out /tmp/dogfood-out \
+  --core-flow \
+  --judge-provider llm \
+  --live --confirm-i-have-real-key \
+  --llm-config examples/llm_providers.example.yaml \
+  --llm-provider openai-compatible \
+  --env-file ./.env
+```
+
+**结果：**
+- total_evals=1, passed=1, core_flow=true
+- RuleFinding（deterministic rule judge）正常工作
+- JudgeFinding（LLM judge）正常生成（category=judge, provider=openai-compatible）
+- ReviewDecision 未自动生成（符合预期）
+- `model_env` 从 .env 正确解析
+
+**第三方 OpenAI-compatible provider 推荐配置：**
+```yaml
+# examples/llm_providers.example.yaml
+providers:
+  openai-compatible:
+    family: openai
+    compatibility: compatible
+    api_key_env: AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY
+    base_url_env: AGENT_TOOL_HARNESS_OPENAI_COMPAT_BASE_URL
+    model_env: AGENT_TOOL_HARNESS_OPENAI_COMPAT_MODEL
+```
+
+```bash
+# ./.env（gitignored）
+AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY=sk-your-key
+AGENT_TOOL_HARNESS_OPENAI_COMPAT_BASE_URL=https://your-proxy.com
+AGENT_TOOL_HARNESS_OPENAI_COMPAT_MODEL=your-model-name
+```
+
+### Phase 6（未来）：real evaluation hardening
 - prompt 工程 + rubric 设计
 - 多 provider 分歧率分析
 - 成本治理 + 预算上限

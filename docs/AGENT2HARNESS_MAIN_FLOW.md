@@ -26,6 +26,7 @@
 | Core report bridge（EvaluationResult → report） | ✅ 已实现 | `core_report_bridge.py` |
 | **JudgeFinding + LLM provider config** | ✅ 已完成（2026-05-12） | `llm_config.py` + `fake_judge.py` |
 | Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
+| **Real LLM dogfood（--env-file + openai-compatible）** | ✅ 已验证（2026-05-12） | `docs/DOGFOOD_REAL_LLM_001.md` |
 | RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
 
 **结论：** Main Flow 已落地。LLM provider 配置模型（四类 provider）和
@@ -287,13 +288,23 @@ ScenarioSpec (from EvalSpec 构造)
   - 零新依赖、injected http_factory、8 类 error taxonomy
   - 44 个新测试，691 全量测试通过
 
-**下一阶段（Phase 5）：**
-- 真实 API 验证（限于 opt-in trial）
+- [x] **Phase 5：真实 LLM dogfood 验证**（2026-05-12）
+  - openai-compatible provider 通过 `--env-file ./.env` 成功调用
+  - RuleFinding + JudgeFinding 在 EvaluationResult 中正确并列
+  - ReviewDecision 未自动生成（符合预期）
+  - `model_env` 从 .env 正确解析
+  - CLI log 中 model= 显示 resolved model（修复：使用 `provider.model` 而非 `config.model`）
+  - 详见 `docs/DOGFOOD_REAL_LLM_001.md`
+
+**下一阶段（Phase 6）：**
 - prompt 工程 + rubric 设计
 - 成本追踪 + 预算上限
+- 多 provider 分歧率分析
 
 **关键边界：**
 - 真实 LLM 调用仍未默认启用
 - FakeJudgeProvider 是默认 judge provider
 - JudgeFinding 是辅助信号，不改变 deterministic passed
 - ReviewDecision 必须人工创建
+- `--env-file` 和 `--allow-os-env` 是发起真实 LLM 调用的前置条件
+- dry-run 不读取 .env 或 os.environ
