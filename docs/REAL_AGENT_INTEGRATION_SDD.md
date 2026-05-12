@@ -237,7 +237,24 @@ CLIAgentAdapter **不自己解析 trace**。它负责运行命令，然后把 tr
 
 不支持: JSONPath DSL / 嵌套路径 / filter / expression / Python eval / CLI entry。
 
-### Phase C/D/E: CLIAgentAdapter / Integration / Dogfood ❌
+### Phase C: CLIAgentAdapter — Command Runner
+
+| Slice | Status |
+|-------|--------|
+| Slice 1: command config + input file preparation | ✅ (2026-05-13, 27 tests) |
+| Slice 2: subprocess execution + timeout + env | ❌ |
+| Slice 3: TraceImportAdapter integration | ❌ |
+| Slice 4: assembly integration | ❌ |
+
+实现位置:
+- `agent_tool_harness/cli_agent.py` — CLIAgentAdapterConfig + CLIAgentPreparedRun + CLIAgentAdapter
+- `tests/test_cli_agent_adapter.py` — 27 tests
+
+Slice 1 实现: command 必须是 list[str]、占位符 {input_path}/{trace_output_path} 校验、
+working_dir 校验、ScenarioSpec → input JSON file、prepare_run() 生成执行计划。
+不运行 subprocess、不集成 TraceImportAdapter。
+
+### Phase D/E: Integration / Dogfood ❌
 
 尚未实现。详见 [CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md)。
 

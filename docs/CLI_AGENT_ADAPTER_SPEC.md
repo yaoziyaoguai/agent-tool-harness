@@ -1,6 +1,7 @@
 # CLIAgentAdapter Specification
 
-> **状态**: Draft — Design phase. No implementation yet.
+> **状态**: Implementation in progress — Slice 1 (command config + input file preparation) done (2026-05-13).
+> Slice 2 (subprocess / timeout / env) 尚未实现。
 > **父文档**: [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)
 
 ---

@@ -244,15 +244,17 @@ CLIAgentAdapter 仍在设计阶段。
 - **Phase**: A (native) ✅ → B (simple mapping) ✅
 
 ### C9. CLIAgentAdapter
-- **Status**: **设计阶段** (spec: docs/CLI_AGENT_ADAPTER_SPEC.md, 2026-05-12)
+- **Status**: **Slice 1 已实现** (2026-05-13: `agent_tool_harness/cli_agent.py`, 27 tests)
 - **Why**: 通过 CLI 命令运行用户 Agent，复用 TraceImportAdapter 解析 trace
 - **Acceptance**:
-  - ScenarioSpec → input file → CLI command → trace file
-  - TraceImportAdapter 解析 trace → ExecutionTrace
-  - timeout / non-zero exit / trace 缺失正确处理
-  - 默认 no shell=True, minimal env
+  - [x] Slice 1: command list[str] 校验 + 占位符检查 + working_dir 校验
+  - [x] Slice 1: ScenarioSpec → input file + 受控 trace output path
+  - [x] Slice 1: prepare_run() 生成 CLIAgentPreparedRun 执行计划
+  - [ ] Slice 2: subprocess 执行 + timeout + env policy + truncation
+  - [ ] Slice 3: TraceImportAdapter 解析 trace → ExecutionTrace
+  - [ ] Slice 4: assembly 集成
 - **Not doing**: 不自己解析复杂 trace, 不自动读取 .env
-- **Phase**: C (command runner) → D (集成 TraceImportAdapter)
+- **Phase**: Slice 1 ✅ → Slice 2-4 pending
 
 ### C10. Real agent dogfood (local project)
 - **Status**: **blocked** (needs C8 + C9)
