@@ -183,3 +183,102 @@ def test_report_renders_error_status_for_adapter_failure():
     assert "fake-eval — ERROR" in report
     assert "Runtime / skipped reason" in report
     assert "runner_error" in report
+
+
+# ---------------------------------------------------------------------------
+# render_from_core — Core Flow 报告渲染
+# ---------------------------------------------------------------------------
+
+
+def test_render_from_core_produces_valid_markdown():
+    """render_from_core() 产出有效的 Markdown 报告。"""
+    results = [
+        {
+            "eval_id": "test-eval-1",
+            "passed": True,
+            "findings": [
+                {
+                    "rule_type": "must_call_tool",
+                    "rule_passed": True,
+                    "message": "must call tool: kb.search.search_articles",
+                }
+            ],
+            "summary": "all good",
+        }
+    ]
+    report_summary = {
+        "total_scenarios": 1,
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "generated_at": "2025-01-01T00:00:00Z",
+    }
+    report = MarkdownReport().render_from_core(
+        results=results,
+        report_summary=report_summary,
+        signal_quality="tautological_replay",
+    )
+
+    assert "Agent Tool Harness Report (Core Flow)" in report
+    assert "## Signal Quality" in report
+    assert "## Methodology Caveats" in report
+    assert "## Agent Tool-Use Eval (Core Flow)" in report
+    assert "## Per-Eval Details" in report
+    assert "## Review Decision" in report
+    assert "## Artifacts" in report
+    assert "test-eval-1: PASS" in report
+    assert "tautological_replay" in report
+
+
+def test_render_from_core_no_review_decision():
+    """render_from_core() 不自动生成 ReviewDecision。"""
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary={
+            "total_scenarios": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": 0,
+            "generated_at": "",
+        },
+        signal_quality="tautological_replay",
+    )
+
+    assert "ReviewDecision 未生成" in report
+    assert "机器评分" in report
+    assert "人工审核结论" in report
+    # 不应生成 Decision: approved / Decision: needs_revision 等裁决行
+    assert "Decision:" not in report
+
+
+def test_render_from_core_shows_failed_finding():
+    """render_from_core() 正确展示 FAIL 的 finding。"""
+    results = [
+        {
+            "eval_id": "fail-eval",
+            "passed": False,
+            "findings": [
+                {
+                    "rule_type": "evidence_from_required_tools",
+                    "rule_passed": False,
+                    "message": "cited evidence only from non-required tools",
+                }
+            ],
+            "summary": "1/1 规则未通过",
+        }
+    ]
+    report = MarkdownReport().render_from_core(
+        results=results,
+        report_summary={
+            "total_scenarios": 1,
+            "passed": 0,
+            "failed": 1,
+            "errors": 0,
+            "generated_at": "",
+        },
+        signal_quality="tautological_replay",
+    )
+
+    assert "fail-eval: FAIL" in report
+    assert "❌" in report
+    assert "evidence_from_required_tools" in report

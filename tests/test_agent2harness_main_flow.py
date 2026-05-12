@@ -477,6 +477,80 @@ def test_build_demo_core_flow_bad_path():
     assert isinstance(result.eval_result, EvaluationResult)
 
 
+def test_build_demo_core_flow_batch():
+    """build_demo_core_flow_batch() 正确聚合多个 eval 结果为 ReportSummary。"""
+    from agent_tool_harness.assembly import build_demo_core_flow_batch
+    from agent_tool_harness.core_contract import ReportSummary
+
+    tool_specs = _make_tool_specs()
+    # 两个不同 eval_id 的 eval_spec
+    eval_a = _make_eval_spec_good()
+    eval_b = EvalSpec(
+        id="scenario-2",
+        name="test scenario 2",
+        category="integration",
+        split="test",
+        realism_level="mock",
+        complexity="low",
+        source="test",
+        user_prompt="定位最近错误根因",
+        initial_context={"query": "recent error"},
+        expected_tool_behavior={"required_tools": ["knowledge.search"]},
+        judge={
+            "rules": [
+                {"type": "must_call_tool", "tool": "knowledge.search"},
+                {"type": "must_use_evidence"},
+            ]
+        },
+        verifiable_outcome={
+            "expected_root_cause": "timeout",
+            "evidence_ids": ["ev-001"],
+        },
+        success_criteria=["结论引用证据"],
+    )
+
+    batch = build_demo_core_flow_batch(
+        tool_specs=tool_specs,
+        eval_specs=[eval_a, eval_b],
+        mock_path="good",
+    )
+
+    # 验证结构正确
+    assert len(batch["results"]) == 2
+    assert isinstance(batch["report_summary"], ReportSummary)
+    assert batch["report_summary"].total_scenarios == 2
+    # passed + failed == total（聚合一致性）
+    assert (
+        batch["report_summary"].passed + batch["report_summary"].failed
+        == batch["report_summary"].total_scenarios
+    )
+    assert batch["signal_quality"] == "tautological_replay"
+    assert batch["generated_at"] != ""
+    # 每个 result 都有完整的 Core Contract 对象
+    for r in batch["results"]:
+        assert isinstance(r.trace, ExecutionTrace)
+        assert isinstance(r.evidence, Evidence)
+        assert isinstance(r.eval_result, EvaluationResult)
+        assert len(r.eval_result.findings) >= 1
+
+
+def test_build_demo_core_flow_batch_aggregates_failures():
+    """build_demo_core_flow_batch() 正确统计 mixed PASS/FAIL。"""
+    from agent_tool_harness.assembly import build_demo_core_flow_batch
+
+    tool_specs = _make_tool_specs()
+    eval_specs = [_make_eval_spec_good()]
+
+    batch = build_demo_core_flow_batch(
+        tool_specs=tool_specs,
+        eval_specs=eval_specs,
+        mock_path="bad",
+    )
+
+    assert batch["report_summary"].passed == 0
+    assert batch["report_summary"].failed == 1
+
+
 # ---------------------------------------------------------------------------
 # 9. 整个 demo core flow 不读取 .env / 不调用外部 API
 # ---------------------------------------------------------------------------

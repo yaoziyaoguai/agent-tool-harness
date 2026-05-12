@@ -248,6 +248,146 @@ class MarkdownReport:
         )
         return "\n".join(lines) + "\n"
 
+    # ------------------------------------------------------------------
+    # Core Flow 报告渲染（Phase 5c 新增）
+    # ------------------------------------------------------------------
+
+    def render_from_core(
+        self,
+        *,
+        results: list[dict[str, Any]],
+        report_summary: dict[str, Any],
+        signal_quality: str,
+    ) -> str:
+        """从 Core Contract 对象渲染 Markdown 报告。
+
+        架构边界（关键）：
+        - **负责**：把 EvaluationResult / ReportSummary / ExecutionTrace 的
+          bridge dict 转成人类可读的 Markdown 报告。
+        - **不负责**：不重新计算 passed/failed、不生成 ReviewDecision、
+          不做最终裁决。ReviewDecision 必须由人工 Reviewer 显式创建。
+        - **为什么是 render_from_core 而非改 render()**：旧 render() 消费
+          EvalRunner 产出的 dict（含 audit/diagnosis），Core Flow 跳过
+          audit/diagnosis 段，只展示 Core Contract 链路产物。两条路径并存，
+          互不破坏。
+
+        与旧 render() 的差异：
+        - 不渲染 Tool Design Audit / Eval Quality Audit（Core Flow 不跑 auditor）
+        - 不渲染 Transcript-derived Diagnosis（Core Flow 不跑 analyzer）
+        - 新增 Execution Trace 摘要（tool calls / results 计数）
+        - 显式声明 ReviewDecision 未生成（反误导护栏）
+        - 显式声明 signal_quality 及其边界
+
+        Args:
+            results: list of per-eval dict，每个来自
+                     core_report_bridge.evaluation_result_to_report_dict()
+            report_summary: dict from core_report_bridge.report_summary_to_report_dict()
+            signal_quality: str，来自 adapter 的 SIGNAL_QUALITY 声明
+        """
+        from agent_tool_harness.signal_quality import describe as describe_sq
+
+        sq_note = describe_sq(signal_quality)
+        lines = [
+            "# Agent Tool Harness Report (Core Flow)",
+            "",
+            "## Signal Quality",
+            "",
+            f"- Level: `{signal_quality}`",
+            f"- Note: {sq_note}",
+            "",
+            (
+                "> ⚠️ 当前 Core Flow 使用 demo/mock 材料运行——signal_quality 反映"
+                "本次 run 的信号边界。PASS/FAIL 不能替代真实 LLM agentic loop 的评估。"
+            ),
+            "",
+            "## Methodology Caveats",
+            "",
+            (
+                "- **Core Flow** 走 ScenarioSpec → ExecutionTrace → Evidence → "
+                "CoreEvaluation → EvaluationResult → ReportSummary 链路；"
+                "所有步骤都是 deterministic / mock replay，**不调用真实 LLM**。"
+            ),
+            (
+                "- **RuleJudge 是确定性启发式判定**，只覆盖 must_call_tool / "
+                "must_use_evidence 等显式规则；不做 LLM 语义判分。"
+            ),
+            (
+                "- **DemoAgent2HarnessAdapter 是 deterministic replay**，按 eval 自带的"
+                " expected_tool_behavior 反向回放工具调用；它不是真实 LLM Agent。"
+            ),
+            (
+                "- **ReviewDecision 必须人工显式创建**——本报告不包含任何自动生成的"
+                "通过/不通过最终裁决。所有 PASS/FAIL 均为机器评分，不等同于人工审核结论。"
+            ),
+            "",
+            "## Agent Tool-Use Eval (Core Flow)",
+            "",
+            f"- Total scenarios: {report_summary.get('total_scenarios', 0)}",
+            f"- Passed: {report_summary.get('passed', 0)}",
+            f"- Failed: {report_summary.get('failed', 0)}",
+            f"- Errors: {report_summary.get('errors', 0)}",
+            f"- Signal quality: `{signal_quality}`",
+            f"- Generated at: {report_summary.get('generated_at', '')}",
+            "",
+        ]
+
+        # Per-Eval Details
+        lines.extend(["## Per-Eval Details", ""])
+        for result in results:
+            eval_id = result.get("eval_id", "?")
+            passed = result.get("passed", False)
+            status = "PASS" if passed else "FAIL"
+            lines.append(f"### {eval_id}: {status}")
+            lines.append("")
+            findings = result.get("findings", [])
+            if findings:
+                lines.append("**Findings:**")
+                lines.append("")
+                for f in findings:
+                    f_status = "✅" if f.get("rule_passed") else "❌"
+                    lines.append(
+                        f"- {f_status} `{f.get('rule_type', '?')}` — "
+                        f"{f.get('message', '')}"
+                    )
+                lines.append("")
+            lines.append(f"**Summary:** {result.get('summary', '')}")
+            lines.append("")
+
+        # 显式声明 ReviewDecision 未生成
+        lines.extend([
+            "## Review Decision",
+            "",
+            (
+                "> **ReviewDecision 未生成。** 本报告中的所有 PASS/FAIL 均为机器评分。"
+                "人工 Reviewer 必须在查看完整 evidence 后显式创建 ReviewDecision，"
+                "包含 decision（approved / needs_revision / rejected）、reviewer、"
+                "notes 和 reviewed_at。报告不得自动做最终裁决。"
+            ),
+            "",
+        ])
+
+        # Artifacts
+        lines.extend([
+            "## Artifacts",
+            "",
+            "- execution_trace.json",
+            "- evidence.json",
+            "- evaluation_result.json",
+            "- report_summary.json",
+            "- report.md",
+            "",
+            (
+                "Core Contract 对象定义详见 "
+                "[docs/AGENT2HARNESS_CORE_SPEC.md](../docs/AGENT2HARNESS_CORE_SPEC.md)。"
+            ),
+            "",
+        ])
+        return "\n".join(lines) + "\n"
+
+    # ------------------------------------------------------------------
+    # 旧 render() 辅助方法
+    # ------------------------------------------------------------------
+
     def _render_audit_signal_quality(self, audit_tools: dict[str, Any]) -> list[str]:
         """渲染 Tool Design Audit 顶层 signal_quality 披露。
 

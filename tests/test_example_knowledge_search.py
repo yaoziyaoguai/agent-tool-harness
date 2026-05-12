@@ -253,3 +253,124 @@ def test_core_package_does_not_hardcode_kb_example_symbols() -> None:
             if symbol in text:
                 offenders.append(f"{py.relative_to(REPO_ROOT)} 含 example 专有符号 '{symbol}'")
     assert not offenders, "\n".join(offenders)
+
+
+# ---------------------------------------------------------------------------
+# CLI --core-flow 集成测试
+# ---------------------------------------------------------------------------
+
+
+def test_cli_core_flow_produces_expected_artifacts(tmp_path: Path) -> None:
+    """CLI run --core-flow 输出 Core Contract artifacts 且 evidence_from_required_tools PASS。"""
+    out = tmp_path / "core-flow-out"
+    proc = _run_cli(
+        "run",
+        "--project", str(EXAMPLE_DIR / "project.yaml"),
+        "--tools", str(EXAMPLE_DIR / "tools.yaml"),
+        "--evals", str(EXAMPLE_DIR / "evals.yaml"),
+        "--out", str(out),
+        "--core-flow",
+        tmp_path=tmp_path,
+    )
+    assert proc.returncode == 0, f"--core-flow 失败:\nstderr={proc.stderr}"
+
+    # 核心 artifact 必须全部存在
+    for name in (
+        "execution_trace_kb_sso_session_loss_regression.json",
+        "evidence_kb_sso_session_loss_regression.json",
+        "evaluation_result_kb_sso_session_loss_regression.json",
+        "report_summary.json",
+        "metrics.json",
+        "report.md",
+        "REVIEW_DECISION_NOT_GENERATED.txt",
+        "signal_quality.txt",
+    ):
+        assert (out / name).exists(), f"缺少 artifact: {name}"
+
+    # metrics 验证
+    metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["core_flow"] is True
+    assert metrics["signal_quality"] == "tautological_replay"
+    assert metrics["passed"] == 1
+    assert metrics["failed"] == 0
+
+    # 验证 evidence_from_required_tools PASS
+    eval_result = json.loads(
+        (out / "evaluation_result_kb_sso_session_loss_regression.json").read_text(encoding="utf-8")
+    )
+    efr_finding = next(
+        (f for f in eval_result["findings"]
+         if f["rule_type"] == "evidence_from_required_tools"),
+        None,
+    )
+    assert efr_finding is not None
+    assert efr_finding["rule_passed"] is True, (
+        f"evidence_from_required_tools 必须 PASS: {efr_finding['message']}"
+    )
+
+    # 验证 ReviewDecision 未生成
+    guard = (out / "REVIEW_DECISION_NOT_GENERATED.txt").read_text(encoding="utf-8")
+    assert "ReviewDecision 未自动生成" in guard
+
+
+def test_cli_core_flow_report_contains_required_sections(tmp_path: Path) -> None:
+    """--core-flow 产出的 report.md 包含所有必要段落。"""
+    out = tmp_path / "core-flow-report"
+    proc = _run_cli(
+        "run",
+        "--project", str(EXAMPLE_DIR / "project.yaml"),
+        "--tools", str(EXAMPLE_DIR / "tools.yaml"),
+        "--evals", str(EXAMPLE_DIR / "evals.yaml"),
+        "--out", str(out),
+        "--core-flow",
+        tmp_path=tmp_path,
+    )
+    assert proc.returncode == 0
+
+    report = (out / "report.md").read_text(encoding="utf-8")
+
+    assert "Agent Tool Harness Report (Core Flow)" in report
+    assert "## Signal Quality" in report
+    assert "## Methodology Caveats" in report
+    assert "## Per-Eval Details" in report
+    assert "kb_sso_session_loss_regression: PASS" in report
+    assert "## Review Decision" in report
+    assert "ReviewDecision 未生成" in report
+    # 不应包含旧路径独有段落
+    assert "Tool Design Audit" not in report
+    assert "Transcript-derived Diagnosis" not in report
+
+
+def test_cli_core_flow_mutual_exclusion_with_judge_provider(tmp_path: Path) -> None:
+    """--core-flow 与 --judge-provider 互斥，应 exit 2。"""
+    out = tmp_path / "mutual-exclusion"
+    proc = _run_cli(
+        "run",
+        "--project", str(EXAMPLE_DIR / "project.yaml"),
+        "--tools", str(EXAMPLE_DIR / "tools.yaml"),
+        "--evals", str(EXAMPLE_DIR / "evals.yaml"),
+        "--out", str(out),
+        "--core-flow",
+        "--judge-provider", "anthropic_compatible_offline",
+        tmp_path=tmp_path,
+    )
+    assert proc.returncode == 2
+
+
+def test_cli_default_run_no_core_flow(tmp_path: Path) -> None:
+    """默认 run（不带 --core-flow）行为不变：走旧 EvalRunner 路径。"""
+    out = tmp_path / "default-run"
+    proc = _run_cli(
+        "run",
+        "--project", str(EXAMPLE_DIR / "project.yaml"),
+        "--tools", str(EXAMPLE_DIR / "tools.yaml"),
+        "--evals", str(EXAMPLE_DIR / "evals.yaml"),
+        "--out", str(out),
+        tmp_path=tmp_path,
+    )
+    assert proc.returncode == 0
+
+    # 旧路径 artifacts
+    assert (out / "report.md").exists()
+    # 不应有 Core Flow 专属 artifact
+    assert not (out / "REVIEW_DECISION_NOT_GENERATED.txt").exists()

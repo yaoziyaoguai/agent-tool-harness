@@ -21,11 +21,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
 from agent_tool_harness.agents.agent_adapter_base import AgentAdapter
-from agent_tool_harness.core_contract import EvaluationResult, Evidence, ExecutionTrace
+from agent_tool_harness.core_contract import (
+    EvaluationResult,
+    Evidence,
+    ExecutionTrace,
+    ReportSummary,
+)
 
 
 @dataclass
@@ -155,6 +161,61 @@ def build_demo_core_flow(
             **metrics,
         },
     )
+
+
+def build_demo_core_flow_batch(
+    *,
+    tool_specs: list[Any],
+    eval_specs: list[Any],
+    mock_path: str = "good",
+) -> dict[str, Any]:
+    """装配并运行批量 demo Core Flow——一条命令跑多个 eval。
+
+    这是 build_demo_core_flow() 的批量版本，供 CLI --core-flow 路径使用。
+    为每个 eval_spec 独立运行 Core Flow，最后聚合 metrics 和一个 ReportSummary。
+
+    Args:
+        tool_specs: ToolSpec 列表
+        eval_specs: EvalSpec 列表
+        mock_path: "good" 或 "bad"
+
+    Returns:
+        dict 包含:
+        - results: list[DemoCoreFlowResult] — 每个 eval 的 Core Flow 完整产物
+        - report_summary: ReportSummary — 聚合统计
+        - signal_quality: str
+        - generated_at: str
+    """
+    from datetime import datetime
+
+    results: list[DemoCoreFlowResult] = []
+    for eval_spec in eval_specs:
+        result = build_demo_core_flow(
+            tool_specs=tool_specs,
+            eval_spec=eval_spec,
+            mock_path=mock_path,
+        )
+        results.append(result)
+
+    total = len(results)
+    passed_count = sum(1 for r in results if r.eval_result.passed)
+    failed_count = total - passed_count
+
+    report_summary = ReportSummary(
+        total_scenarios=total,
+        passed=passed_count,
+        failed=failed_count,
+        errors=0,
+        signal_quality=results[0].signal_quality if results else "",
+        generated_at=datetime.now(UTC).isoformat(),
+    )
+
+    return {
+        "results": results,
+        "report_summary": report_summary,
+        "signal_quality": report_summary.signal_quality,
+        "generated_at": report_summary.generated_at,
+    }
 
 
 def _eval_to_scenario(eval_spec: Any, tool_specs: list[Any]) -> Any:

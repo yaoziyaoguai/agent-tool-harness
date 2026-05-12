@@ -176,6 +176,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "的 advisory_results / vote_distribution / majority_passed。**绝不**联网："
         "本 flag 不接受任何 live transport NAME。与 --judge-provider 互斥。",
     )
+    # Phase 5c：--core-flow opt-in 路径。默认不启用，保持旧 EvalRunner 路径兼容。
+    # 启用后走 ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation →
+    # EvaluationResult → ReportSummary 的 Core Contract 链路。
+    # **不**调用真实 LLM、**不**自动生成 ReviewDecision。
+    run.add_argument(
+        "--core-flow",
+        action="store_true",
+        default=False,
+        dest="core_flow",
+        help="experimental / opt-in Core Contract path：走 "
+        "ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation → "
+        "EvaluationResult → ReportSummary 链路。**不**调用真实 LLM、**不**自动生成 "
+        "ReviewDecision。默认关闭，保持旧 EvalRunner 路径兼容。",
+    )
 
     promote = subparsers.add_parser(
         "promote-evals",
@@ -526,6 +540,7 @@ def main(argv: list[str] | None = None) -> int:
                 confirm_i_have_real_key=args.confirm_i_have_real_key,
                 judge_fake_transport_fixture=args.judge_fake_transport_fixture,
                 judge_advisory=args.judge_advisory,
+                core_flow=args.core_flow,
             )
         if args.command == "promote-evals":
             return _promote_evals(args.candidates, args.out, force=args.force)
@@ -1044,6 +1059,7 @@ def _run(
     confirm_i_have_real_key: bool = False,
     judge_fake_transport_fixture: str | None = None,
     judge_advisory: list[str] | None = None,
+    core_flow: bool = False,
 ) -> int:
     """CLI ``run`` 命令实现。
 
@@ -1054,32 +1070,16 @@ def _run(
     构造 :class:`RecordedJudgeProvider` 注入 runner。**默认**不注入任何
     provider，runner 走纯 v1.0 deterministic 路径。
 
+    当 ``--core-flow`` 启用时，走 Phase 5c 新增的 Core Contract 路径：
+    ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation →
+    EvaluationResult → ReportSummary。**不**调用真实 LLM、**不**自动生成
+    ReviewDecision。
+
     本函数**不**负责什么
     --------------------
-    - 不调真实 LLM API；``anthropic_compatible_live`` 只在用户**显式**传
-      ``--live --confirm-i-have-real-key`` + 4 个 env var 完整 + **未**注入
-      ``--judge-fake-transport-fixture`` 时才把 ``LiveAnthropicTransport``
-      接到真实 HTTPSConnection；任一前置缺失则 advisory 走脱敏错误路径，
-      ``judge_results.json`` 里**显眼**报 ``disabled_live_provider`` /
-      ``missing_config``，绝不静默 PASS。
-    - 不静默缺 fixture：``recorded`` / ``composite`` /
-      ``anthropic_compatible_offline`` 缺 ``--judge-recording`` 立即 exit 2。
-    - 不在 CI / smoke 联网：smoke 必须传 ``--judge-fake-transport-fixture``，
-      此时构造 :class:`FakeJudgeTransport`，绝不触碰任何 socket。
-
-    用户项目自定义入口
-    ------------------
-    - 用 fake transport 做 deterministic 烟测：写一个 fixture YAML，
-      ``responses: {eval_id: {passed: bool, rationale: str, ...}}`` 或
-      ``raise_error: <error_taxonomy_slug>``，传给 ``--judge-fake-transport-fixture``。
-    - 真实 live：在自己环境配 4 个 env var，传 ``--live --confirm-i-have-real-key``，
-      **不**传 ``--judge-fake-transport-fixture``。
-
-    artifacts 排查路径
-    ------------------
-    ``judge_results.json::dry_run_provider`` 中 ``provider="anthropic_compatible"``
-    的 entries：``mode`` 区分 ``offline_fixture`` / ``fake_transport`` / ``live``；
-    失败时 ``error.code`` 走 8 类稳定 taxonomy。
+    - 不调真实 LLM API
+    - 不静默缺 fixture
+    - 不在 CI / smoke 联网
     """
 
     from agent_tool_harness.judges.provider import (
@@ -1096,6 +1096,25 @@ def _run(
     evals = load_evals(evals_path)
     _warn_if_empty(tools, "tools", tools_path)
     _warn_if_empty(evals, "evals", evals_path)
+
+    # Phase 5c：--core-flow opt-in 路径。在旧 EvalRunner 逻辑之前拦截，
+    # 走独立的 Core Contract 链路。与 --judge-provider / --judge-advisory
+    # 互斥——Core Flow 有自己的 CoreEvaluation + RuleJudge。
+    if core_flow:
+        if judge_provider or judge_advisory:
+            print(
+                "error: --core-flow 与 --judge-provider / --judge-advisory 互斥；"
+                "Core Flow 使用内置 CoreEvaluation + RuleJudge。",
+                file=sys.stderr,
+            )
+            return 2
+        return _run_core_flow(
+            tools=tools,
+            evals=evals,
+            out=out,
+            mock_path=mock_path,
+        )
+
     dry_provider = None
     # v1.5 第一轮：multi-advisory 入口与 --judge-provider 互斥。先做 mutual-exclusion
     # 校验，避免两条路径同时被装配出歧义。
@@ -1181,6 +1200,171 @@ def _run(
     print(
         json.dumps(
             {"out_dir": result["out_dir"], "metrics": result["metrics"]},
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
+def _run_core_flow(
+    *,
+    tools: list,
+    evals: list,
+    out: str,
+    mock_path: str,
+) -> int:
+    """Phase 5c：--core-flow 路径实现。
+
+    走 ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation →
+    EvaluationResult → ReportSummary 的 Core Contract 链路。
+
+    架构边界：
+    - **负责**：调用 assembly.build_demo_core_flow_batch()，写 Core Contract
+      artifacts（execution_trace.json / evidence.json / evaluation_result.json /
+      report_summary.json / report.md）。
+    - **不负责**：不调用真实 LLM、不读 .env、不自动生成 ReviewDecision、
+      不改旧 EvalRunner 路径。
+    - **为什么另开函数而非改 EvalRunner**：Core Flow 走独立的 adapter wrapper
+      和 CoreEvaluation，不复用 EvalRunner 的 audit/diagnose 段。旧路径和新路径
+      通过 bool 路由并存，互不污染。
+
+    Artifacts 输出（--out 目录）：
+    - execution_trace.json — 每个 eval 的 ExecutionTrace
+    - evidence.json — 每个 eval 的 Evidence 包
+    - evaluation_result.json — 每个 eval 的 EvaluationResult
+    - report_summary.json — 聚合 ReportSummary
+    - metrics.json — 与旧路径兼容的 metrics
+    - report.md — Markdown 报告（来自 MarkdownReport.render_from_core）
+    - signal_quality.txt — 本次 run 的信号质量标签
+    """
+    from pathlib import Path
+    from typing import Any
+
+    from agent_tool_harness.assembly import build_demo_core_flow_batch
+    from agent_tool_harness.core_report_bridge import (
+        evaluation_result_to_report_dict,
+        report_summary_to_report_dict,
+    )
+    from agent_tool_harness.reports.markdown_report import MarkdownReport
+    from agent_tool_harness.signal_quality import describe as describe_sq
+
+    # 装配并运行批量 Core Flow
+    batch = build_demo_core_flow_batch(
+        tool_specs=tools,
+        eval_specs=evals,
+        mock_path=mock_path,
+    )
+    results = batch["results"]
+    report_summary_obj = batch["report_summary"]
+    signal_quality = batch["signal_quality"]
+
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 写 per-eval Core Contract artifacts
+    for result in results:
+        trace = result.trace
+        evidence = result.evidence
+        eval_result = result.eval_result
+        scenario_id = trace.scenario_id
+
+        # ExecutionTrace → dict（使用 dataclass fields + asdict 可能引入
+        # 复杂依赖，这里手写序列化以保证 artifact schema 稳定）
+        trace_dict: dict[str, Any] = {
+            "scenario_id": trace.scenario_id,
+            "tool_calls": [
+                {
+                    "tool_name": c.tool_name,
+                    "arguments": c.arguments,
+                    "call_id": c.call_id,
+                    "timestamp": c.timestamp,
+                }
+                for c in trace.tool_calls
+            ],
+            "tool_results": [
+                {
+                    "call_id": r.call_id,
+                    "tool_name": r.tool_name,
+                    "status": r.status,
+                    "output": r.output,
+                    "error": r.error,
+                }
+                for r in trace.tool_results
+            ],
+            "final_answer": trace.final_answer,
+            "messages": trace.messages,
+        }
+        _write_json(out_dir / f"execution_trace_{scenario_id}.json", trace_dict)
+
+        # Evidence → dict
+        evidence_dict: dict[str, Any] = {
+            "scenario_id": evidence.trace.scenario_id,
+            "cost_usd": evidence.cost_usd,
+            "latency_ms": evidence.latency_ms,
+            "signal_quality": evidence.signal_quality,
+            "warnings": evidence.warnings,
+        }
+        _write_json(out_dir / f"evidence_{scenario_id}.json", evidence_dict)
+
+        # EvaluationResult → dict（通过 core_report_bridge）
+        eval_dict = evaluation_result_to_report_dict(eval_result)
+        _write_json(out_dir / f"evaluation_result_{scenario_id}.json", eval_dict)
+
+    # 写聚合 ReportSummary
+    summary_dict = report_summary_to_report_dict(report_summary_obj)
+    _write_json(out_dir / "report_summary.json", summary_dict)
+
+    # 写 metrics.json（与旧路径兼容）
+    metrics = {
+        "total_evals": report_summary_obj.total_scenarios,
+        "passed": report_summary_obj.passed,
+        "failed": report_summary_obj.failed,
+        "error_evals": report_summary_obj.errors,
+        "skipped_evals": 0,
+        "total_tool_calls": sum(
+            len(r.trace.tool_calls) for r in results
+        ),
+        "signal_quality": signal_quality,
+        "signal_quality_note": describe_sq(signal_quality),
+        "generated_at": report_summary_obj.generated_at,
+        "core_flow": True,
+    }
+    _write_json(out_dir / "metrics.json", metrics)
+
+    # 写 signal_quality.txt（纯文本，方便 CI grep）
+    (out_dir / "signal_quality.txt").write_text(
+        f"{signal_quality}\n{describe_sq(signal_quality)}\n",
+        encoding="utf-8",
+    )
+
+    # 生成 Markdown 报告（通过 MarkdownReport.render_from_core）
+    report = MarkdownReport()
+    eval_dicts = [
+        evaluation_result_to_report_dict(r.eval_result) for r in results
+    ]
+    report_md = report.render_from_core(
+        results=eval_dicts,
+        report_summary=summary_dict,
+        signal_quality=signal_quality,
+    )
+    (out_dir / "report.md").write_text(report_md, encoding="utf-8")
+
+    # 显式声明 ReviewDecision 未生成
+    (out_dir / "REVIEW_DECISION_NOT_GENERATED.txt").write_text(
+        "ReviewDecision 未自动生成。人工 Reviewer 必须在查看完整 evidence 后"
+        "显式创建 ReviewDecision(decision=..., reviewer=..., notes=..., reviewed_at=...)。\n"
+        "报告中的 PASS/FAIL 均为机器评分，不等同于人工审核结论。\n",
+        encoding="utf-8",
+    )
+
+    print(
+        json.dumps(
+            {
+                "out_dir": str(out_dir),
+                "metrics": metrics,
+                "core_flow": True,
+                "signal_quality": signal_quality,
+            },
             ensure_ascii=False,
         )
     )
