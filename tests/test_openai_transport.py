@@ -23,6 +23,7 @@ from agent_tool_harness.openai_transport import (
     ERROR_RATE_LIMITED,
     ERROR_TIMEOUT,
     OpenAITransport,
+    _parse_judge_content,
     _safe_message,
     _TransportError,
 )
@@ -274,6 +275,36 @@ def test_missing_passed_field_errors():
     result = t.send({"messages": []})
     # "fail" not in "unclear response", "pass" not in "unclear response" → passed=False
     assert result["passed"] is False
+
+
+# ---------------------------------------------------------------------------
+# 5b. non-JSON fallback heuristic — negative matching
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "content,expected_passed",
+    [
+        ("This does not pass the evaluation.", False),
+        ("The task did not pass the safety check.", False),
+        ("It didn't pass the review.", False),
+        ("The agent does not pass on correctness.", False),
+        ("Task failed due to wrong tool selection.", False),
+        ("The evaluation shows failure in tool usage.", False),
+        ("The agent should fail this scenario.", False),
+        ("Result: not successful.", False),
+        ("The evaluation passed all checks.", True),
+        ("The agent succeeded in completing the task.", True),
+        ("Tool usage was a success.", True),
+        ("ambiguous unclear text with no clear signal", False),
+    ],
+)
+def test_fallback_negative_matching(content, expected_passed):
+    """_parse_judge_content fallback 正确识别负向短语。"""
+    result = _parse_judge_content(content)
+    assert result["passed"] is expected_passed, (
+        f"content={content!r} → passed={result['passed']}, expected={expected_passed}"
+    )
 
 
 # ---------------------------------------------------------------------------

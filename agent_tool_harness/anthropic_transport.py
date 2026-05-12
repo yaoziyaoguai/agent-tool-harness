@@ -305,7 +305,23 @@ def _parse_judge_content(content: str) -> dict:
         pass
 
     content_lower = content.lower()
-    passed = "pass" in content_lower and "fail" not in content_lower
+    negative_patterns = [
+        "not pass", "didn't pass", "doesn't pass",
+        "did not pass", "does not pass",
+        "failed", "failure", "should fail", "not successful",
+    ]
+    has_negative = any(p in content_lower for p in negative_patterns)
+
+    positive_patterns = ["passed", "success", "succeeded"]
+    has_positive = any(p in content_lower for p in positive_patterns)
+
+    if has_negative:
+        passed = False
+    elif has_positive:
+        passed = True
+    else:
+        passed = False
+
     return {
         "passed": passed,
         "rationale": content[:500] if content else None,

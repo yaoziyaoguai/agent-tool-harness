@@ -177,7 +177,7 @@
 ### C1. Opt-in safety model spec
 - **Status**: done (2026-05-12: safety model documented in LLM_PROVIDER_CONFIG.md)
 - **Why**: 真实 LLM 调用需要双标志 + env var 的安全模型
-- **Acceptance**: `--live --confirm-real-api` 安全模型在 LLM_PROVIDER_CONFIG.md 中定义
+- **Acceptance**: `--live --confirm-i-have-real-key` 安全模型在 LLM_PROVIDER_CONFIG.md 中定义
 - **Not doing**: 不实现真实 API 调用
 - [x] 9 条安全规则文档化
 - [x] parse config ≠ 读取 key

@@ -8,7 +8,7 @@ LLM provider 接入是为了让 Agent2Harness 在未来可以用大模型生成 
 **不是为了：**
 - 取代 RuleJudge（deterministic baseline 永远是 ground truth）
 - 自动裁决（ReviewDecision 必须人工显式创建）
-- 默认调用真实 API（必须 opt-in：`--live` + `--confirm-real-api`）
+- 默认调用真实 API（必须 opt-in：`--live` + `--confirm-i-have-real-key`）
 - 绕过 human review（LLM 产出是 advisory，不是最终结论）
 
 **是为了：**
@@ -101,7 +101,7 @@ class LLMProviderConfig:
 4. **只从 os.environ 读取已存在的环境变量** — `resolve_api_key()` 是显式方法
 5. **用户必须显式指定 provider** — 通过 `--llm-provider` 或代码构造
 6. **用户必须显式传入 `--live`** — 否则 transport 走 fake / offline
-7. **用户必须显式传入 `--confirm-real-api`** — 否则 live_enabled=False
+7. **用户必须显式传入 `--confirm-i-have-real-key`** — 否则 live_enabled=False
 8. **测试默认只使用 fake provider** — `FakeJudgeProvider` / `FakeJudgeTransport`
 9. **真实 provider 测试必须 opt-in 并默认 skip** — 使用 `@pytest.mark.skipif`
 
