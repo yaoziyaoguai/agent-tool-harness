@@ -240,6 +240,27 @@ class TestSimpleMappingErrors:
                 mode="simple_mapping", mapping=_make_mapping()
             ).import_dict(data)
 
+    # -- simple mapping list item 非 dict 错误收敛 --
+
+    def test_tool_calls_item_not_dict_raises(self):
+        """simple mapping 中 tool_calls list item 非 dict 时抛 TraceImportError，
+        避免 item.get() 抛出 AttributeError。"""
+        data = _user_trace_dict()
+        data["calls"][0] = "not-a-dict"
+        with pytest.raises(TraceImportError, match="must be a JSON object"):
+            TraceImportAdapter(
+                mode="simple_mapping", mapping=_make_mapping()
+            ).import_dict(data)
+
+    def test_tool_results_item_not_dict_raises(self):
+        """simple mapping 中 tool_results list item 非 dict 时抛 TraceImportError。"""
+        data = _user_trace_dict()
+        data["results"][0] = 123
+        with pytest.raises(TraceImportError, match="must be a JSON object"):
+            TraceImportAdapter(
+                mode="simple_mapping", mapping=_make_mapping()
+            ).import_dict(data)
+
     def test_output_or_error_required(self):
         """P2 校验在 simple mapping 中同样生效。"""
         data = _user_trace_dict()

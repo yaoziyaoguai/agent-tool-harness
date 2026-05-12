@@ -9,10 +9,12 @@
   输入是用户已经产出的 trace JSON 文件，不是评测场景。它把已有 trace 转成 Core
   Flow 可以消费的 ``ExecutionTrace``，让用户可以先验证下游链路（judge / report /
   review）而不需要先跑通真实 Agent。运行 Agent 是 ``CLIAgentAdapter`` 的职责（未来）。
-- **为什么第一版只支持 native schema**: native schema 直接对应 ``ExecutionTrace``
-  的字段结构，反序列化后只需校验不需映射，实现最稳定、错误信息最明确。simple mapping
-  引入字段映射的复杂度（嵌套路径、类型转换、缺失处理），应该在 native 模式验证通过
-  后再叠加。
+- **当前支持的模式**:
+  - **native mode**（默认）: 用户 trace 直接符合 ``ExecutionTrace`` 字段结构，
+    反序列化 + 校验，不需映射。
+  - **simple_mapping mode**: 通过 ``SimpleMappingConfig`` 把非 native 字段名映射
+    到 native schema。只支持浅层 key 映射，不做 JSONPath / 嵌套路径 / filter /
+    expression / Python eval。
 - **为什么不自动猜测任意 JSON**: 猜测意味着"假设用户意图"，出错了用户无法排查。
   明确的错误信息（"缺少 call_id"）比静默的错误结果（"评测结果不通过，但你不知道
   是 trace 格式问题还是 Agent 行为问题"）对用户更有价值。
@@ -42,8 +44,8 @@ native JSON 中有 ``observations`` 字段，但 ``ExecutionTrace`` 当前没有
 
 未来扩展点
 ----------
-- Phase B: simple mapping mode（字段映射 YAML）
 - 当 ``ExecutionTrace`` 增加 ``observations`` 字段时，直接映射而非存入 artifacts
+- simple mapping 当前不做嵌套路径（a.b.c），如需要可在下一版按安全审核方式扩展
 """
 
 from __future__ import annotations
@@ -373,9 +375,12 @@ class TraceImportAdapter:
     ) -> dict[str, Any]:
         """把用户 dict 的字段名映射为 native schema。"""
 
+        _SENTINEL = object()
+
         def _get(path: str) -> Any:
-            val = data.get(path)
-            if val is None:
+            """取出顶层 key；区分 key missing（报错）和 value is None（放行，让下游校验处理）。"""
+            val = data.get(path, _SENTINEL)
+            if val is _SENTINEL:
                 raise TraceImportError(
                     f"mapping target not found: {path!r}", field_path=path
                 )
@@ -396,10 +401,16 @@ class TraceImportAdapter:
         # scenario_id
         native["scenario_id"] = _get(mapping.scenario_id_path)
 
-        # tool_calls
+        # tool_calls — 逐个 item 类型守卫，避免非 dict item 导致 AttributeError
         raw_calls = _check_list(mapping.tool_calls_path)
         mapped_calls: list[dict[str, Any]] = []
-        for item in raw_calls:
+        for i, item in enumerate(raw_calls):
+            item_prefix = f"{mapping.tool_calls_path}[{i}]"
+            if not isinstance(item, dict):
+                raise TraceImportError(
+                    f"{item_prefix} must be a JSON object, got {type(item).__name__}",
+                    field_path=item_prefix,
+                )
             ca: dict[str, Any] = {}
             ca["call_id"] = item.get(mapping.tool_call_id_field)
             if mapping.tool_call_arguments_field:
@@ -416,10 +427,16 @@ class TraceImportAdapter:
             mapped_calls.append(ca)
         native["tool_calls"] = mapped_calls
 
-        # tool_results
+        # tool_results — 逐个 item 类型守卫，避免非 dict item 导致 AttributeError
         raw_results = _check_list(mapping.tool_results_path)
         mapped_results: list[dict[str, Any]] = []
-        for item in raw_results:
+        for i, item in enumerate(raw_results):
+            item_prefix = f"{mapping.tool_results_path}[{i}]"
+            if not isinstance(item, dict):
+                raise TraceImportError(
+                    f"{item_prefix} must be a JSON object, got {type(item).__name__}",
+                    field_path=item_prefix,
+                )
             r: dict[str, Any] = {}
             r["call_id"] = item.get(mapping.tool_result_call_id_field)
             r["tool_name"] = item.get(mapping.tool_result_name_field)

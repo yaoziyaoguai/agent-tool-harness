@@ -32,10 +32,34 @@ evidence = import_trace_as_evidence("examples/trace_import/native_trace.json")
 
 ## 当前状态
 
-- **native schema mode**: 已实现。如果用户 trace 格式与 `native_trace.json` 结构一致，
+- **native schema mode**: ✅ 已实现。如果用户 trace 格式与 `native_trace.json` 结构一致，
   可直接导入。
-- **simple mapping mode**: 尚未实现。如果用户 trace 字段名不一致，建议先用脚本
-  转成 native schema。
+
+- **simple mapping mode**: ✅ 已实现（2026-05-12）。通过 `SimpleMappingConfig` 声明字段
+  key 映射，把非 native 字段名映射到 native schema。
+
+  ```python
+  from agent_tool_harness.trace_import import (
+      TraceImportAdapter, SimpleMappingConfig
+  )
+
+  mapping = SimpleMappingConfig(
+      scenario_id_path="sid",
+      tool_calls_path="calls",
+      tool_results_path="results",
+      tool_call_id_field="cid",
+      tool_call_name_field="name",
+      tool_result_call_id_field="cid",
+      tool_result_name_field="name",
+  )
+  trace = TraceImportAdapter(
+      mode="simple_mapping", mapping=mapping
+  ).import_file("my_trace.json")
+  ```
+
+  **不支持**: JSONPath DSL / 嵌套路径（a.b.c）/ filter / expression / Python eval /
+  LLM 自动解析。如果 trace 格式超出 simple mapping 能力，请先用脚本转成 native schema。
+
 - **CLIAgentAdapter**: 尚未实现。当前无法通过 CLI 命令运行真实 Agent 并自动导入 trace。
 
 ## 相关文档

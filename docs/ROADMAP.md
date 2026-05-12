@@ -102,8 +102,8 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | C9 | **CLIAgentAdapter** | **设计阶段** (docs/CLI_AGENT_ADAPTER_SPEC.md 2026-05-12) |
 | C10 | **Real agent dogfood (本地项目)** | **blocked** (needs C9) |
 
-**Track C 最新进展（2026-05-12）：** TraceImportAdapter native schema 已实现（52 tests）。
-用户可通过 `trace_import.py` 导入符合 native schema 的 trace JSON，进入 Core Flow：
+**Track C 最新进展（2026-05-12）：** TraceImportAdapter native + simple mapping 已实现（88 tests）。
+用户可通过 `trace_import.py` 以 native 或 simple_mapping 模式导入 trace JSON，进入 Core Flow：
 
 ```
 trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report

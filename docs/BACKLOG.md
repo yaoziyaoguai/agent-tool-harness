@@ -10,8 +10,9 @@
 - Web UI product
 - Benchmark platform
 
-项目当前只实现了 Demo Track（mock replay + deterministic checks）。Core Track
-定义了协议和对象但尚未提取为独立契约层。Real Integration Track 完全未实现。
+项目当前 Demo Track（mock replay + deterministic checks）可用。Core Track
+合约层已落地。Real Integration Track 中 TraceImportAdapter 已实现（native + simple mapping），
+CLIAgentAdapter 仍在设计阶段。
 
 三条 track 的边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
 
