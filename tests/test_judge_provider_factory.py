@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -22,6 +21,7 @@ from agent_tool_harness.judge_provider_factory import (
     FactoryResult,
     create_judge_provider,
 )
+from agent_tool_harness.secrets import MappingSecretSource
 
 # ---------------------------------------------------------------------------
 # shared helpers
@@ -74,17 +74,13 @@ def test_missing_dual_flags_rejected():
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["OPENAI_API_KEY"] = "sk-test"
-        try:
-            with pytest.raises(FactoryError, match="双标志"):
-                create_judge_provider(
-                    llm_config_path=str(cfg),
-                    llm_provider_name="openai-native",
-                    live_enabled=False,
-                    live_confirmed=False,
-                )
-        finally:
-            os.environ.pop("OPENAI_API_KEY", None)
+        with pytest.raises(FactoryError, match="双标志"):
+            create_judge_provider(
+                llm_config_path=str(cfg),
+                llm_provider_name="openai-native",
+                live_enabled=False,
+                live_confirmed=False,
+            )
 
 
 def test_live_only_without_confirm_rejected():
@@ -92,17 +88,13 @@ def test_live_only_without_confirm_rejected():
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["OPENAI_API_KEY"] = "sk-test"
-        try:
-            with pytest.raises(FactoryError, match="双标志"):
-                create_judge_provider(
-                    llm_config_path=str(cfg),
-                    llm_provider_name="openai-native",
-                    live_enabled=True,
-                    live_confirmed=False,
-                )
-        finally:
-            os.environ.pop("OPENAI_API_KEY", None)
+        with pytest.raises(FactoryError, match="双标志"):
+            create_judge_provider(
+                llm_config_path=str(cfg),
+                llm_provider_name="openai-native",
+                live_enabled=True,
+                live_confirmed=False,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -112,17 +104,13 @@ def test_live_only_without_confirm_rejected():
 
 def test_missing_llm_config_rejected():
     """缺 --llm-config → FactoryError。"""
-    os.environ["OPENAI_API_KEY"] = "sk-test"
-    try:
-        with pytest.raises(FactoryError, match="llm-config"):
-            create_judge_provider(
-                llm_config_path="",
-                llm_provider_name="openai-native",
-                live_enabled=True,
-                live_confirmed=True,
-            )
-    finally:
-        os.environ.pop("OPENAI_API_KEY", None)
+    with pytest.raises(FactoryError, match="llm-config"):
+        create_judge_provider(
+            llm_config_path="",
+            llm_provider_name="openai-native",
+            live_enabled=True,
+            live_confirmed=True,
+        )
 
 
 def test_missing_llm_provider_rejected():
@@ -130,17 +118,13 @@ def test_missing_llm_provider_rejected():
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["OPENAI_API_KEY"] = "sk-test"
-        try:
-            with pytest.raises(FactoryError, match="llm-provider"):
-                create_judge_provider(
-                    llm_config_path=str(cfg),
-                    llm_provider_name="",
-                    live_enabled=True,
-                    live_confirmed=True,
-                )
-        finally:
-            os.environ.pop("OPENAI_API_KEY", None)
+        with pytest.raises(FactoryError, match="llm-provider"):
+            create_judge_provider(
+                llm_config_path=str(cfg),
+                llm_provider_name="",
+                live_enabled=True,
+                live_confirmed=True,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -149,19 +133,19 @@ def test_missing_llm_provider_rejected():
 
 
 def test_missing_api_key_rejected():
-    """环境变量不存在时 → MissingApiKeyError。"""
+    """secret source 中不存在对应 key → MissingApiKeyError。"""
     from agent_tool_harness.llm_config import MissingApiKeyError
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ.pop("OPENAI_API_KEY", None)
         with pytest.raises(MissingApiKeyError):
             create_judge_provider(
                 llm_config_path=str(cfg),
                 llm_provider_name="openai-native",
                 live_enabled=True,
                 live_confirmed=True,
+                secret_source=MappingSecretSource({}),
             )
 
 
@@ -171,17 +155,17 @@ def test_missing_api_key_rejected():
 
 
 def test_create_openai_native_provider():
-    """成功创建 openai-native provider（注入 http_factory，零网络）。"""
+    """成功创建 openai-native provider（注入 http_factory + secret_source，零网络）。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["OPENAI_API_KEY"] = "sk-test"
         try:
             result = create_judge_provider(
                 llm_config_path=str(cfg),
                 llm_provider_name="openai-native",
                 live_enabled=True,
                 live_confirmed=True,
+                secret_source=MappingSecretSource({"OPENAI_API_KEY": "sk-test"}),
                 http_factory=_fake_http_factory,
             )
             assert isinstance(result, FactoryResult)
@@ -190,46 +174,46 @@ def test_create_openai_native_provider():
             assert result.config.model == "gpt-4.1-mini"
             assert result.transport.is_live_ready is True
         finally:
-            os.environ.pop("OPENAI_API_KEY", None)
+            pass
 
 
 def test_create_anthropic_native_provider():
-    """成功创建 anthropic-native provider（注入 http_factory，零网络）。"""
+    """成功创建 anthropic-native provider（注入 http_factory + secret_source，零网络）。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test"
         try:
             result = create_judge_provider(
                 llm_config_path=str(cfg),
                 llm_provider_name="anthropic-native",
                 live_enabled=True,
                 live_confirmed=True,
+                secret_source=MappingSecretSource({"ANTHROPIC_API_KEY": "sk-ant-test"}),
                 http_factory=_fake_http_factory,
             )
             assert result.provider_name == "anthropic-native"
             assert result.transport.is_live_ready is True
         finally:
-            os.environ.pop("ANTHROPIC_API_KEY", None)
+            pass
 
 
 def test_create_compatible_provider():
-    """成功创建 openai-compatible provider（注入 http_factory，零网络）。"""
+    """成功创建 openai-compatible provider（注入 http_factory + secret_source，零网络）。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["DEEPSEEK_API_KEY"] = "sk-deepseek-test"
         try:
             result = create_judge_provider(
                 llm_config_path=str(cfg),
                 llm_provider_name="openai-compatible",
                 live_enabled=True,
                 live_confirmed=True,
+                secret_source=MappingSecretSource({"DEEPSEEK_API_KEY": "sk-deepseek-test"}),
                 http_factory=_fake_http_factory,
             )
             assert result.provider_name == "openai-compatible"
         finally:
-            os.environ.pop("DEEPSEEK_API_KEY", None)
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -242,17 +226,14 @@ def test_unknown_provider_name():
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["OPENAI_API_KEY"] = "sk-test"
-        try:
-            with pytest.raises(FactoryError):
-                create_judge_provider(
-                    llm_config_path=str(cfg),
-                    llm_provider_name="nonexistent",
-                    live_enabled=True,
-                    live_confirmed=True,
-                )
-        finally:
-            os.environ.pop("OPENAI_API_KEY", None)
+        with pytest.raises(FactoryError):
+            create_judge_provider(
+                llm_config_path=str(cfg),
+                llm_provider_name="nonexistent",
+                live_enabled=True,
+                live_confirmed=True,
+                secret_source=MappingSecretSource({"OPENAI_API_KEY": "sk-test"}),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -262,17 +243,14 @@ def test_unknown_provider_name():
 
 def test_config_file_not_found():
     """配置文件不存在 → FileNotFoundError。"""
-    os.environ["OPENAI_API_KEY"] = "sk-test"
-    try:
-        with pytest.raises(FileNotFoundError):
-            create_judge_provider(
-                llm_config_path="/nonexistent/providers.yaml",
-                llm_provider_name="openai-native",
-                live_enabled=True,
-                live_confirmed=True,
-            )
-    finally:
-        os.environ.pop("OPENAI_API_KEY", None)
+    with pytest.raises(FileNotFoundError):
+        create_judge_provider(
+            llm_config_path="/nonexistent/providers.yaml",
+            llm_provider_name="openai-native",
+            live_enabled=True,
+            live_confirmed=True,
+            secret_source=MappingSecretSource({"OPENAI_API_KEY": "sk-test"}),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -297,13 +275,13 @@ def test_factory_live_path_never_creates_real_https_connection(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["OPENAI_API_KEY"] = "sk-test"
         try:
             result = create_judge_provider(
                 llm_config_path=str(cfg),
                 llm_provider_name="openai-native",
                 live_enabled=True,
                 live_confirmed=True,
+                secret_source=MappingSecretSource({"OPENAI_API_KEY": "sk-test"}),
                 http_factory=_fake_http_factory,
             )
             # 触发 evaluate → send → 内部的 HTTP 调用
@@ -318,12 +296,53 @@ def test_factory_live_path_never_creates_real_https_connection(monkeypatch):
             findings = result.provider.evaluate(evidence)
             assert len(findings) >= 1
         finally:
-            os.environ.pop("OPENAI_API_KEY", None)
+            pass
 
     assert call_count[0] == 0, (
         f"真实 HTTPSConnection 被创建了 {call_count[0]} 次——"
         " http_factory 路径未正确覆盖"
     )
+
+
+# ---------------------------------------------------------------------------
+# 6c. missing secret_source → FactoryError
+# ---------------------------------------------------------------------------
+
+
+def test_missing_secret_source_rejected():
+    """没有 secret_source → FactoryError（新安全闸门）。"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg = Path(tmpdir) / "providers.yaml"
+        cfg.write_text(VALID_PROVIDERS_YAML)
+        with pytest.raises(FactoryError, match="secret source"):
+            create_judge_provider(
+                llm_config_path=str(cfg),
+                llm_provider_name="openai-native",
+                live_enabled=True,
+                live_confirmed=True,
+            )
+
+
+# ---------------------------------------------------------------------------
+# 6d. error messages must not contain key
+# ---------------------------------------------------------------------------
+
+
+def test_factory_error_message_does_not_contain_key():
+    """Factory 错误信息不包含 api_key。"""
+    src = MappingSecretSource({"OPENAI_API_KEY": "sk-secret-value"})
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg = Path(tmpdir) / "providers.yaml"
+        cfg.write_text(VALID_PROVIDERS_YAML.replace("openai-native", "nonexistent"))
+        with pytest.raises(FactoryError) as exc:
+            create_judge_provider(
+                llm_config_path=str(cfg),
+                llm_provider_name="openai-native",
+                live_enabled=True,
+                live_confirmed=True,
+                secret_source=src,
+            )
+        assert "sk-secret-value" not in str(exc.value)
 
 
 # ---------------------------------------------------------------------------
@@ -341,13 +360,13 @@ def test_created_provider_returns_findings():
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = Path(tmpdir) / "providers.yaml"
         cfg.write_text(VALID_PROVIDERS_YAML)
-        os.environ["OPENAI_API_KEY"] = "sk-test"
         try:
             result = create_judge_provider(
                 llm_config_path=str(cfg),
                 llm_provider_name="openai-native",
                 live_enabled=True,
                 live_confirmed=True,
+                secret_source=MappingSecretSource({"OPENAI_API_KEY": "sk-test"}),
                 http_factory=_fake_http_factory,
             )
             provider = result.provider
@@ -364,4 +383,4 @@ def test_created_provider_returns_findings():
             assert findings[0].provider == "openai-native"
             assert result.transport._http_factory is not None
         finally:
-            os.environ.pop("OPENAI_API_KEY", None)
+            pass

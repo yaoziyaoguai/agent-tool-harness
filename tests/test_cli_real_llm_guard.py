@@ -237,3 +237,96 @@ def test_llm_judge_outside_core_flow_rejected():
             core_flow=False,
         )
         assert exit_code == 2
+
+
+# ---------------------------------------------------------------------------
+# 9. argparse: --env-file and --allow-os-env flags
+# ---------------------------------------------------------------------------
+
+
+def test_env_file_flag_accepted():
+    """--env-file 在 argparse 层是合法选项。"""
+    parser = _build_parser()
+    args = parser.parse_args([
+        "run",
+        "--project", "p.yaml",
+        "--tools", "t.yaml",
+        "--evals", "e.yaml",
+        "--out", "out",
+        "--core-flow",
+        "--judge-provider", "llm",
+        "--live",
+        "--confirm-i-have-real-key",
+        "--llm-config", "providers.yaml",
+        "--llm-provider", "openai-native",
+        "--env-file", "./.env",
+    ])
+    assert args.env_file == "./.env"
+    assert args.allow_os_env is False
+
+
+def test_allow_os_env_flag_accepted():
+    """--allow-os-env 在 argparse 层是合法选项。"""
+    parser = _build_parser()
+    args = parser.parse_args([
+        "run",
+        "--project", "p.yaml",
+        "--tools", "t.yaml",
+        "--evals", "e.yaml",
+        "--out", "out",
+        "--core-flow",
+        "--judge-provider", "llm",
+        "--live",
+        "--confirm-i-have-real-key",
+        "--llm-config", "providers.yaml",
+        "--llm-provider", "openai-native",
+        "--allow-os-env",
+    ])
+    assert args.allow_os_env is True
+    assert args.env_file is None
+
+
+# ---------------------------------------------------------------------------
+# 10. --judge-provider llm without --env-file or --allow-os-env → rejected
+# ---------------------------------------------------------------------------
+
+
+def test_llm_without_secret_source_rejected():
+    """--judge-provider llm 没有 --env-file / --allow-os-env → exit 2。"""
+    tools, evals = _load_knowledge_search_fixtures()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        exit_code = _run_core_flow(
+            tools=tools,
+            evals=evals[:1],
+            out=tmpdir,
+            mock_path="good",
+            judge_provider="llm",
+            live=True,
+            confirm_i_have_real_key=True,
+            llm_config="providers.yaml",
+            llm_provider="openai-native",
+            # 未传 env_file / allow_os_env
+        )
+        assert exit_code == 2
+
+
+# ---------------------------------------------------------------------------
+# 11. dry-run does not require --env-file
+# ---------------------------------------------------------------------------
+
+
+def test_dry_run_provider_does_not_require_env_file():
+    """dry-run 不读取 --env-file，不校验 secret source。"""
+    parser = _build_parser()
+    args = parser.parse_args([
+        "run",
+        "--project", "p.yaml",
+        "--tools", "t.yaml",
+        "--evals", "e.yaml",
+        "--out", "out",
+        "--dry-run-provider",
+        "--llm-config", "examples/llm_providers.example.yaml",
+    ])
+    assert args.dry_run_provider is True
+    assert args.env_file is None
+    assert args.allow_os_env is False

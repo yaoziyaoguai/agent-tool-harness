@@ -4,12 +4,12 @@
 ==============
 为 OpenAI / Anthropic native/compatible 四类 provider 提供统一的配置模型和
 注册表。支持从 YAML-like dict 解析配置、按名称查找 provider、显式安全读取
-API key。
+API key / base_url / model。
 
 本模块**不**负责什么
 ====================
 - 不调用任何外部 API / 网络 / LLM
-- 不在 parse 阶段读取 os.environ（只有显式 resolve_api_key() 才读）
+- 不在 parse 阶段读取 SecretSource（只有 resolve 函数显式调用时才读）
 - 不自动 load_dotenv()
 - 不支持 inline api_key（配置中只能写 api_key_env，不能写 key 值）
 - 不实现 transport / judge / prompt 工程
@@ -25,25 +25,24 @@ API key。
 为什么 parse config ≠ 读取 key
 -------------------------------
 1. parse 阶段在 CI / 测试中运行，不需要真实 key
-2. api_key_env 只是环境变量名，不会出现在 artifact / log 中
-3. 真实 key 读取是显式的 resolve_api_key() 调用，可审计、可 mock
+2. api_key_env / base_url_env / model_env 只是名称引用，不会出现在 artifact 中
+3. 真实值读取是显式的 resolve_provider_runtime_config() 调用，可审计、可 mock
 
 为什么不支持 inline api_key
 ---------------------------
 1. inline key 会通过 git / artifact / log / screen share 泄漏
-2. api_key_env 让 key 永远只存在于 os.environ 中
+2. api_key_env 让 key 永远只存在于 env file / SecretSource 中
 3. 跨项目隔离：不同项目用不同的 env var 前缀，不会互相污染
 
-为什么 compatible provider 必须显式 base_url
----------------------------------------------
-1. native provider 的 endpoint 是已知的（如 api.openai.com）
-2. compatible provider 的目标 endpoint 不可知——必须由用户提供
-3. 防止"默认指向某个第三方 endpoint"变成隐式 vendor lock-in
+为什么支持 base_url_env / model_env
+------------------------------------
+1. 第三方转接 API 的 key / base_url / model 都应从 env file 读取
+2. 不在 YAML 中写死真实 URL 或 model 名
+3. 兼容已有静态 base_url / model 写法，新增 env 引用方式
 """
 
 from __future__ import annotations
 
-import os as _os
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -85,8 +84,13 @@ class LLMProviderConfig:
     - **不负责**：不存储 API key 本体（只存环境变量名）、不做网络调用、
       不做 prompt 工程。
 
-    parse 阶段只做 schema 校验，不读环境变量——key 在 resolve_api_key()
-    显式调用时才读取。
+    parse 阶段只做 schema 校验，不读 SecretSource——key / url / model
+    在 resolve_provider_runtime_config() 显式调用时才读取。
+
+    字段规则：
+    - api_key_env: 必填，指向 SecretSource 中的 key 名
+    - model / model_env: 互斥，至少一个存在
+    - base_url / base_url_env: 互斥；compatible 必须有一个
     """
 
     name: str
@@ -95,6 +99,8 @@ class LLMProviderConfig:
     model: str
     api_key_env: str
     base_url: str | None = None
+    base_url_env: str | None = None
+    model_env: str | None = None
     timeout_seconds: float = 30.0
     max_tokens: int | None = None
     temperature: float | None = None
@@ -104,7 +110,33 @@ class LLMProviderConfig:
         return (
             f"LLMProviderConfig(name={self.name!r}, family={self.family.value}, "
             f"compatibility={self.compatibility.value}, model={self.model!r}, "
-            f"api_key_env={self.api_key_env!r}, base_url_set={bool(self.base_url)})"
+            f"api_key_env={self.api_key_env!r}, base_url_set={bool(self.base_url)}, "
+            f"base_url_env_set={bool(self.base_url_env)}, model_env_set={bool(self.model_env)})"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 运行时已解析配置（含真实 secret，repr 脱敏）
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ResolvedLLMProviderConfig:
+    """resolve 后的运行时配置，持有真实 api_key / base_url / model。
+
+    repr / str 不能显示 api_key——这是硬约束。
+    不能写入 report / artifact。
+    错误信息不能包含 api_key。
+    """
+
+    api_key: str
+    base_url: str
+    model: str
+
+    def __repr__(self) -> str:
+        return (
+            f"ResolvedLLMProviderConfig(base_url={self.base_url!r}, "
+            f"model={self.model!r}, api_key=****)"
         )
 
 
@@ -132,9 +164,10 @@ def _validate_provider_config(cfg: LLMProviderConfig) -> None:
     校验规则：
     - family 只能是 openai / anthropic
     - compatibility 只能是 native / compatible
-    - model 必填且非空
+    - model 和 model_env 互斥，至少一个存在
     - api_key_env 必填且非空
-    - compatible 必须有 base_url
+    - base_url 和 base_url_env 互斥
+    - compatible 必须有 base_url 或 base_url_env
     - 禁止 inline api_key 字段（在外层 from_dict 检查）
     """
     if cfg.family not in ProviderFamily:
@@ -147,15 +180,26 @@ def _validate_provider_config(cfg: LLMProviderConfig) -> None:
             cfg.name,
             f"compatibility 必须是 native / compatible，实际: {cfg.compatibility!r}",
         )
-    if not cfg.model or not cfg.model.strip():
-        raise ConfigValidationError(cfg.name, "model 必填且不能为空")
+    # model / model_env 互斥
+    has_model = bool(cfg.model and cfg.model.strip())
+    has_model_env = bool(cfg.model_env and cfg.model_env.strip())
+    if has_model and has_model_env:
+        raise ConfigValidationError(cfg.name, "model 和 model_env 不能同时存在")
+    if not has_model and not has_model_env:
+        raise ConfigValidationError(cfg.name, "model 或 model_env 必填其一")
     if not cfg.api_key_env or not cfg.api_key_env.strip():
         raise ConfigValidationError(cfg.name, "api_key_env 必填且不能为空")
-    if cfg.compatibility == ProviderCompatibility.COMPATIBLE and not cfg.base_url:
-        raise ConfigValidationError(
-            cfg.name,
-            "compatible provider 必须提供 base_url",
-        )
+    # base_url / base_url_env 互斥
+    has_base_url = bool(cfg.base_url)
+    has_base_url_env = bool(cfg.base_url_env and cfg.base_url_env.strip())
+    if has_base_url and has_base_url_env:
+        raise ConfigValidationError(cfg.name, "base_url 和 base_url_env 不能同时存在")
+    if cfg.compatibility == ProviderCompatibility.COMPATIBLE:
+        if not has_base_url and not has_base_url_env:
+            raise ConfigValidationError(
+                cfg.name,
+                "compatible provider 必须提供 base_url 或 base_url_env",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -212,31 +256,112 @@ class LLMProviderRegistry:
 
 
 class MissingApiKeyError(KeyError):
-    """resolve_api_key 时环境变量不存在或为空。"""
+    """resolve 时环境变量不存在或为空。"""
 
     def __init__(self, env_var: str) -> None:
         super().__init__(
-            f"环境变量 {env_var} 不存在或为空。"
-            f" 请 export {env_var}=<your-key> 后重试。"
-            f" 注意：本项目不会自动读取 .env 文件。"
+            f"secret 变量 {env_var} 不存在或为空。"
+            f" 请确认 --env-file 或 --allow-os-env 中已设置该变量。"
         )
         self.env_var = env_var
 
 
-def resolve_api_key(config: LLMProviderConfig) -> str:
-    """从 os.environ 读取 API key。
+class MissingSecretError(KeyError):
+    """resolve 时 base_url_env / model_env 对应的变量不存在或为空。"""
+
+    def __init__(self, env_var: str, field: str) -> None:
+        super().__init__(
+            f"secret 变量 {env_var}（用于 {field}）不存在或为空。"
+            f" 请确认 --env-file 或 --allow-os-env 中已设置该变量。"
+        )
+        self.env_var = env_var
+        self.field = field
+
+
+# native provider 默认 endpoint（硬编码，不来自配置）
+NATIVE_BASE_URLS = {
+    ProviderFamily.OPENAI: "https://api.openai.com",
+    ProviderFamily.ANTHROPIC: "https://api.anthropic.com",
+}
+
+
+def resolve_api_key(config: LLMProviderConfig, secret_source: Any) -> str:
+    """从 SecretSource 读取 API key。
 
     这是**唯一**读取 key 的入口。parse 阶段不调此函数。
     如果环境变量不存在或为空，抛出 MissingApiKeyError。
 
     使用方式：
         config = registry.get("openai-native")
-        key = resolve_api_key(config)  # 显式读取
+        key = resolve_api_key(config, secret_source)  # 显式读取
     """
-    key = _os.environ.get(config.api_key_env, "")
-    if not key.strip():
+    key = _resolve_secret(secret_source, config.api_key_env)
+    if not key or not key.strip():
         raise MissingApiKeyError(config.api_key_env)
     return key.strip()
+
+
+def resolve_provider_runtime_config(
+    config: LLMProviderConfig,
+    secret_source: Any,
+) -> ResolvedLLMProviderConfig:
+    """从 SecretSource 解析完整运行时配置（api_key + base_url + model）。
+
+    这是**唯一**读取所有 secret 的入口。parse 阶段不调此函数。
+    所有 gating 通过后，在真实 live 调用前调用。
+
+    解析规则：
+    - api_key: 从 api_key_env 读取（必填）
+    - base_url: 优先 base_url_env → static base_url → native 默认值
+    - model: 优先 model_env → static model
+    """
+    # resolve api_key
+    api_key = _resolve_secret(secret_source, config.api_key_env)
+    if not api_key or not api_key.strip():
+        raise MissingApiKeyError(config.api_key_env)
+    api_key = api_key.strip()
+
+    # resolve base_url
+    if config.base_url_env:
+        base_url = _resolve_secret(secret_source, config.base_url_env)
+        if not base_url or not base_url.strip():
+            raise MissingSecretError(config.base_url_env, "base_url")
+        base_url = base_url.strip()
+    elif config.base_url:
+        base_url = config.base_url
+    else:
+        # native provider 使用硬编码默认 endpoint
+        base_url = NATIVE_BASE_URLS.get(config.family)
+        if base_url is None:
+            raise ConfigValidationError(
+                config.name,
+                f"无法确定 base_url：family={config.family.value} 无默认 endpoint",
+            )
+
+    # resolve model
+    if config.model_env:
+        model = _resolve_secret(secret_source, config.model_env)
+        if not model or not model.strip():
+            raise MissingSecretError(config.model_env, "model")
+        model = model.strip()
+    else:
+        model = config.model.strip()
+
+    return ResolvedLLMProviderConfig(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+    )
+
+
+def _resolve_secret(secret_source: Any, name: str) -> str | None:
+    """从 SecretSource 读取单个值。兼容有 / 无 get 方法的对象。"""
+    if secret_source is None:
+        return None
+    get_fn = getattr(secret_source, "get", None)
+    if callable(get_fn):
+        return get_fn(name)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -276,13 +401,18 @@ def _parse_provider_dict(name: str, raw: dict[str, Any]) -> LLMProviderConfig:
             f"compatibility 必须是 native / compatible，实际: {compat_raw!r}",
         ) from None
 
+    model_raw = raw.get("model")
+    model = str(model_raw) if model_raw else ""
+
     cfg = LLMProviderConfig(
         name=name,
         family=family,
         compatibility=compatibility,
-        model=str(raw.get("model", "")),
+        model=model,
         api_key_env=str(raw.get("api_key_env", "")),
         base_url=raw.get("base_url"),
+        base_url_env=raw.get("base_url_env"),
+        model_env=raw.get("model_env"),
         timeout_seconds=float(raw.get("timeout_seconds", 30.0)),
         max_tokens=raw.get("max_tokens"),
         temperature=raw.get("temperature"),

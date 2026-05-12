@@ -6,18 +6,27 @@
 # 重要约束：
 # - 不包含任何真实 API key
 # - 只使用 api_key_env（环境变量名），不使用 api_key（inline key）
-# - base_url 对 compatible provider 必填，对 native 可选
-# - model 必填
-# - 所有超时、温度等参数为可选
+# - base_url / model 可写死，也可通过 base_url_env / model_env 引用 env
+# - model 与 model_env 互斥，base_url 与 base_url_env 互斥
+# - compatible provider 必须提供 base_url 或 base_url_env
 #
-# 使用方式：
+# 第三方转接 API 推荐：把 key / base_url / model 都放入显式 .env 文件，
+# YAML 中仅通过 api_key_env / base_url_env / model_env 引用。
+#
+# 使用方式（真实 LLM dogfood）：
 #   1. 复制本文件到 agent_tool_harness/llm_providers.yaml
-#   2. 修改为你实际使用的 provider 和模型
-#   3. 在 shell 中 export 对应环境变量：
-#      export AGENT_TOOL_HARNESS_OPENAI_API_KEY=sk-xxxx
-#      export AGENT_TOOL_HARNESS_DEEPSEEK_API_KEY=sk-xxxx
-#      export AGENT_TOOL_HARNESS_ANTHROPIC_API_KEY=sk-ant-xxxx
-#   4. 通过 CLI 或代码指定 provider name 启用
+#   2. 创建 .env 文件（不要 commit）：
+#        AGENT_TOOL_HARNESS_OPENAI_API_KEY=sk-xxxx
+#        AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY=sk-xxxx
+#        AGENT_TOOL_HARNESS_OPENAI_COMPAT_BASE_URL=https://api.deepseek.com
+#        AGENT_TOOL_HARNESS_OPENAI_COMPAT_MODEL=deepseek-chat
+#   3. 真实调用：
+#        python -m agent_tool_harness.cli run \
+#          --core-flow --judge-provider llm \
+#          --llm-config examples/llm_providers.example.yaml \
+#          --llm-provider openai-compatible \
+#          --env-file ./.env \
+#          --live --confirm-i-have-real-key \
 
 providers:
 
@@ -34,15 +43,18 @@ providers:
     temperature: 0.1
 
   # ------------------------------------------------------------------
-  # OpenAI-compatible — 例如 DeepSeek、阿里云等兼容 OpenAI chat
-  # completions 协议的第三方 provider
+  # OpenAI-compatible — 第三方转接 API（推荐所有值从 env file 读取）
+  # 示例 .env 中需要：
+  #   AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY=...
+  #   AGENT_TOOL_HARNESS_OPENAI_COMPAT_BASE_URL=...
+  #   AGENT_TOOL_HARNESS_OPENAI_COMPAT_MODEL=...
   # ------------------------------------------------------------------
   openai-compatible:
     family: openai
     compatibility: compatible
-    base_url: https://api.deepseek.com/v1
-    model: deepseek-chat
-    api_key_env: AGENT_TOOL_HARNESS_DEEPSEEK_API_KEY
+    api_key_env: AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY
+    base_url_env: AGENT_TOOL_HARNESS_OPENAI_COMPAT_BASE_URL
+    model_env: AGENT_TOOL_HARNESS_OPENAI_COMPAT_MODEL
     timeout_seconds: 60
 
   # ------------------------------------------------------------------
@@ -56,13 +68,16 @@ providers:
     max_tokens: 4096
 
   # ------------------------------------------------------------------
-  # Anthropic-compatible — 兼容 Anthropic Messages 协议的第三方
-  # provider（如 AWS Bedrock 代理层、自建兼容网关等）
+  # Anthropic-compatible — 第三方转接 API（推荐所有值从 env file 读取）
+  # 示例 .env 中需要：
+  #   AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_API_KEY=...
+  #   AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_BASE_URL=...
+  #   AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_MODEL=...
   # ------------------------------------------------------------------
   anthropic-compatible:
     family: anthropic
     compatibility: compatible
-    base_url: https://example.com/anthropic-compatible
-    model: claude-compatible-model
     api_key_env: AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_API_KEY
+    base_url_env: AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_BASE_URL
+    model_env: AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_MODEL
     timeout_seconds: 45

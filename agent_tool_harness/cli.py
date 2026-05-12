@@ -217,6 +217,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="校验 --llm-config 中的 provider 配置并打印摘要后退出。"
         "**不**读取 API key、**不**调用外部 API、**不**运行 eval。",
     )
+    run.add_argument(
+        "--env-file",
+        default=None,
+        dest="env_file",
+        metavar="PATH",
+        help="显式指定用于读取 provider api_key / base_url / model 的 env 文件。"
+        " 真实 LLM 调用时必须提供 --env-file 或 --allow-os-env。"
+        " 不自动读取当前目录 .env。",
+    )
+    run.add_argument(
+        "--allow-os-env",
+        action="store_true",
+        default=False,
+        dest="allow_os_env",
+        help="允许从当前进程 os.environ 读取 key/url/model。"
+        " 默认 False，只给高级用户或 CI 使用。"
+        " 真实 LLM 调用时必须提供 --env-file 或 --allow-os-env。",
+    )
 
     promote = subparsers.add_parser(
         "promote-evals",
@@ -571,6 +589,8 @@ def main(argv: list[str] | None = None) -> int:
                 llm_config=args.llm_config,
                 llm_provider=args.llm_provider,
                 dry_run_provider=args.dry_run_provider,
+                env_file=args.env_file,
+                allow_os_env=args.allow_os_env,
             )
         if args.command == "promote-evals":
             return _promote_evals(args.candidates, args.out, force=args.force)
@@ -1093,6 +1113,8 @@ def _run(
     llm_config: str | None = None,
     llm_provider: str | None = None,
     dry_run_provider: bool = False,
+    env_file: str | None = None,
+    allow_os_env: bool = False,
 ) -> int:
     """CLI ``run`` 命令实现。
 
@@ -1203,6 +1225,8 @@ def _run(
             llm_provider=llm_provider,
             live=live,
             confirm_i_have_real_key=confirm_i_have_real_key,
+            env_file=env_file,
+            allow_os_env=allow_os_env,
         )
 
     dry_provider = None
@@ -1307,6 +1331,8 @@ def _run_core_flow(
     llm_provider: str | None = None,
     live: bool = False,
     confirm_i_have_real_key: bool = False,
+    env_file: str | None = None,
+    allow_os_env: bool = False,
 ) -> int:
     """Phase 5c：--core-flow 路径实现。
 
@@ -1361,6 +1387,33 @@ def _run_core_flow(
         from agent_tool_harness.fake_judge import FakeJudgeProvider
         core_judge_provider = FakeJudgeProvider()
     elif judge_provider == "llm":
+        # 安全闸门：必须提供 secret source
+        if not env_file and not allow_os_env:
+            print(
+                "error: 真实 LLM judge 需要显式 secret source："
+                "请传 --env-file PATH 或 --allow-os-env。",
+                file=sys.stderr,
+            )
+            return 2
+
+        # 创建 secret source
+        from agent_tool_harness.secrets import (
+            EnvFileSecretSource,
+            OsEnvSecretSource,
+        )
+
+        if env_file:
+            try:
+                secret_source = EnvFileSecretSource(env_file)
+            except FileNotFoundError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
+            except ValueError as exc:
+                print(f"error: env file 解析失败 — {exc}", file=sys.stderr)
+                return 2
+        else:
+            secret_source = OsEnvSecretSource()
+
         from agent_tool_harness.judge_provider_factory import (
             FactoryError,
             create_judge_provider,
@@ -1371,6 +1424,7 @@ def _run_core_flow(
                 llm_provider_name=llm_provider,  # type: ignore[arg-type]
                 live_enabled=live,
                 live_confirmed=confirm_i_have_real_key,
+                secret_source=secret_source,
             )
             core_judge_provider = result.provider
             # 记录 signal_quality 升级
@@ -1983,9 +2037,14 @@ def _dry_run_provider_config(
             print(f"selected provider: {llm_provider}")
             print(f"  family:        {cfg.family.value}")
             print(f"  compatibility: {cfg.compatibility.value}")
-            print(f"  model:         {cfg.model}")
+            if cfg.model_env:
+                print(f"  model_env:     {cfg.model_env}")
+            else:
+                print(f"  model:         {cfg.model}")
             print(f"  api_key_env:   {cfg.api_key_env}")
-            if cfg.base_url:
+            if cfg.base_url_env:
+                print(f"  base_url_env:  {cfg.base_url_env}")
+            elif cfg.base_url:
                 print(f"  base_url:      {cfg.base_url}")
         except KeyError as exc:
             print(f"error: {exc}", file=sys.stderr)
@@ -1995,8 +2054,11 @@ def _dry_run_provider_config(
     print("registered providers:")
     for name in names:
         cfg = registry.get(name)
-        base_info = f"  {name}: {cfg.family.value}/{cfg.compatibility.value} model={cfg.model}"
-        if cfg.base_url:
+        model_display = cfg.model_env or cfg.model
+        base_info = f"  {name}: {cfg.family.value}/{cfg.compatibility.value} model={model_display}"
+        if cfg.base_url_env:
+            base_info += f" base_url_env={cfg.base_url_env}"
+        elif cfg.base_url:
             base_info += f" base_url={cfg.base_url}"
         print(base_info)
 

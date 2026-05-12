@@ -17,11 +17,15 @@ from agent_tool_harness.llm_config import (
     ConfigValidationError,
     LLMProviderConfig,
     MissingApiKeyError,
+    MissingSecretError,
     ProviderCompatibility,
     ProviderFamily,
+    ResolvedLLMProviderConfig,
     load_provider_registry,
     resolve_api_key,
+    resolve_provider_runtime_config,
 )
+from agent_tool_harness.secrets import MappingSecretSource
 
 # ---------------------------------------------------------------------------
 # 1. parse openai native
@@ -195,9 +199,9 @@ def test_parse_does_not_read_os_environ(monkeypatch):
 # 9. resolve_api_key reads os.environ
 # ---------------------------------------------------------------------------
 
-def test_resolve_api_key_reads_os_environ(monkeypatch):
-    """resolve_api_key 是唯一读取 key 的入口。"""
-    monkeypatch.setenv("TEST_API_KEY", "sk-test-123")
+def test_resolve_api_key_reads_from_secret_source():
+    """resolve_api_key 从 SecretSource 读取 key。"""
+    src = MappingSecretSource({"TEST_API_KEY": "sk-test-123"})
     cfg = LLMProviderConfig(
         name="test",
         family=ProviderFamily.OPENAI,
@@ -205,7 +209,7 @@ def test_resolve_api_key_reads_os_environ(monkeypatch):
         model="gpt-4",
         api_key_env="TEST_API_KEY",
     )
-    key = resolve_api_key(cfg)
+    key = resolve_api_key(cfg, src)
     assert key == "sk-test-123"
 
 
@@ -213,8 +217,8 @@ def test_resolve_api_key_reads_os_environ(monkeypatch):
 # 10. resolve_api_key raises when env var is empty
 # ---------------------------------------------------------------------------
 
-def test_resolve_api_key_raises_on_empty(monkeypatch):
-    monkeypatch.setenv("EMPTY_KEY", "")
+def test_resolve_api_key_raises_on_empty():
+    src = MappingSecretSource({"EMPTY_KEY": ""})
     cfg = LLMProviderConfig(
         name="test",
         family=ProviderFamily.OPENAI,
@@ -223,11 +227,11 @@ def test_resolve_api_key_raises_on_empty(monkeypatch):
         api_key_env="EMPTY_KEY",
     )
     with pytest.raises(MissingApiKeyError):
-        resolve_api_key(cfg)
+        resolve_api_key(cfg, src)
 
 
-def test_resolve_api_key_raises_on_missing(monkeypatch):
-    monkeypatch.delenv("MISSING_KEY", raising=False)
+def test_resolve_api_key_raises_on_missing():
+    src = MappingSecretSource({})
     cfg = LLMProviderConfig(
         name="test",
         family=ProviderFamily.OPENAI,
@@ -236,7 +240,7 @@ def test_resolve_api_key_raises_on_missing(monkeypatch):
         api_key_env="MISSING_KEY",
     )
     with pytest.raises(MissingApiKeyError):
-        resolve_api_key(cfg)
+        resolve_api_key(cfg, src)
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +386,7 @@ def test_config_repr_does_not_leak_key():
 # ---------------------------------------------------------------------------
 
 def test_empty_model_error():
+    """model 为空且未设 model_env → 报错。"""
     data = {
         "providers": {
             "bad": {
@@ -394,6 +399,24 @@ def test_empty_model_error():
     }
     with pytest.raises(ConfigValidationError, match="model"):
         load_provider_registry(data)
+
+
+def test_model_env_replaces_model():
+    """model_env 可替代 model——model 可为空。"""
+    data = {
+        "providers": {
+            "ok": {
+                "family": "openai",
+                "compatibility": "native",
+                "model_env": "MY_MODEL",
+                "api_key_env": "KEY",
+            }
+        }
+    }
+    registry = load_provider_registry(data)
+    cfg = registry.get("ok")
+    assert cfg.model == ""
+    assert cfg.model_env == "MY_MODEL"
 
 
 # ---------------------------------------------------------------------------
@@ -428,3 +451,177 @@ def test_duplicate_provider_name_error():
     data = {"providers": {"same": provider_list}}
     with pytest.raises(ConfigValidationError):
         load_provider_registry(data)
+
+
+# ---------------------------------------------------------------------------
+# 20. base_url and base_url_env mutual exclusion
+# ---------------------------------------------------------------------------
+
+
+def test_base_url_and_base_url_env_mutual_exclusion():
+    """base_url 和 base_url_env 同时存在 → 报错。"""
+    data = {
+        "providers": {
+            "bad": {
+                "family": "openai",
+                "compatibility": "compatible",
+                "model": "gpt-4",
+                "api_key_env": "KEY",
+                "base_url": "https://a.com",
+                "base_url_env": "BASE_URL_VAR",
+            }
+        }
+    }
+    with pytest.raises(ConfigValidationError, match="base_url"):
+        load_provider_registry(data)
+
+
+# ---------------------------------------------------------------------------
+# 21. model and model_env mutual exclusion
+# ---------------------------------------------------------------------------
+
+
+def test_model_and_model_env_mutual_exclusion():
+    """model 和 model_env 同时存在 → 报错。"""
+    data = {
+        "providers": {
+            "bad": {
+                "family": "openai",
+                "compatibility": "native",
+                "model": "gpt-4",
+                "model_env": "MODEL_VAR",
+                "api_key_env": "KEY",
+            }
+        }
+    }
+    with pytest.raises(ConfigValidationError, match="model"):
+        load_provider_registry(data)
+
+
+# ---------------------------------------------------------------------------
+# 22. compatible with base_url_env → allowed
+# ---------------------------------------------------------------------------
+
+
+def test_compatible_with_base_url_env_allowed():
+    """compatible provider 可用 base_url_env 替代 base_url。"""
+    data = {
+        "providers": {
+            "ok": {
+                "family": "openai",
+                "compatibility": "compatible",
+                "model": "gpt-4",
+                "api_key_env": "KEY",
+                "base_url_env": "MY_BASE_URL",
+            }
+        }
+    }
+    registry = load_provider_registry(data)
+    cfg = registry.get("ok")
+    assert cfg.base_url is None
+    assert cfg.base_url_env == "MY_BASE_URL"
+
+
+# ---------------------------------------------------------------------------
+# 23. ResolvedLLMProviderConfig repr hides api_key
+# ---------------------------------------------------------------------------
+
+
+def test_resolved_config_repr_hides_api_key():
+    """ResolvedLLMProviderConfig repr 不显示 api_key。"""
+    r = ResolvedLLMProviderConfig(
+        api_key="sk-secret-123",
+        base_url="https://api.openai.com",
+        model="gpt-4",
+    )
+    s = repr(r)
+    assert "sk-secret-123" not in s
+    assert "api_key=****" in s
+    assert "https://api.openai.com" in s
+
+
+# ---------------------------------------------------------------------------
+# 24. resolve_provider_runtime_config resolves all three
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_runtime_config_all_from_secret_source():
+    """resolve_provider_runtime_config 可从 SecretSource 解析 api_key + base_url + model。"""
+    src = MappingSecretSource({
+        "MY_KEY": "sk-test",
+        "MY_URL": "https://api.example.com",
+        "MY_MODEL": "my-model",
+    })
+    cfg = LLMProviderConfig(
+        name="test",
+        family=ProviderFamily.OPENAI,
+        compatibility=ProviderCompatibility.COMPATIBLE,
+        model="",
+        api_key_env="MY_KEY",
+        base_url_env="MY_URL",
+        model_env="MY_MODEL",
+    )
+    resolved = resolve_provider_runtime_config(cfg, src)
+    assert resolved.api_key == "sk-test"
+    assert resolved.base_url == "https://api.example.com"
+    assert resolved.model == "my-model"
+
+
+def test_resolve_runtime_config_static_model_and_base_url():
+    """静态 model / base_url 直接使用，不读 SecretSource。"""
+    src = MappingSecretSource({"MY_KEY": "sk-test"})
+    cfg = LLMProviderConfig(
+        name="test",
+        family=ProviderFamily.OPENAI,
+        compatibility=ProviderCompatibility.COMPATIBLE,
+        model="gpt-4",
+        api_key_env="MY_KEY",
+        base_url="https://static.example.com",
+    )
+    resolved = resolve_provider_runtime_config(cfg, src)
+    assert resolved.model == "gpt-4"
+    assert resolved.base_url == "https://static.example.com"
+
+
+def test_resolve_runtime_config_native_uses_default_base_url():
+    """native provider 不设 base_url / base_url_env → 使用默认 endpoint。"""
+    src = MappingSecretSource({"MY_KEY": "sk-test"})
+    cfg = LLMProviderConfig(
+        name="test",
+        family=ProviderFamily.OPENAI,
+        compatibility=ProviderCompatibility.NATIVE,
+        model="gpt-4",
+        api_key_env="MY_KEY",
+    )
+    resolved = resolve_provider_runtime_config(cfg, src)
+    assert resolved.base_url == "https://api.openai.com"
+
+
+def test_resolve_runtime_config_missing_base_url_env():
+    """base_url_env 指定的变量不存在 → MissingSecretError。"""
+    src = MappingSecretSource({"MY_KEY": "sk-test"})
+    cfg = LLMProviderConfig(
+        name="test",
+        family=ProviderFamily.OPENAI,
+        compatibility=ProviderCompatibility.COMPATIBLE,
+        model="gpt-4",
+        api_key_env="MY_KEY",
+        base_url_env="MISSING_URL",
+    )
+    with pytest.raises(MissingSecretError, match="MISSING_URL"):
+        resolve_provider_runtime_config(cfg, src)
+
+
+def test_resolve_runtime_config_missing_model_env():
+    """model_env 指定的变量不存在 → MissingSecretError。"""
+    src = MappingSecretSource({"MY_KEY": "sk-test"})
+    cfg = LLMProviderConfig(
+        name="test",
+        family=ProviderFamily.OPENAI,
+        compatibility=ProviderCompatibility.NATIVE,
+        model="",
+        api_key_env="MY_KEY",
+        model_env="MISSING_MODEL",
+    )
+    with pytest.raises(MissingSecretError, match="MISSING_MODEL"):
+        resolve_provider_runtime_config(cfg, src)
