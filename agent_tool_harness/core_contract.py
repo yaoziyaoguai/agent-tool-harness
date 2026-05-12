@@ -163,7 +163,7 @@ class Finding:
 class RuleFinding(Finding):
     """确定性规则产生的 finding。
 
-    与 JudgeFinding（未来 LLM judge 产出）的关键区别：
+    与 JudgeFinding（LLM judge 产出）的关键区别：
     - RuleFinding 来自 deterministic 规则检查（如 must_call_tool），
       结果是确定性的、可复现的；
     - JudgeFinding 来自 LLM 语义判断，结果带有 confidence/rubric，
@@ -174,6 +174,33 @@ class RuleFinding(Finding):
 
     rule_type: str = ""
     rule_passed: bool = False
+
+
+@dataclass(frozen=True)
+class JudgeFinding(Finding):
+    """LLM judge 产生的 advisory finding。
+
+    架构边界：
+    - **负责**：承载一次 LLM judge 调用的语义判定结果。
+    - **不负责**：不替代 RuleJudge 的 deterministic baseline、不自动生成
+      ReviewDecision、不存储 API key。
+    - category 固定为 "judge"，与 RuleFinding (category="rule") 区分。
+
+    字段说明：
+    - confidence: LLM 对判定的置信度（0.0-1.0），可选
+    - rubric: 评估使用的评分标准文本，可选
+    - provider: 产生此 finding 的 provider 名称（如 openai-native）
+    - rationale: LLM 给出的判定理由
+    - model: 使用的模型名称
+    - usage: token 使用信息（prompt_tokens / completion_tokens），可选
+    """
+
+    confidence: float | None = None
+    rubric: str | None = None
+    provider: str = ""
+    rationale: str = ""
+    model: str = ""
+    usage: dict[str, Any] | None = None
 
 
 # ---------------------------------------------------------------------------

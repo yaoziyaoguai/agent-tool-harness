@@ -20,14 +20,16 @@
 | Core Contract tests | ✅ 19 个 | `tests/test_core_contract.py` |
 | Demo → Core bridge | ✅ 已实现 | `demo_core_bridge.py`（5 个映射函数） |
 | Bridge tests | ✅ 21 个 | `tests/test_demo_to_core_bridge.py` |
-| **Main Flow 端到端落地** | ❌ 尚未完成 | **本轮目标** |
-| Demo adapter wrapper（Agent2HarnessAdapter） | ❌ 不存在 | **本轮实现** |
-| Core evaluation（Evidence → EvaluationResult） | ❌ 不存在 | **本轮实现** |
-| Core report bridge（EvaluationResult → report） | ❌ 不存在 | **本轮实现** |
+| **Main Flow 端到端落地** | ✅ 已完成（2026-05-11） | `assembly.py` + `cli.py` |
+| Demo adapter wrapper（Agent2HarnessAdapter） | ✅ 已实现 | `agent2harness_adapter.py` |
+| Core evaluation（Evidence → EvaluationResult） | ✅ 已实现 | `core_evaluation.py` |
+| Core report bridge（EvaluationResult → report） | ✅ 已实现 | `core_report_bridge.py` |
+| **JudgeFinding + LLM provider config** | ✅ 已完成（2026-05-12） | `llm_config.py` + `fake_judge.py` |
+| Real LLM JudgeProvider | ❌ 尚未实现 | future（Phase 2-5） |
+| RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
 
-**结论：** Core Contract 对象和 bridge 函数已就绪，但尚未有一条端到端链路
-从 ScenarioSpec 出发，经过 Agent2HarnessAdapter，产出一路 Core Contract 对象
-直到 ReportSummary。本轮补上这条链路。
+**结论：** Main Flow 已落地。LLM provider 配置模型（四类 provider）和
+FakeJudgeProvider（接口验证骨架）已就绪。真实 LLM 调用仍默认不启用。
 
 ---
 
@@ -253,17 +255,24 @@ ScenarioSpec (from EvalSpec 构造)
 
 ---
 
-## 7. 下一阶段预告
+## 7. 当前阶段与下一阶段
 
-本轮完成后，**main flow 已落地但仅限于 demo 材料**。下一阶段按 BACKLOG Track C 推进：
+**已完成（2026-05-12）：**
+- [x] LLM Provider Config 模型（`llm_config.py`）— 四类 provider 配置 + Registry + resolve_api_key
+- [x] JudgeFinding 数据类（`core_contract.py`）— LLM judge advisory finding
+- [x] CoreJudgeProvider Protocol（`fake_judge.py`）— `evaluate(Evidence) → list[JudgeFinding]`
+- [x] FakeJudgeProvider（`fake_judge.py`）— deterministic fake，零网络依赖
+- [x] 示例配置（`examples/llm_providers.example.yaml`）
+- [x] 设计文档（`docs/LLM_PROVIDER_CONFIG.md`）
+- [x] 30 个新测试（19 config + 11 fake judge）
 
-1. **Fake JudgeProvider**（C2）— 先验证 JudgeProvider Protocol
-2. **ProviderConfig skeleton**（B5）— 标准化配置
-3. **Opt-in 安全模型 spec**（C1）— 双标志 + env var
+**下一阶段（Phase 2）：JudgeFinding + fake judge integration into Core Flow**
+1. 让 CoreEvaluation 可选消费 JudgeProvider
+2. EvaluationResult 聚合 RuleFinding + JudgeFinding
 
-再下一阶段（Real Integration）才算真正需要：
-- RealAgentAdapter
-- 真实 LLM Judge
-- 真实 API 调用
+**后续阶段（Phase 3-5）：**
+- OpenAI-compatible transport skeleton
+- Anthropic-compatible transport 收敛
+- opt-in real LLM trial（`--live` + `--confirm-real-api`）
 
-**本轮不越过 demo 边界。**
+**关键边界：** 真实 LLM 调用仍未默认启用。FakeJudgeProvider 保持默认。

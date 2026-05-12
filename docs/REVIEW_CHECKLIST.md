@@ -44,6 +44,24 @@ PR review 和代码变更前的自检清单。
 - [ ] mock replay 的输出诚实标注 `tautological_replay`
 - [ ] 没有把 deterministic rule check 的 PASS 宣传为"工具好用"
 
+## LLM Provider Config / Fake Judge
+
+> 设计文档见 [LLM_PROVIDER_CONFIG.md](LLM_PROVIDER_CONFIG.md)。
+
+- [ ] 配置中没有 inline `api_key` 字段（只允许 `api_key_env`）
+- [ ] `LLMProviderConfig` 不存储 API key 本体（只存环境变量名）
+- [ ] `resolve_api_key()` 是唯一读取 `os.environ` 的入口
+- [ ] parse 阶段不读取环境变量
+- [ ] 没有自动调用 `load_dotenv()`
+- [ ] `FakeJudgeProvider` 不发起任何网络请求
+- [ ] `JudgeFinding` 不包含 `decision` / `reviewer` 字段
+- [ ] `FakeJudgeProvider.evaluate()` 不调用 `resolve_api_key()`
+- [ ] `compatible` provider 必须提供 `base_url`
+- [ ] `compatible` provider 无 `base_url` 时 `ConfigValidationError` 被正确抛出
+- [ ] `api_key` inline 字段被显式拒绝（`ConfigValidationError`）
+- [ ] 测试默认只使用 `FakeJudgeProvider`（零联网）
+- [ ] 真实 provider 测试标记为 opt-in（`@pytest.mark.skipif` 或明确隔离）
+
 ## 安全
 
 - [ ] 没有硬编码 API Key / token / secret

@@ -91,10 +91,14 @@
 - **Not doing**: 不实现 RealAgentAdapter
 
 ### B3. JudgeProvider Protocol hardening
-- **Status**: not started
+- **Status**: in progress (2026-05-12: CoreJudgeProvider Protocol + FakeJudgeProvider + contract tests landed)
 - **Why**: 当前 Protocol 已定义，但需要验证 contract test 覆盖
 - **Acceptance**: JudgeProvider Protocol 的 contract test 覆盖所有已知 provider 实现
-- **Not doing**: 不实现 LLM judge
+- **Not doing**: 不实现真实 LLM judge（FakeJudgeProvider 用于接口验证）
+- [x] CoreJudgeProvider Protocol（`fake_judge.py`）
+- [x] FakeJudgeProvider（9 个 contract tests）
+- [x] JudgeFinding 数据类（`core_contract.py`）
+- [ ] 真实 LLM judge provider（后续轮次）
 
 ### B4. ToolExecutor Protocol spec
 - **Status**: not started
@@ -103,10 +107,19 @@
 - **Not doing**: 不实现 MCP/HTTP/Shell executor
 
 ### B5. ProviderConfig spec
-- **Status**: not started
+- **Status**: done (2026-05-12: LLM provider config model landed)
 - **Why**: 模型选择 / cost / latency 可观测需要标准化配置
 - **Acceptance**: ProviderConfig 定义 model / API key / base URL / budget 的配置格式
-- **Not doing**: 不实现真实 API 调用；不读取 .env
+- **Not doing**: 不实现真实 API 调用（配置只存 env var name，不存 key）
+- [x] ProviderFamily / ProviderCompatibility enum
+- [x] LLMProviderConfig dataclass（四类 provider）
+- [x] LLMProviderRegistry（按 name 查找 + 校验）
+- [x] resolve_api_key()（唯一读取 os.environ 的入口）
+- [x] load_provider_registry()（从 YAML dict 加载）
+- [x] inline api_key 显式拒绝
+- [x] ConfigValidationError + MissingApiKeyError
+- [x] 19 个 config 测试
+- [x] 示例 YAML 配置（`examples/llm_providers.example.yaml`）
 
 ### B6. EvidenceStore spec
 - **Status**: not started
@@ -148,16 +161,25 @@
 > 必须显式 opt-in。当前**全部未实现**。
 
 ### C1. Opt-in safety model spec
-- **Status**: not started
+- **Status**: done (2026-05-12: safety model documented in LLM_PROVIDER_CONFIG.md)
 - **Why**: 真实 LLM 调用需要双标志 + env var 的安全模型
-- **Acceptance**: `--live --confirm-i-have-real-key` 双标志设计文档
+- **Acceptance**: `--live --confirm-real-api` 安全模型在 LLM_PROVIDER_CONFIG.md 中定义
 - **Not doing**: 不实现真实 API 调用
+- [x] 9 条安全规则文档化
+- [x] parse config ≠ 读取 key
+- [x] 禁止 inline api_key
+- [x] 不自动 load_dotenv
+- [x] 测试默认只使用 fake provider
 
 ### C2. Fake JudgeProvider first
-- **Status**: not started
+- **Status**: done (2026-05-12: FakeJudgeProvider + CoreJudgeProvider Protocol landed)
 - **Why**: 在接真实 LLM judge 之前，先用 fake provider 验证 JudgeProvider 接口
 - **Acceptance**: FakeJudgeProvider 通过 JudgeProvider Protocol 的所有 contract tests
 - **Not doing**: 不接真实 LLM
+- [x] CoreJudgeProvider Protocol（`evaluate(Evidence) → list[JudgeFinding]`）
+- [x] FakeJudgeProvider（deterministic preset responses）
+- [x] 9 个 contract tests（全部通过）
+- [x] JudgeFinding ≠ ReviewDecision 边界测试
 
 ### C3. RealAgentAdapter skeleton
 - **Status**: blocked (needs B2 + C1)

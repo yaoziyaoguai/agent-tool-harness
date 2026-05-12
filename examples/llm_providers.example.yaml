@@ -1,0 +1,68 @@
+# LLM Provider 配置示例
+#
+# 本文件展示四种 provider 类型（openai-native / openai-compatible /
+# anthropic-native / anthropic-compatible）的完整配置格式。
+#
+# 重要约束：
+# - 不包含任何真实 API key
+# - 只使用 api_key_env（环境变量名），不使用 api_key（inline key）
+# - base_url 对 compatible provider 必填，对 native 可选
+# - model 必填
+# - 所有超时、温度等参数为可选
+#
+# 使用方式：
+#   1. 复制本文件到 agent_tool_harness/llm_providers.yaml
+#   2. 修改为你实际使用的 provider 和模型
+#   3. 在 shell 中 export 对应环境变量：
+#      export AGENT_TOOL_HARNESS_OPENAI_API_KEY=sk-xxxx
+#      export AGENT_TOOL_HARNESS_DEEPSEEK_API_KEY=sk-xxxx
+#      export AGENT_TOOL_HARNESS_ANTHROPIC_API_KEY=sk-ant-xxxx
+#   4. 通过 CLI 或代码指定 provider name 启用
+
+providers:
+
+  # ------------------------------------------------------------------
+  # OpenAI native — 使用官方 OpenAI API endpoint
+  # ------------------------------------------------------------------
+  openai-native:
+    family: openai
+    compatibility: native
+    model: gpt-4.1-mini
+    api_key_env: AGENT_TOOL_HARNESS_OPENAI_API_KEY
+    timeout_seconds: 30
+    max_tokens: 4096
+    temperature: 0.1
+
+  # ------------------------------------------------------------------
+  # OpenAI-compatible — 例如 DeepSeek、阿里云等兼容 OpenAI chat
+  # completions 协议的第三方 provider
+  # ------------------------------------------------------------------
+  openai-compatible:
+    family: openai
+    compatibility: compatible
+    base_url: https://api.deepseek.com/v1
+    model: deepseek-chat
+    api_key_env: AGENT_TOOL_HARNESS_DEEPSEEK_API_KEY
+    timeout_seconds: 60
+
+  # ------------------------------------------------------------------
+  # Anthropic native — 使用官方 Anthropic Messages API
+  # ------------------------------------------------------------------
+  anthropic-native:
+    family: anthropic
+    compatibility: native
+    model: claude-sonnet-4-6-20250514
+    api_key_env: AGENT_TOOL_HARNESS_ANTHROPIC_API_KEY
+    max_tokens: 4096
+
+  # ------------------------------------------------------------------
+  # Anthropic-compatible — 兼容 Anthropic Messages 协议的第三方
+  # provider（如 AWS Bedrock 代理层、自建兼容网关等）
+  # ------------------------------------------------------------------
+  anthropic-compatible:
+    family: anthropic
+    compatibility: compatible
+    base_url: https://example.com/anthropic-compatible
+    model: claude-compatible-model
+    api_key_env: AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_API_KEY
+    timeout_seconds: 45

@@ -57,14 +57,21 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 |----|------|------|
 | B1 | 提取 Core contracts 为显式层 | in progress (main flow landed 2026-05-11) |
 | B2 | AgentAdapter Protocol 硬化 | in progress (Agent2HarnessAdapter + wrapper landed) |
-| B3 | JudgeProvider Protocol 硬化 | not started |
+| B3 | JudgeProvider Protocol 硬化 | in progress (CoreJudgeProvider + FakeJudgeProvider landed 2026-05-12) |
 | B4 | ToolExecutor Protocol spec | not started |
-| B5 | ProviderConfig spec | not started |
+| B5 | ProviderConfig spec | done (2026-05-12: llm_config.py landed) |
 | B6 | EvidenceStore spec | not started |
 | B7 | Core contract tests | in progress (19 tests) |
 | B8 | Forbidden dependency tests | in progress (AST-based check) |
 
-**Track B 最新进展（2026-05-11）：** Agent2Harness main flow 端到端落地完成。
+**Track B/C 最新进展（2026-05-12）：** LLM provider 配置模型和 Fake Judge 基础落地完成。
+新增 `llm_config.py`（LLMProviderConfig + Registry + resolve_api_key）、
+`fake_judge.py`（CoreJudgeProvider Protocol + FakeJudgeProvider）、
+`core_contract.py` 新增 JudgeFinding 数据类、`examples/llm_providers.example.yaml`、
+`docs/LLM_PROVIDER_CONFIG.md` 设计文档。新增 30 个测试（19 config + 11 fake judge）。
+真实 LLM 仍默认不调用。
+
+**Track B 进展（2026-05-11）：** Agent2Harness main flow 端到端落地完成。
 新增 4 个模块（`agent2harness_adapter.py`, `core_evaluation.py`, `core_report_bridge.py`,
 `assembly.py` 扩展），新增 3 个文档（`AGENT2HARNESS_MAIN_FLOW.md` + 2 个更新），
 新增 18 个集成测试（`test_agent2harness_main_flow.py`）。完整 Core Flow 链路已验证：
@@ -77,8 +84,8 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 
 | ID | 事项 | 状态 |
 |----|------|------|
-| C1 | Opt-in 安全模型 spec | not started |
-| C2 | Fake JudgeProvider 先行验证 | not started |
+| C1 | Opt-in 安全模型 spec | done (LLM_PROVIDER_CONFIG.md 2026-05-12) |
+| C2 | Fake JudgeProvider 先行验证 | done (2026-05-12: fake_judge.py + 9 tests) |
 | C3 | RealAgentAdapter skeleton | blocked (needs B2 + C1) |
 | C4 | Real provider opt-in | blocked (needs B5 + C1) |
 | C5 | Cost / latency evidence capture | blocked (needs B5 + C4) |
