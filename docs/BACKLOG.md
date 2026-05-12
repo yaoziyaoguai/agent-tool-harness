@@ -204,7 +204,7 @@
 - **Not doing**: 不实现单一大 RealAgentAdapter
 
 ### C4. Real provider opt-in
-- **Status**: done (2026-05-12: openai_transport.py + anthropic_transport.py + factory + CLI wiring landed + real LLM dogfood verified)
+- **Status**: done (2026-05-12: transport + factory + CLI wiring landed; infrastructure & safety gates verified; semantic judge parsing pending debug)
 - **Why**: 真实 LLM 评估需要安全模型和配置标准化
 - **Acceptance**: opt-in 真实 LLM dogfood 完成一次端到端闭环 (DOGFOOD_REAL_LLM_001.md)
 - **Not doing**: 不作为默认行为

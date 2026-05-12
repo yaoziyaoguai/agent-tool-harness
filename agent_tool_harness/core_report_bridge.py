@@ -35,21 +35,31 @@ def evaluation_result_to_report_dict(
 
     注意：**不**包含 ReviewDecision——那是人工 Reviewer 的事。
     """
+    findings = []
+    for f in eval_result.findings:
+        item: dict[str, Any] = {
+            "finding_id": f.finding_id,
+            "severity": f.severity,
+            "category": f.category,
+            "message": f.message,
+            "evidence_ref": f.evidence_ref,
+            "rule_type": getattr(f, "rule_type", ""),
+            "rule_passed": getattr(f, "rule_passed", None),
+        }
+        # JudgeFinding metadata 透传（用 getattr 安全获取，不影响 RuleFinding）
+        if f.category == "judge":
+            item["provider"] = getattr(f, "provider", "")
+            item["model"] = getattr(f, "model", "")
+            item["confidence"] = getattr(f, "confidence", None)
+            item["rubric"] = getattr(f, "rubric", None)
+            item["rationale"] = getattr(f, "rationale", "")
+            item["usage"] = getattr(f, "usage", None)
+        findings.append(item)
+
     return {
         "eval_id": eval_result.scenario_id,
         "passed": eval_result.passed,
-        "findings": [
-            {
-                "finding_id": f.finding_id,
-                "severity": f.severity,
-                "category": f.category,
-                "message": f.message,
-                "evidence_ref": f.evidence_ref,
-                "rule_type": getattr(f, "rule_type", ""),
-                "rule_passed": getattr(f, "rule_passed", None),
-            }
-            for f in eval_result.findings
-        ],
+        "findings": findings,
         "summary": eval_result.summary,
     }
 

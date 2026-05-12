@@ -282,3 +282,334 @@ def test_render_from_core_shows_failed_finding():
     assert "fail-eval: FAIL" in report
     assert "❌" in report
     assert "evidence_from_required_tools" in report
+
+
+# ---------------------------------------------------------------------------
+# render_from_core — judge_provider_kind 条件化 caveats
+# ---------------------------------------------------------------------------
+
+
+def test_judge_provider_kind_none_caveat_says_no_real_llm():
+    """judge_provider_kind=none 时 caveat 声明不调用真实 LLM。"""
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+        judge_provider_kind="none",
+    )
+    assert "不调用真实 LLM" in report
+
+
+def test_judge_provider_kind_fake_caveat_says_fake_judge():
+    """judge_provider_kind=fake 时 caveat 说明使用 FakeJudgeProvider，不调用真实 LLM。"""
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+        judge_provider_kind="fake",
+    )
+    assert "FakeJudgeProvider" in report
+    assert "不调用真实 LLM" in report
+
+
+def test_judge_provider_kind_llm_caveat_says_real_llm_judge():
+    """judge_provider_kind=llm 时 caveat 说明真实 LLM judge 已启用，JudgeFinding advisory only。"""
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+        judge_provider_kind="llm",
+    )
+    assert "opt-in 真实 LLM JudgeProvider" in report
+    assert "JudgeFinding 为 advisory only" in report
+    assert "不自动生成 ReviewDecision" in report
+    # 不应出现 "不调用真实 LLM" 的错误声明
+    assert "不调用真实 LLM" not in report
+
+
+# ---------------------------------------------------------------------------
+# render_from_core — JudgeFinding metadata 展示
+# ---------------------------------------------------------------------------
+
+
+def test_judge_finding_metadata_in_report():
+    """JudgeFinding 的 provider/model/confidence/rationale 进入报告。"""
+    results = [
+        {
+            "eval_id": "test-judge",
+            "passed": True,
+            "findings": [
+                {
+                    "finding_id": "j1",
+                    "severity": "info",
+                    "category": "judge",
+                    "message": "tool selection was appropriate",
+                    "evidence_ref": "judge_results.json",
+                    "rule_type": "",
+                    "rule_passed": None,
+                    "provider": "openai-native",
+                    "model": "gpt-4.1-mini",
+                    "confidence": 0.85,
+                    "rationale": "The agent correctly chose the search tool.",
+                }
+            ],
+            "summary": "judge finding test",
+        }
+    ]
+    report = MarkdownReport().render_from_core(
+        results=results,
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+        judge_provider_kind="llm",
+    )
+
+    # provider/model 应出现
+    assert "openai-native" in report
+    assert "gpt-4.1-mini" in report
+    # confidence 应展示
+    assert "0.85" in report
+    # rationale 应展示
+    assert "The agent correctly chose the search tool." in report
+
+
+def test_judge_finding_transport_error_not_rule_failure():
+    """transport error JudgeFinding 不显示为 ✅/❌ 普通 rule failure。"""
+    results = [
+        {
+            "eval_id": "transport-error-test",
+            "passed": True,
+            "findings": [
+                {
+                    "finding_id": "te1",
+                    "severity": "info",
+                    "category": "judge",
+                    "message": "[openai-compatible] transport error: bad_response — bad_response",
+                    "evidence_ref": "evidence.json",
+                    "rule_type": "",
+                    "rule_passed": None,
+                    "provider": "openai-compatible",
+                    "model": "deepseek-v3",
+                }
+            ],
+            "summary": "transport error test",
+        }
+    ]
+    report = MarkdownReport().render_from_core(
+        results=results,
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+        judge_provider_kind="llm",
+    )
+
+    # transport error 不应显示为 ✅/❌
+    assert "✅" not in report
+    assert "❌" not in report
+    # 应有 transport error 特定标签
+    assert "transport/parsing error" in report
+
+
+def test_rule_finding_unaffected_by_judge_metadata():
+    """RuleFinding 不受 JudgeFinding metadata 逻辑影响，仍显示 ✅/❌。"""
+    results = [
+        {
+            "eval_id": "rule-only",
+            "passed": True,
+            "findings": [
+                {
+                    "finding_id": "r1",
+                    "severity": "info",
+                    "category": "rule",
+                    "message": "must call tool: kb.search.search_articles",
+                    "evidence_ref": "judge_results.json",
+                    "rule_type": "must_call_tool",
+                    "rule_passed": True,
+                }
+            ],
+            "summary": "rule only",
+        }
+    ]
+    report = MarkdownReport().render_from_core(
+        results=results,
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+        judge_provider_kind="none",
+    )
+
+    # RuleFinding 用 ✅ 表示通过
+    assert "✅" in report
+    assert "must_call_tool" in report
+    # 不应有 judge-specific 标签
+    assert "advisory" not in report
+
+
+# ---------------------------------------------------------------------------
+# core_report_bridge — JudgeFinding metadata 透传
+# ---------------------------------------------------------------------------
+
+
+def test_evaluation_result_to_report_dict_includes_judge_metadata():
+    """evaluation_result_to_report_dict 透传 JudgeFinding 特有字段。"""
+    from agent_tool_harness.core_contract import (
+        EvaluationResult,
+        JudgeFinding,
+    )
+    from agent_tool_harness.core_report_bridge import (
+        evaluation_result_to_report_dict,
+    )
+
+    jf = JudgeFinding(
+        finding_id="j1",
+        severity="info",
+        category="judge",
+        message="advisory finding",
+        evidence_ref="ref",
+        provider="openai-native",
+        model="gpt-4",
+        confidence=0.9,
+        rubric="scoring rubric text",
+        rationale="rationale text",
+        usage={"prompt_tokens": 100, "completion_tokens": 50},
+    )
+    result = EvaluationResult(
+        scenario_id="test",
+        findings=[jf],
+        passed=True,
+        summary="all good",
+    )
+
+    d = evaluation_result_to_report_dict(result)
+    f = d["findings"][0]
+    assert f["provider"] == "openai-native"
+    assert f["model"] == "gpt-4"
+    assert f["confidence"] == 0.9
+    assert f["rubric"] == "scoring rubric text"
+    assert f["rationale"] == "rationale text"
+    assert f["usage"] == {"prompt_tokens": 100, "completion_tokens": 50}
+
+
+def test_evaluation_result_to_report_dict_rule_finding_no_judge_fields():
+    """RuleFinding 不受 JudgeFinding metadata 逻辑影响。"""
+    from agent_tool_harness.core_contract import (
+        EvaluationResult,
+        RuleFinding,
+    )
+    from agent_tool_harness.core_report_bridge import (
+        evaluation_result_to_report_dict,
+    )
+
+    rf = RuleFinding(
+        finding_id="r1",
+        severity="info",
+        category="rule",
+        message="must call tool",
+        evidence_ref="ref",
+        rule_type="must_call_tool",
+        rule_passed=True,
+    )
+    result = EvaluationResult(
+        scenario_id="test",
+        findings=[rf],
+        passed=True,
+        summary="ok",
+    )
+
+    d = evaluation_result_to_report_dict(result)
+    f = d["findings"][0]
+    # RuleFinding 不应包含 JudgeFinding 特有字段
+    assert "provider" not in f
+    assert "model" not in f
+    assert "confidence" not in f
+
+
+def test_evaluation_result_passed_not_affected_by_judge_finding():
+    """EvaluationResult.passed 不受 JudgeFinding 影响。"""
+    from agent_tool_harness.core_contract import (
+        EvaluationResult,
+        JudgeFinding,
+    )
+    from agent_tool_harness.core_report_bridge import (
+        evaluation_result_to_report_dict,
+    )
+
+    jf = JudgeFinding(
+        finding_id="j1",
+        severity="high",
+        category="judge",
+        message="LLM thinks this is bad",
+        evidence_ref="ref",
+        provider="openai-native",
+        model="gpt-4",
+        confidence=0.95,
+        rationale="bad tool choice",
+    )
+    # passed 明确设为 True，即使 JudgeFinding severity=high
+    result = EvaluationResult(
+        scenario_id="test",
+        findings=[jf],
+        passed=True,
+        summary="jury still out",
+    )
+    assert result.passed is True
+
+    d = evaluation_result_to_report_dict(result)
+    assert d["passed"] is True
+
+
+def test_report_dict_does_not_contain_api_key():
+    """evaluation_result_to_report_dict 不包含 api_key 字段。"""
+    from agent_tool_harness.core_contract import (
+        EvaluationResult,
+        JudgeFinding,
+    )
+    from agent_tool_harness.core_report_bridge import (
+        evaluation_result_to_report_dict,
+    )
+
+    jf = JudgeFinding(
+        finding_id="j1",
+        severity="info",
+        category="judge",
+        message="ok",
+        evidence_ref="ref",
+        provider="openai-native",
+        model="gpt-4",
+    )
+    result = EvaluationResult(
+        scenario_id="test",
+        findings=[jf],
+        passed=True,
+        summary="ok",
+    )
+
+    d = evaluation_result_to_report_dict(result)
+    _assert_no_api_key(d)
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+
+def _empty_summary():
+    return {
+        "total_scenarios": 0,
+        "passed": 0,
+        "failed": 0,
+        "errors": 0,
+        "generated_at": "",
+    }
+
+
+def _assert_no_api_key(obj):
+    """递归检查 dict/list/str 中不含明显 api key。"""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            assert "api_key" not in k.lower(), f"api_key-like key: {k}"
+            _assert_no_api_key(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            _assert_no_api_key(item)
+    elif isinstance(obj, str):
+        assert "sk-" not in obj.lower() or "sk-" not in obj, (
+            f"potential key leak: {obj[:50]}"
+        )

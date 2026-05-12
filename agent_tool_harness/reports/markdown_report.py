@@ -258,6 +258,7 @@ class MarkdownReport:
         results: list[dict[str, Any]],
         report_summary: dict[str, Any],
         signal_quality: str,
+        judge_provider_kind: str = "none",
     ) -> str:
         """从 Core Contract 对象渲染 Markdown 报告。
 
@@ -277,16 +278,56 @@ class MarkdownReport:
         - 新增 Execution Trace 摘要（tool calls / results 计数）
         - 显式声明 ReviewDecision 未生成（反误导护栏）
         - 显式声明 signal_quality 及其边界
+        - Methodology Caveats 根据 judge_provider_kind 条件化渲染
 
         Args:
             results: list of per-eval dict，每个来自
                      core_report_bridge.evaluation_result_to_report_dict()
             report_summary: dict from core_report_bridge.report_summary_to_report_dict()
             signal_quality: str，来自 adapter 的 SIGNAL_QUALITY 声明
+            judge_provider_kind: "none"（默认，纯 RuleJudge）| "fake"（FakeJudgeProvider）
+                                 | "llm"（opt-in 真实 LLM judge）
+            signal_quality: str，来自 adapter 的 SIGNAL_QUALITY 声明
         """
         from agent_tool_harness.signal_quality import describe as describe_sq
 
         sq_note = describe_sq(signal_quality)
+
+        # Methodology Caveats 条件化渲染
+        if judge_provider_kind == "llm":
+            core_caveat = (
+                "- **Core Flow** 走 ScenarioSpec → ExecutionTrace → Evidence → "
+                "CoreEvaluation → EvaluationResult → ReportSummary 链路；"
+                "**已启用 opt-in 真实 LLM JudgeProvider**。"
+                "JudgeFinding 为 advisory only（辅助信号），不改变 deterministic passed/failed，"
+                "不自动生成 ReviewDecision。"
+            )
+        elif judge_provider_kind == "fake":
+            core_caveat = (
+                "- **Core Flow** 走 ScenarioSpec → ExecutionTrace → Evidence → "
+                "CoreEvaluation → EvaluationResult → ReportSummary 链路；"
+                "使用 FakeJudgeProvider（deterministic fake），**不调用真实 LLM**。"
+            )
+        else:
+            core_caveat = (
+                "- **Core Flow** 走 ScenarioSpec → ExecutionTrace → Evidence → "
+                "CoreEvaluation → EvaluationResult → ReportSummary 链路；"
+                "所有步骤都是 deterministic / mock replay，**不调用真实 LLM**。"
+            )
+
+        # Signal quality banner —— 根据 judge_provider_kind 调整措辞
+        if judge_provider_kind == "llm":
+            sq_banner = (
+                "> ⚠️ 本次 run 启用了 opt-in 真实 LLM judge；signal_quality 反映"
+                " adapter 的信号边界。PASS/FAIL 为机器评分，JudgeFinding 为辅助参考，"
+                "不等同于人工审核结论。"
+            )
+        else:
+            sq_banner = (
+                "> ⚠️ 当前 Core Flow 使用 demo/mock 材料运行——signal_quality 反映"
+                "本次 run 的信号边界。PASS/FAIL 不能替代真实 LLM agentic loop 的评估。"
+            )
+
         lines = [
             "# Agent Tool Harness Report (Core Flow)",
             "",
@@ -295,18 +336,11 @@ class MarkdownReport:
             f"- Level: `{signal_quality}`",
             f"- Note: {sq_note}",
             "",
-            (
-                "> ⚠️ 当前 Core Flow 使用 demo/mock 材料运行——signal_quality 反映"
-                "本次 run 的信号边界。PASS/FAIL 不能替代真实 LLM agentic loop 的评估。"
-            ),
+            sq_banner,
             "",
             "## Methodology Caveats",
             "",
-            (
-                "- **Core Flow** 走 ScenarioSpec → ExecutionTrace → Evidence → "
-                "CoreEvaluation → EvaluationResult → ReportSummary 链路；"
-                "所有步骤都是 deterministic / mock replay，**不调用真实 LLM**。"
-            ),
+            core_caveat,
             (
                 "- **RuleJudge 是确定性启发式判定**，只覆盖 must_call_tool / "
                 "must_use_evidence 等显式规则；不做 LLM 语义判分。"
@@ -344,11 +378,57 @@ class MarkdownReport:
                 lines.append("**Findings:**")
                 lines.append("")
                 for f in findings:
-                    f_status = "✅" if f.get("rule_passed") else "❌"
-                    lines.append(
-                        f"- {f_status} `{f.get('rule_type', '?')}` — "
-                        f"{f.get('message', '')}"
-                    )
+                    category = f.get("category", "")
+                    if category == "judge":
+                        # JudgeFinding —— 用不同图标，不显示 ✅/❌
+                        provider = f.get("provider", "")
+                        model = f.get("model", "")
+                        message = f.get("message", "")
+                        # transport error 特殊标注
+                        is_transport_error = (
+                            "transport error" in message
+                            or "bad_response" in message
+                        )
+                        if is_transport_error:
+                            icon = "⚠️"
+                            tag = "LLM judge transport/parsing error"
+                        else:
+                            icon = "🔍"
+                            tag = "LLM judge advisory finding"
+                        src = f"{provider}/{model}" if provider else "llm_judge"
+                        lines.append(
+                            f"- {icon} `{src}` [{tag}] — {message}"
+                        )
+                        # 透传 JudgeFinding metadata
+                        confidence = f.get("confidence")
+                        rationale = f.get("rationale", "")
+                        rubric = f.get("rubric")
+                        usage = f.get("usage")
+                        if confidence is not None:
+                            lines.append(f"  - confidence: {confidence}")
+                        if rationale:
+                            lines.append(f"  - rationale: {rationale}")
+                        if rubric:
+                            lines.append(f"  - rubric: {rubric}")
+                        if usage:
+                            p_t = (
+                                usage.get("prompt_tokens", 0)
+                                if isinstance(usage, dict) else 0
+                            )
+                            c_t = (
+                                usage.get("completion_tokens", 0)
+                                if isinstance(usage, dict) else 0
+                            )
+                            lines.append(
+                                f"  - token usage: prompt={p_t}, completion={c_t}"
+                            )
+                    else:
+                        # RuleFinding —— 保持 ✅/❌
+                        f_status = "✅" if f.get("rule_passed") else "❌"
+                        lines.append(
+                            f"- {f_status} `{f.get('rule_type', '?')}` — "
+                            f"{f.get('message', '')}"
+                        )
                 lines.append("")
             lines.append(f"**Summary:** {result.get('summary', '')}")
             lines.append("")

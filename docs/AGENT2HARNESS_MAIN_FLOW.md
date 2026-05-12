@@ -26,7 +26,7 @@
 | Core report bridge（EvaluationResult → report） | ✅ 已实现 | `core_report_bridge.py` |
 | **JudgeFinding + LLM provider config** | ✅ 已完成（2026-05-12） | `llm_config.py` + `fake_judge.py` |
 | Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
-| **Real LLM dogfood（--env-file + openai-compatible）** | ✅ 已验证（2026-05-12） | `docs/DOGFOOD_REAL_LLM_001.md` |
+| **Real LLM infrastructure & safety gate verified** | ⚠️ transport verified, semantic judge pending (2026-05-12) | `docs/DOGFOOD_REAL_LLM_001.md` |
 | **TraceImportAdapter** | 📐 设计阶段（2026-05-12） | `docs/TRACE_IMPORT_ADAPTER_SPEC.md` |
 | **CLIAgentAdapter** | 📐 设计阶段（2026-05-12） | `docs/CLI_AGENT_ADAPTER_SPEC.md` |
 | RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
@@ -290,12 +290,13 @@ ScenarioSpec (from EvalSpec 构造)
   - 零新依赖、injected http_factory、8 类 error taxonomy
   - 44 个新测试，691 全量测试通过
 
-- [x] **Phase 5：真实 LLM dogfood 验证**（2026-05-12）
-  - openai-compatible provider 通过 `--env-file ./.env` 成功调用
+- [x] **Phase 5：真实 LLM infrastructure & safety gate 验证**（2026-05-12）
+  - openai-compatible transport + factory wiring + --env-file secret loading 跑通
   - RuleFinding + JudgeFinding 在 EvaluationResult 中正确并列
   - ReviewDecision 未自动生成（符合预期）
   - `model_env` 从 .env 正确解析
   - CLI log 中 model= 显示 resolved model（修复：使用 `provider.model` 而非 `config.model`）
+  - ⚠️ Semantic JudgeFinding 因 provider response parsing bad_response 尚未成功产出，待调试
   - 详见 `docs/DOGFOOD_REAL_LLM_001.md`
 
 **下一阶段（Phase 6）：**

@@ -1534,10 +1534,17 @@ def _run_core_flow(
     eval_dicts = [
         evaluation_result_to_report_dict(r.eval_result) for r in results
     ]
+    # judge_provider_kind 条件化 report caveats
+    _jp_kind = "none"
+    if judge_provider == "fake":
+        _jp_kind = "fake"
+    elif judge_provider == "llm":
+        _jp_kind = "llm"
     report_md = report.render_from_core(
         results=eval_dicts,
         report_summary=summary_dict,
         signal_quality=signal_quality,
+        judge_provider_kind=_jp_kind,
     )
     (out_dir / "report.md").write_text(report_md, encoding="utf-8")
 

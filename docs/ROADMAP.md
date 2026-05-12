@@ -66,9 +66,10 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 
 **Track B/C 最新进展（2026-05-12）：**
 
-**Real LLM dogfood** 已验证通过（`docs/DOGFOOD_REAL_LLM_001.md`）。openai-compatible provider
-通过 `--env-file ./.env` 成功调用真实 LLM judge。RuleFinding + JudgeFinding 正确并列，
-ReviewDecision 未自动生成。
+**Real LLM infrastructure & safety gate** 已验证通过（`docs/DOGFOOD_REAL_LLM_001.md`）。
+openai-compatible transport + factory wiring + --env-file secret loading 均已跑通。
+Semantic JudgeFinding 因 provider response parsing bad_response 尚未成功产出，
+待后续调试。TraceImportAdapter / CLIAgentAdapter 不受此影响。
 
 **Real Agent Integration SDD** 进入设计阶段（`docs/REAL_AGENT_INTEGRATION_SDD.md`）。
 TraceImportAdapter + CLIAgentAdapter spec 已完成。

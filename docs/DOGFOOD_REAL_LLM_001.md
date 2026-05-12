@@ -1,4 +1,4 @@
-# Dogfood Record: Real LLM Judge #001
+# Dogfood Record: Real LLM Infrastructure & Safety Gate Verification #001
 
 ## 1. Basic Info
 
@@ -68,23 +68,43 @@ providers:
 | RuleFinding count | 8 (all passed) |
 | JudgeFinding generated | Yes (1 finding, `category: "judge"`, `severity: "info"`) |
 | JudgeFinding provider | `openai-compatible` |
+| **Semantic judge verdict** | **Not produced** — provider response parsing returned `bad_response` |
 | ReviewDecision auto-generated | **No** — confirmed by `REVIEW_DECISION_NOT_GENERATED.txt` |
+
+**Key takeaway:** The real LLM transport, opt-in safety gates (--live, --confirm-i-have-real-key, --env-file), and factory wiring were all verified successfully. However, the actual semantic JudgeFinding (passed/rationale/confidence from LLM) was NOT produced because the provider response format did not match the expected parser. This is a provider response parsing/debugging follow-up, not a transport or safety gate failure.
 
 ## 6. Issues Found
 
-### 6.1 CLI log `model=` displayed empty
+### 6.1 CLI log `model=` displayed empty (FIXED)
 
-**Root cause:** `cli.py:1432` used `result.config.model` (static `LLMProviderConfig.model`, which is `""` when `model_env` is used). The resolved model existed in `result.provider._model` but was not publicly exposed.
+**Root cause:** `cli.py:1432` used `result.config.model` (static `LLMProviderConfig.model`, which is `""` when `model_env` is used).
 
-**Fix:** Added `LLMJudgeProvider.model` property exposing `self._model`, changed CLI to use `result.provider.model`.
+**Fix:** Added `LLMJudgeProvider.model` property, changed CLI to use `result.provider.model`.
 
-**Status:** Fixed in same commit as this doc.
+### 6.2 Provider response parsing: bad_response (NOT FIXED)
 
-### 6.2 LLM judge transport error
+**Status:** The real LLM judge transport successfully sent the request and received a response, but the response could not be parsed as a valid JudgeFinding. The finding recorded is `[openai-compatible] transport error: bad_response`.
 
-A `bad_response` finding was recorded (`[openai-compatible] transport error: bad_response`). This indicates the HTTP call reached the server but the response format was unexpected. Does NOT block the evaluation — RuleFindings still passed, and the JudgeFinding is advisory only.
+**Impact:** The semantic JudgeFinding (passed/rationale/confidence from LLM) was NOT produced. RuleFindings (deterministic) were unaffected and passed normally. `EvaluationResult.passed` remained determined by RuleJudge, which is the correct behavior.
 
-## 7. Safety Gates Verified
+**Root cause:** To be investigated. Likely a mismatch between the provider's actual response format and the expected OpenAI chat completions response schema.
+
+**Next follow-up:** Debug provider response parsing / response format compatibility. This does NOT block TraceImportAdapter or CLIAgentAdapter implementation.
+
+## 7. What Was Verified
+
+**Successfully verified:**
+- Real LLM transport infrastructure (HTTPS call, factory wiring, safety gates)
+- Opt-in safety gates: --live / --confirm-i-have-real-key / --env-file
+- SecretSource resolution: api_key / base_url / model all correctly resolved from .env
+- RuleFinding + JudgeFinding coexistence in EvaluationResult
+- ReviewDecision NOT auto-generated
+- EvaluationResult.passed stays RuleJudge-determined
+
+**NOT yet verified:**
+- Semantic judge verdict (passed/rationale/confidence from LLM) — blocked by bad_response
+
+## 8. Safety Gates Verified
 
 | Gate | Status |
 |------|--------|
@@ -96,15 +116,15 @@ A `bad_response` finding was recorded (`[openai-compatible] transport error: bad
 | ReviewDecision not auto-generated | Passed |
 | `EvaluationResult.passed` from RuleJudge only | Passed |
 
-## 8. Next Steps
+## 9. Next Steps
 
-1. **Independent audit** — 由非作者 review 完整 dogfood 输出
-2. **Push decision** — 等用户确认后 push
-3. **Transport error debugging** — 排查 `bad_response` 根因（可能是 API 响应格式不匹配）
-4. **Prompt engineering** — 设计 JudgeFinding 的 system prompt + rubric
-5. **Multi-provider comparison** — 用多个 provider 跑同一场景，分析分歧率
+1. **Provider response parsing debug** — 排查 bad_response 根因（API 响应格式与预期 schema 不匹配）
+2. **Prompt engineering** — 设计 JudgeFinding 的 system prompt + rubric
+3. **TraceImportAdapter / CLIAgentAdapter implementation** — 不依赖 semantic judge 修复
+4. **Re-dogfood after response parsing fix** — 再次尝试验证完整 semantic judge 链路
+5. **Multi-provider comparison** — 用多个 provider 跑同一场景，分析分歧率（后续）
 
-## 9. References
+## 10. References
 
 - [LLM_PROVIDER_CONFIG.md](./LLM_PROVIDER_CONFIG.md) — Provider 配置完整文档
 - [AGENT2HARNESS_MAIN_FLOW.md](./AGENT2HARNESS_MAIN_FLOW.md) — Core Flow 架构
