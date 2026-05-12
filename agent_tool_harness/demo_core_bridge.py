@@ -90,6 +90,7 @@ def _dict_to_tool_result(response: dict[str, Any]) -> ToolResult:
     status = "success" if payload.get("success") else "error"
     return ToolResult(
         call_id=str(response.get("call_id", "")),
+        tool_name=str(response.get("tool_name", "")),
         status=status,
         output=dict(payload.get("content", {})),
         error=payload.get("error"),
@@ -219,7 +220,7 @@ def execution_trace_to_agent_run_result(trace: ExecutionTrace) -> AgentRunResult
     for r in trace.tool_results:
         response_dict: dict[str, Any] = {
             "call_id": r.call_id,
-            "tool_name": "",
+            "tool_name": r.tool_name,
             "response": {
                 "success": r.status == "success",
                 "content": r.output,

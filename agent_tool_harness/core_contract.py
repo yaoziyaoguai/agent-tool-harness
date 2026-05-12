@@ -82,8 +82,9 @@ class ToolResult:
     """
 
     call_id: str
-    status: str  # "success" | "error"
-    output: dict[str, Any]
+    tool_name: str = ""
+    status: str = "success"  # "success" | "error"
+    output: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
 
 

@@ -576,6 +576,7 @@ def test_execution_trace_to_agent_run_result_roundtrip():
     assert len(reconstructed.tool_responses) == len(original.tool_responses)
     assert reconstructed.tool_calls[0]["call_id"] == "c1"
     assert reconstructed.tool_calls[0]["tool_name"] == "search"
+    assert reconstructed.tool_responses[0]["tool_name"] == "search"
 
 
 # ---------------------------------------------------------------------------
