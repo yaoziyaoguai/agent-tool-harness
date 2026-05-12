@@ -1,7 +1,6 @@
 # TraceImportAdapter Specification
 
-> **状态**: Implementation in progress — native schema complete (2026-05-12).
-> simple mapping mode 尚未实现。
+> **状态**: Implementation complete — native schema + simple mapping (2026-05-12)。
 > **父文档**: [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)
 
 ---
@@ -41,7 +40,7 @@
 
 ### 2.2 Mode B: Simple Mapping
 
-**状态**: ❌ 尚未实现（Phase B）。
+**状态**: ✅ 已实现（Phase B, 2026-05-12）。
 
 用户提供普通 JSON + 字段映射 YAML。Adapter 按映射关系提取字段。
 
@@ -241,7 +240,7 @@ class TraceImportAdapter:
 | TraceImportAdapter | `agent_tool_harness/trace_import.py` |
 | 示例 native trace | `examples/trace_import/native_trace.json` |
 | 示例 README | `examples/trace_import/README.md` |
-| 测试 | `tests/test_trace_import_adapter.py`（52 tests） |
+| 测试 | `tests/test_trace_import_adapter.py`（52 tests）+ `tests/test_trace_import_simple_mapping.py`（31 tests） |
 
 实现的方法：
 - `TraceImportAdapter.import_file(path)` → `ExecutionTrace`
@@ -249,9 +248,25 @@ class TraceImportAdapter:
 - `TraceImportAdapter.to_evidence(trace)` → `Evidence`
 - `import_trace_as_evidence(path)` → `Evidence`（便捷函数）
 
-### 8.2 Simple mapping — 尚未实现
+### 8.2 Simple mapping — 已实现
 
-用户如果 trace 字段名与 native schema 不一致，建议先用自己的脚本转成 native schema。
+实现位置:
+- `agent_tool_harness/trace_import.py` — `SimpleMappingConfig` dataclass + `_apply_simple_mapping()` + mode routing
+- `tests/test_trace_import_simple_mapping.py` — 31 tests
+
+支持的能力:
+- 声明式字段映射（`SimpleMappingConfig`），把非 native 字段名映射到 native schema
+- 路径格式校验：拒绝 dotted path / JSONPath / bracket expression
+- 状态 normalize（`"ok"` → `"success"`）
+- P2 校验（output 或 error 至少一个非空）
+- observations 存入 `Evidence.artifacts["observations"]`
+- `TraceImportAdapter(mode="simple_mapping", mapping=...)` 调用方式与 native mode 一致
+
+明确不做:
+- 不支持 JSONPath DSL / 嵌套路径 / filter / expression / Python eval
+- 不新增 CLI entry（simple mapping 仅 Python API）
+- 不自动生成 ReviewDecision
+- 不读取 .env / 不调用外部 API
 
 ### 8.3 CLIAgentAdapter — 尚未实现
 

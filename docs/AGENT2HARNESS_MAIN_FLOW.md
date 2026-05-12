@@ -28,7 +28,7 @@
 | Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
 | **Real LLM infrastructure & safety gate verified** | ⚠️ transport verified, semantic judge pending (2026-05-12) | `docs/DOGFOOD_REAL_LLM_001.md` |
 | **TraceImportAdapter (native schema)** | ✅ 已实现（2026-05-12） | `agent_tool_harness/trace_import.py` |
-| **TraceImportAdapter (simple mapping)** | ❌ 尚未实现 | `docs/TRACE_IMPORT_ADAPTER_SPEC.md` |
+| **TraceImportAdapter (simple mapping)** | ✅ 已实现（2026-05-12） | `docs/TRACE_IMPORT_ADAPTER_SPEC.md` |
 | **CLIAgentAdapter** | 📐 设计阶段（2026-05-12） | `docs/CLI_AGENT_ADAPTER_SPEC.md` |
 | RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
 

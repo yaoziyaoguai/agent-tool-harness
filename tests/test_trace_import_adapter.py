@@ -156,9 +156,11 @@ class TestImportDictSuccess:
         trace = TraceImportAdapter().import_dict(data)
         assert trace.tool_calls[0].arguments == {}
 
-    def test_output_defaults_empty(self):
+    def test_output_defaults_empty_when_error_present(self):
+        """缺失 output 但有 error 时，output 默认 {}。"""
         data = _valid_trace_dict()
         del data["tool_results"][0]["output"]
+        data["tool_results"][0]["error"] = "timeout"
         trace = TraceImportAdapter().import_dict(data)
         assert trace.tool_results[0].output == {}
 
@@ -355,6 +357,48 @@ class TestValidationErrors:
         del data["tool_results"][0]["tool_name"]
         with pytest.raises(TraceImportError, match="missing tool_name"):
             TraceImportAdapter().import_dict(data)
+
+    # ------------------------------------------------------------------
+    # P2: output 或 error 至少一个非空
+    # ------------------------------------------------------------------
+
+    def test_output_empty_and_error_none_is_error(self):
+        data = _valid_trace_dict()
+        data["tool_results"][0]["output"] = {}
+        data["tool_results"][0]["error"] = None
+        with pytest.raises(TraceImportError, match="needs output or error"):
+            TraceImportAdapter().import_dict(data)
+
+    def test_output_missing_and_error_missing_is_error(self):
+        data = _valid_trace_dict()
+        del data["tool_results"][0]["output"]
+        # error 本来就不在 _valid_trace_dict 的 tool_results 中有值，但设 None 显式
+        data["tool_results"][0]["error"] = None
+        with pytest.raises(TraceImportError, match="needs output or error"):
+            TraceImportAdapter().import_dict(data)
+
+    def test_output_empty_dict_and_error_empty_string_is_error(self):
+        data = _valid_trace_dict()
+        data["tool_results"][0]["output"] = {}
+        data["tool_results"][0]["error"] = ""
+        with pytest.raises(TraceImportError, match="needs output or error"):
+            TraceImportAdapter().import_dict(data)
+
+    def test_error_nonempty_output_missing_is_allowed(self):
+        data = _valid_trace_dict()
+        del data["tool_results"][0]["output"]
+        data["tool_results"][0]["error"] = "timeout"
+        trace = TraceImportAdapter().import_dict(data)
+        assert trace.tool_results[0].error == "timeout"
+        assert trace.tool_results[0].output == {}
+
+    def test_output_nonempty_error_missing_is_allowed(self):
+        data = _valid_trace_dict()
+        data["tool_results"][0]["output"] = {"key": "val"}
+        data["tool_results"][0]["error"] = None
+        trace = TraceImportAdapter().import_dict(data)
+        assert trace.tool_results[0].output == {"key": "val"}
+        assert trace.tool_results[0].error is None
 
     def test_tool_result_unknown_call_id(self):
         data = _valid_trace_dict()

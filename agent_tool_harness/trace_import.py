@@ -49,6 +49,7 @@ native JSON 中有 ``observations`` 字段，但 ``ExecutionTrace`` 当前没有
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +76,111 @@ class TraceImportError(Exception):
 
 
 # ---------------------------------------------------------------------------
+# path validation
+# ---------------------------------------------------------------------------
+
+
+def _validate_mapping_path(path: str, *, label: str = "path") -> str:
+    """校验 simple mapping path 是单一 key，拒绝嵌套路径 / JSONPath / 表达式。"""
+    if not isinstance(path, str) or not path.strip():
+        raise TraceImportError(
+            f"unsupported mapping path: {path!r}", field_path=label
+        )
+    if "." in path:
+        raise TraceImportError(
+            f"unsupported mapping path: {path!r} (nested paths not supported)",
+            field_path=label,
+        )
+    if path.startswith("$"):
+        raise TraceImportError(
+            f"unsupported mapping path: {path!r} (JSONPath not supported)",
+            field_path=label,
+        )
+    if "[" in path or "]" in path:
+        raise TraceImportError(
+            f"unsupported mapping path: {path!r} (bracket expressions not supported)",
+            field_path=label,
+        )
+    return path
+
+
+# ---------------------------------------------------------------------------
+# SimpleMappingConfig
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SimpleMappingConfig:
+    """simple mapping 字段映射配置——把非 native 字段名映射到 native schema。
+
+    架构边界:
+    - **负责**: 声明用户 JSON 中各个字段的 key 名称。
+    - **不负责**: JSONPath 表达式、嵌套路径（a.b.c）、filter 表达式、Python eval。
+    """
+
+    scenario_id_path: str
+    tool_calls_path: str
+    tool_results_path: str
+    tool_call_id_field: str
+    tool_call_name_field: str
+    tool_result_call_id_field: str
+    tool_result_name_field: str
+
+    # 可选顶层路径
+    final_answer_path: str | None = None
+    messages_path: str | None = None
+    observations_path: str | None = None
+
+    # 可选 tool call 字段
+    tool_call_arguments_field: str | None = None
+    tool_call_timestamp_field: str | None = None
+
+    # 可选 tool result 字段
+    tool_result_status_field: str | None = None
+    tool_result_output_field: str | None = None
+    tool_result_error_field: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_mapping_path(self.scenario_id_path, label="scenario_id_path")
+        _validate_mapping_path(self.tool_calls_path, label="tool_calls_path")
+        _validate_mapping_path(self.tool_results_path, label="tool_results_path")
+        _validate_mapping_path(self.tool_call_id_field, label="tool_call_id_field")
+        _validate_mapping_path(self.tool_call_name_field, label="tool_call_name_field")
+        _validate_mapping_path(
+            self.tool_result_call_id_field, label="tool_result_call_id_field"
+        )
+        _validate_mapping_path(
+            self.tool_result_name_field, label="tool_result_name_field"
+        )
+        if self.final_answer_path is not None:
+            _validate_mapping_path(self.final_answer_path, label="final_answer_path")
+        if self.messages_path is not None:
+            _validate_mapping_path(self.messages_path, label="messages_path")
+        if self.observations_path is not None:
+            _validate_mapping_path(self.observations_path, label="observations_path")
+        if self.tool_call_arguments_field is not None:
+            _validate_mapping_path(
+                self.tool_call_arguments_field, label="tool_call_arguments_field"
+            )
+        if self.tool_call_timestamp_field is not None:
+            _validate_mapping_path(
+                self.tool_call_timestamp_field, label="tool_call_timestamp_field"
+            )
+        if self.tool_result_status_field is not None:
+            _validate_mapping_path(
+                self.tool_result_status_field, label="tool_result_status_field"
+            )
+        if self.tool_result_output_field is not None:
+            _validate_mapping_path(
+                self.tool_result_output_field, label="tool_result_output_field"
+            )
+        if self.tool_result_error_field is not None:
+            _validate_mapping_path(
+                self.tool_result_error_field, label="tool_result_error_field"
+            )
+
+
+# ---------------------------------------------------------------------------
 # TraceImportAdapter
 # ---------------------------------------------------------------------------
 
@@ -87,8 +193,6 @@ class TraceImportAdapter:
       可选的 Evidence。
     - **不负责**: 不运行 Agent、不调用外部 API、不读取 .env、不猜测复杂格式、
       不用 LLM 解析 trace。
-    - **当前只实现 native schema mode**——用户 trace 必须直接符合 ExecutionTrace
-      的字段结构。simple mapping mode 将在 Phase B 实现。
 
     native schema 最小 JSON:
         {
@@ -101,7 +205,19 @@ class TraceImportAdapter:
           "messages": [],
           "observations": []
         }
+
+    simple_mapping mode 用于非 native 字段名的用户 JSON，通过 SimpleMappingConfig
+    声明字段 key 映射后导入。
     """
+
+    def __init__(
+        self,
+        *,
+        mode: str = "native",
+        mapping: SimpleMappingConfig | None = None,
+    ) -> None:
+        self._mode = mode
+        self._mapping = mapping
 
     def import_file(self, path: Path | str) -> ExecutionTrace:
         """从文件路径导入 trace JSON → ExecutionTrace。
@@ -124,6 +240,8 @@ class TraceImportAdapter:
         Raises:
             TraceImportError: 字段校验失败。
         """
+        if self._mode == "simple_mapping":
+            return self._import_via_simple_mapping(data)
         return self._import_dict(data)
 
     def to_evidence(
@@ -162,7 +280,7 @@ class TraceImportAdapter:
             raise TraceImportError(
                 f"invalid JSON: {exc}", field_path=source
             ) from exc
-        return self._import_dict(data)
+        return self.import_dict(data)
 
     def _import_dict(self, data: dict[str, Any]) -> ExecutionTrace:
         """校验并构造 ExecutionTrace。"""
@@ -234,6 +352,111 @@ class TraceImportAdapter:
         # 不在 ExecutionTrace 定义中，仅本模块内部使用）
         trace._trace_import_observations = observations  # type: ignore[attr-defined]
         return trace
+
+    # ------------------------------------------------------------------
+    # simple mapping
+    # ------------------------------------------------------------------
+
+    def _import_via_simple_mapping(self, data: dict[str, Any]) -> ExecutionTrace:
+        """通过 simple mapping 把用户 dict 转成 native-like dict，然后复用 _import_dict 校验。"""
+        if self._mapping is None:
+            raise TraceImportError(
+                "mapping is required for simple_mapping mode",
+                field_path="mapping",
+            )
+        native_data = self._apply_simple_mapping(data, self._mapping)
+        return self._import_dict(native_data)
+
+    @staticmethod
+    def _apply_simple_mapping(
+        data: dict[str, Any], mapping: SimpleMappingConfig
+    ) -> dict[str, Any]:
+        """把用户 dict 的字段名映射为 native schema。"""
+
+        def _get(path: str) -> Any:
+            val = data.get(path)
+            if val is None:
+                raise TraceImportError(
+                    f"mapping target not found: {path!r}", field_path=path
+                )
+            return val
+
+        def _check_list(path: str) -> list[Any]:
+            val = _get(path)
+            if not isinstance(val, list):
+                raise TraceImportError(
+                    "tool_calls must be a list" if path == mapping.tool_calls_path
+                    else "tool_results must be a list",
+                    field_path=path,
+                )
+            return val
+
+        native: dict[str, Any] = {}
+
+        # scenario_id
+        native["scenario_id"] = _get(mapping.scenario_id_path)
+
+        # tool_calls
+        raw_calls = _check_list(mapping.tool_calls_path)
+        mapped_calls: list[dict[str, Any]] = []
+        for item in raw_calls:
+            ca: dict[str, Any] = {}
+            ca["call_id"] = item.get(mapping.tool_call_id_field)
+            if mapping.tool_call_arguments_field:
+                ca["arguments"] = item.get(
+                    mapping.tool_call_arguments_field, {}
+                )
+            else:
+                ca["arguments"] = {}
+            ca["tool_name"] = item.get(mapping.tool_call_name_field)
+            if mapping.tool_call_timestamp_field:
+                ts = item.get(mapping.tool_call_timestamp_field)
+                if ts is not None:
+                    ca["timestamp"] = ts
+            mapped_calls.append(ca)
+        native["tool_calls"] = mapped_calls
+
+        # tool_results
+        raw_results = _check_list(mapping.tool_results_path)
+        mapped_results: list[dict[str, Any]] = []
+        for item in raw_results:
+            r: dict[str, Any] = {}
+            r["call_id"] = item.get(mapping.tool_result_call_id_field)
+            r["tool_name"] = item.get(mapping.tool_result_name_field)
+            if mapping.tool_result_status_field:
+                r["status"] = item.get(mapping.tool_result_status_field, "success")
+            else:
+                r["status"] = "success"
+            if mapping.tool_result_output_field:
+                r["output"] = item.get(mapping.tool_result_output_field, {})
+            else:
+                r["output"] = {}
+            if mapping.tool_result_error_field:
+                r["error"] = item.get(mapping.tool_result_error_field)
+            else:
+                r["error"] = None
+            mapped_results.append(r)
+        native["tool_results"] = mapped_results
+
+        # final_answer
+        if mapping.final_answer_path:
+            native["final_answer"] = data.get(mapping.final_answer_path, "")
+        else:
+            native["final_answer"] = ""
+
+        # messages
+        if mapping.messages_path:
+            native["messages"] = data.get(mapping.messages_path, [])
+        else:
+            native["messages"] = []
+
+        # observations
+        if mapping.observations_path:
+            native["observations"] = data.get(mapping.observations_path, [])
+        else:
+            native["observations"] = []
+
+        return native
 
     # ------------------------------------------------------------------
     # 字段解析
@@ -310,6 +533,16 @@ class TraceImportAdapter:
             error = item.get("error")
             if error is not None and not isinstance(error, str):
                 error = None
+            # P2: error 如果为空字符串，等同于 None
+            if isinstance(error, str) and not error.strip():
+                error = None
+
+            # P2: output 或 error 至少一个非空
+            if not output and error is None:
+                raise TraceImportError(
+                    f"{prefix} needs output or error",
+                    field_path=f"{prefix}",
+                )
 
             result.append(
                 ToolResult(

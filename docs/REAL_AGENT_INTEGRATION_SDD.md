@@ -1,7 +1,7 @@
 # Real Agent Integration SDD (Software Design Document)
 
-> **状态**: Implementation in progress — Phase A (TraceImportAdapter native schema) complete (2026-05-12).
-> Phase B (simple mapping) next. CLIAgentAdapter (Phase C/D) 尚未实现。
+> **状态**: Implementation in progress — Phase A (native schema) + Phase B (simple mapping) complete (2026-05-12).
+> CLIAgentAdapter (Phase C/D) 尚未实现。
 > **依赖**: Agent2Harness Core Flow (landed), CoreJudgeProvider (landed), LLMJudgeProvider (landed), explicit --env-file secret loading (landed).
 
 ---
@@ -222,10 +222,20 @@ CLIAgentAdapter **不自己解析 trace**。它负责运行命令，然后把 tr
 - `examples/trace_import/native_trace.json` — 示例 trace
 - `tests/test_trace_import_adapter.py` — 52 tests
 
-### Phase B: TraceImportAdapter — Simple Mapping Mode ❌
+### Phase B: TraceImportAdapter — Simple Mapping Mode ✅ (2026-05-12)
 
-下一步。
-用户当前如果 trace 格式不一致，先用脚本转成 native schema。
+| Acceptance Criteria | Status |
+|----------------------|--------|
+| AC 3: 能通过 simple mapping 导入非标准 trace JSON | ✅ 31 tests |
+| AC 4: mapping 中引用的字段不存在时明确报错 | ✅ |
+| AC 12: 所有测试零网络依赖 | ✅ |
+| AC 13: 所有测试 deterministic | ✅ |
+
+实现位置:
+- `agent_tool_harness/trace_import.py` — `SimpleMappingConfig` dataclass + `_apply_simple_mapping()` + mode routing
+- `tests/test_trace_import_simple_mapping.py` — 31 tests
+
+不支持: JSONPath DSL / 嵌套路径 / filter / expression / Python eval / CLI entry。
 
 ### Phase C/D/E: CLIAgentAdapter / Integration / Dogfood ❌
 
