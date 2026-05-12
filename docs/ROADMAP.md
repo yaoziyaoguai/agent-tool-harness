@@ -64,15 +64,14 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 | B7 | Core contract tests | in progress (81+ tests across 11 test files) |
 | B8 | Forbidden dependency tests | in progress (AST-based check) |
 
-**Track B/C 最新进展（2026-05-12）：** Phase 4: opt-in 真实 LLM judge transport
-落地完成。新增 4 个模块（`openai_transport.py`、`anthropic_transport.py`、
-`llm_judge.py`、`judge_provider_factory.py`），实现四类 provider 的真实 HTTPS
-transport 骨架（零新依赖、安全门控、8 类错误 taxonomy、retry/backoff）。
-新增 44 个测试（19 transport + 11 judge + 10 factory + 10 CLI guard）。
-691 全量测试通过。
-真实 LLM 调用必须显式 opt-in：`--core-flow --judge-provider llm --live
---confirm-i-have-real-key --llm-config PATH --llm-provider NAME`。
-默认仍不调用真实 LLM，passed 仍由 RuleJudge 决定。
+**Track B/C 最新进展（2026-05-12）：**
+
+**Real LLM dogfood** 已验证通过（`docs/DOGFOOD_REAL_LLM_001.md`）。openai-compatible provider
+通过 `--env-file ./.env` 成功调用真实 LLM judge。RuleFinding + JudgeFinding 正确并列，
+ReviewDecision 未自动生成。
+
+**Real Agent Integration SDD** 进入设计阶段（`docs/REAL_AGENT_INTEGRATION_SDD.md`）。
+TraceImportAdapter + CLIAgentAdapter spec 已完成。
 
 **Track B 进展（2026-05-11）：** Agent2Harness main flow 端到端落地完成。
 新增 4 个模块（`agent2harness_adapter.py`, `core_evaluation.py`, `core_report_bridge.py`,
@@ -83,17 +82,32 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md)、
 [DEMO_TO_CORE_MIGRATION.md](DEMO_TO_CORE_MIGRATION.md)。
 
-### Track C: Real Integration（future，全部 blocked）
+### Track C: Real Integration（active，设计阶段）
 
 | ID | 事项 | 状态 |
 |----|------|------|
 | C1 | Opt-in 安全模型 spec | done (LLM_PROVIDER_CONFIG.md 2026-05-12) |
 | C2 | Fake JudgeProvider 先行验证 | done (2026-05-12: fake_judge.py + 9 tests) |
-| C3 | RealAgentAdapter skeleton | blocked (needs B2 + C1) |
+| C3 | RealAgentAdapter skeleton | redesigned → C8/C9 trace import + CLI agent adapter |
 | C4 | Real provider opt-in | done (2026-05-12: openai_transport.py + anthropic_transport.py + factory + CLI wiring landed) |
-| C5 | Cost / latency evidence capture | blocked (needs B5 + C4) |
+| C5 | Cost / latency evidence capture | **deferred** (推迟到 Real Agent Integration 之后——先让 trace 跑通，再加成本预算) |
 | C6 | Deterministic + LLM judge 组合 | done (2026-05-12: CoreEvaluation judge_provider 接入; passed 仍由 RuleJudge 决定, JudgeFinding 为 advisory) |
 | C7 | LiveAnthropicTransport 验证或删除 | not started (legacy LiveAnthropicTransport 保持不动，新 transport 独立) |
+| C8 | **TraceImportAdapter** | **设计阶段** (docs/TRACE_IMPORT_ADAPTER_SPEC.md 2026-05-12) |
+| C9 | **CLIAgentAdapter** | **设计阶段** (docs/CLI_AGENT_ADAPTER_SPEC.md 2026-05-12) |
+| C10 | **Real agent dogfood (本地项目)** | **blocked** (needs C8 + C9) |
+
+**Track C 最新进展（2026-05-12）：** Real Agent Integration SDD 进入设计阶段。
+两个接入模块已完成 spec 设计：
+
+1. **TraceImportAdapter** — 导入用户已有 trace JSON（native schema / simple mapping）
+2. **CLIAgentAdapter** — 通过 CLI 命令运行用户 Agent，复用 TraceImportAdapter
+
+详见 [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)、
+[TRACE_IMPORT_ADAPTER_SPEC.md](TRACE_IMPORT_ADAPTER_SPEC.md)、
+[CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md)。
+
+**实现顺序：** Phase A (TraceImportAdapter native) → Phase B (Simple mapping) → Phase C (CLIAgentAdapter) → Phase D (集成) → Phase E (real dogfood)。成本追踪明确推到 later。
 
 ## 明确不做
 

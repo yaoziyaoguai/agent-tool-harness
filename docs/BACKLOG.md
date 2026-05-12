@@ -169,10 +169,12 @@
 
 ---
 
-## Track C: Real Integration (future)
+## Track C: Real Integration (active, 设计阶段)
 
-> 未来接真实世界。所有 Real 组件通过 Protocol 接口接入 Core，不修改 Core。
-> 必须显式 opt-in。当前**全部未实现**。
+> 真实世界接入。所有 Real 组件通过 Protocol 接口接入 Core，不修改 Core。
+> 必须显式 opt-in。
+> **当前状态**: 设计阶段。TraceImportAdapter + CLIAgentAdapter spec 已完成。
+> 详见 [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)。
 
 ### C1. Opt-in safety model spec
 - **Status**: done (2026-05-12: safety model documented in LLM_PROVIDER_CONFIG.md)
@@ -196,27 +198,31 @@
 - [x] JudgeFinding ≠ ReviewDecision 边界测试
 
 ### C3. RealAgentAdapter skeleton
-- **Status**: blocked (needs B2 + C1)
-- **Why**: 在 ProviderConfig 和 JudgeProvider 就绪后，实现最小 RealAgentAdapter
-- **Acceptance**: RealAgentAdapter 通过 AgentAdapter Protocol 的 contract tests
-- **Not doing**: 不实现完整的 agentic loop
+- **Status**: redesigned → split into C8 (TraceImportAdapter) + C9 (CLIAgentAdapter)
+- **Why**: 单一大适配器无法覆盖"导入已有 trace"和"运行 CLI Agent"两种不同场景。拆分为两个独立模块。
+- **Acceptance**: 见 C8 / C9
+- **Not doing**: 不实现单一大 RealAgentAdapter
 
 ### C4. Real provider opt-in
-- **Status**: blocked (needs B5 + C1)
-- **Why**: 真实 LLM 评估是最终目标，但需要安全模型和配置标准化先行
-- **Acceptance**: opt-in 真实 LLM trial 完成一次端到端闭环
+- **Status**: done (2026-05-12: openai_transport.py + anthropic_transport.py + factory + CLI wiring landed + real LLM dogfood verified)
+- **Why**: 真实 LLM 评估需要安全模型和配置标准化
+- **Acceptance**: opt-in 真实 LLM dogfood 完成一次端到端闭环 (DOGFOOD_REAL_LLM_001.md)
 - **Not doing**: 不作为默认行为
+- [x] openai_transport.py + anthropic_transport.py
+- [x] llm_judge.py + judge_provider_factory.py
+- [x] --live --confirm-i-have-real-key + --env-file / --allow-os-env
+- [x] 真实 dogfood 已验证
 
 ### C5. Cost / latency evidence capture
-- **Status**: blocked (needs B5 + C4)
-- **Why**: llm_cost.json 当前永远是 advisory-only，真实数据需要真实 provider
+- **Status**: **deferred** — 推迟到 Real Agent Integration 落地之后。先让真实 trace 跑通 Core Flow，再加成本预算。
+- **Why**: 成本追踪需要真实 provider 调用量积累才有意义，在 trace import / CLI agent 未落地时无有效数据源
 - **Acceptance**: llm_cost.json 的 estimated_cost_usd 不再永远为 null
-- **Not doing**: 不假装有真实数据
+- **Not doing**: 当前不假装有真实成本数据
 
 ### C6. Combining deterministic checks + LLM judge output
-- **Status**: blocked (needs B3 + C4)
+- **Status**: done (2026-05-12: CoreEvaluation judge_provider 接入; passed 仍由 RuleJudge 决定, JudgeFinding 为 advisory)
 - **Why**: RuleJudge 和 LLM judge 应该是互补的，不是替代的
-- **Acceptance**: CompositeJudgeProvider 同时展示 rule 结果和 LLM 评分
+- **Acceptance**: RuleFinding + JudgeFinding 在 EvaluationResult 中并列
 - **Not doing**: 不让 LLM judge 替代 rule checks
 
 ### C7. LiveAnthropicTransport verification or removal
@@ -224,6 +230,34 @@
 - **Why**: v1.3 起存在的未验证代码，如果继续不验证也不删除，会误导新贡献者
 - **Acceptance**: 要么验证通过（对真实端点），要么删除并用 FakeTransport 替代
 - **Not doing**: 不保留"代码存在但未验证"的灰色状态
+
+### C8. TraceImportAdapter
+- **Status**: **设计阶段** (spec: docs/TRACE_IMPORT_ADAPTER_SPEC.md, 2026-05-12)
+- **Why**: 用户已有 trace 文件需要导入为 Agent2Harness ExecutionTrace，不运行 Agent
+- **Acceptance**:
+  - native mode: 直接导入 ExecutionTrace JSON
+  - simple mapping mode: YAML 字段映射
+  - 完整校验 + 明确错误信息
+  - 不猜测/不修复/不 LLM 解析
+- **Not doing**: 不做复杂 JSONPath DSL（第一版），不自动推断格式
+- **Phase**: A (native) → B (simple mapping)
+
+### C9. CLIAgentAdapter
+- **Status**: **设计阶段** (spec: docs/CLI_AGENT_ADAPTER_SPEC.md, 2026-05-12)
+- **Why**: 通过 CLI 命令运行用户 Agent，复用 TraceImportAdapter 解析 trace
+- **Acceptance**:
+  - ScenarioSpec → input file → CLI command → trace file
+  - TraceImportAdapter 解析 trace → ExecutionTrace
+  - timeout / non-zero exit / trace 缺失正确处理
+  - 默认 no shell=True, minimal env
+- **Not doing**: 不自己解析复杂 trace, 不自动读取 .env
+- **Phase**: C (command runner) → D (集成 TraceImportAdapter)
+
+### C10. Real agent dogfood (local project)
+- **Status**: **blocked** (needs C8 + C9)
+- **Why**: 在 TraceImportAdapter + CLIAgentAdapter 实现后，用本地真实 Agent 项目验证
+- **Acceptance**: 一次完整评测闭环：ScenarioSpec → 真实 Agent trace → ExecutionTrace → CoreEvaluation → Report
+- **Not doing**: 不做 benchmark, 不发布结果
 
 ---
 
@@ -236,7 +270,8 @@
 - No automatic production benchmark
 - No default real API calls
 - No hidden .env reading
-- No automatic pass/fail for real-world Agent quality without human review
+- No cost tracking (deferred to after Real Agent Integration)
+- No latency tracking (deferred to after Real Agent Integration)
 - No multi-tenant / enterprise RBAC
 - No Python SDK
 
