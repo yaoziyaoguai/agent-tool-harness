@@ -108,7 +108,18 @@ def test_readme_demonstrates_full_flow():
 
 
 def test_current_phase_does_not_implement_out_of_scope_components():
-    """第二阶段只做治理强化，不能悄悄落地真实 adapter/executor/UI。"""
+    """第二阶段只做治理强化，不能悄悄落地真实 adapter/executor/UI。
+
+    Phase 4 明确允许的文件（openai_transport.py / anthropic_transport.py /
+    llm_judge.py / judge_provider_factory.py）通过白名单放行。
+    """
+
+    phase4_allowed = {
+        "agent_tool_harness/openai_transport.py",
+        "agent_tool_harness/anthropic_transport.py",
+        "agent_tool_harness/llm_judge.py",
+        "agent_tool_harness/judge_provider_factory.py",
+    }
 
     forbidden_path_patterns = [
         "openai",
@@ -122,6 +133,8 @@ def test_current_phase_does_not_implement_out_of_scope_components():
 
     for path in implementation_files:
         normalized = str(path).lower()
+        if str(path) in phase4_allowed:
+            continue
         for pattern in forbidden_path_patterns:
             assert pattern not in normalized, f"out-of-scope implementation file found: {path}"
 

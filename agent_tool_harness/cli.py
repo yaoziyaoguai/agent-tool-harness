@@ -100,6 +100,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "anthropic_compatible_offline",
             "anthropic_compatible_live",
             "fake",
+            "llm",
         ],
         default=None,
         help="可选 dry-run judge provider；'recorded' 仅写 advisory，"
@@ -1134,10 +1135,10 @@ def _run(
     _warn_if_empty(tools, "tools", tools_path)
     _warn_if_empty(evals, "evals", evals_path)
 
-    # --judge-provider fake 只能配合 --core-flow 使用
-    if judge_provider == "fake" and not core_flow:
+    # --judge-provider fake / llm 只能配合 --core-flow 使用
+    if judge_provider in ("fake", "llm") and not core_flow:
         print(
-            "error: --judge-provider fake 只能配合 --core-flow 使用。",
+            f"error: --judge-provider {judge_provider} 只能配合 --core-flow 使用。",
             file=sys.stderr,
         )
         return 2
@@ -1146,17 +1147,36 @@ def _run(
     if dry_run_provider:
         return _dry_run_provider_config(llm_config=llm_config, llm_provider=llm_provider)
 
-    # Phase 5c：--core-flow opt-in 路径。在旧 EvalRunner 逻辑之前拦截，
-    # 走独立的 Core Contract 链路。
+    # Phase 4：--core-flow opt-in 路径
     if core_flow:
-        # --live 在 core-flow 路径下报错：真实 LLM transport 尚未实现
+        # --live / --confirm-i-have-real-key: 仅 --judge-provider llm 允许
         if live or confirm_i_have_real_key:
-            print(
-                "error: --live / --confirm-i-have-real-key 在 --core-flow 路径下"
-                "尚未实现。真实 LLM transport 当前不可用，仅支持 --judge-provider fake。",
-                file=sys.stderr,
-            )
-            return 2
+            if judge_provider != "llm":
+                print(
+                    "error: --live / --confirm-i-have-real-key 仅在 "
+                    "--judge-provider llm 时允许。",
+                    file=sys.stderr,
+                )
+                return 2
+            if not (live and confirm_i_have_real_key):
+                print(
+                    "error: --judge-provider llm 需要 --live 和 "
+                    "--confirm-i-have-real-key 双标志同时使用。",
+                    file=sys.stderr,
+                )
+                return 2
+            if not llm_config:
+                print(
+                    "error: --judge-provider llm 需要 --llm-config PATH。",
+                    file=sys.stderr,
+                )
+                return 2
+            if not llm_provider:
+                print(
+                    "error: --judge-provider llm 需要 --llm-provider NAME。",
+                    file=sys.stderr,
+                )
+                return 2
         # --judge-advisory 与 core-flow 互斥
         if judge_advisory:
             print(
@@ -1165,11 +1185,11 @@ def _run(
                 file=sys.stderr,
             )
             return 2
-        # --judge-provider: 仅 "fake" 允许通过 core-flow
-        if judge_provider and judge_provider != "fake":
+        # --judge-provider: 仅 "fake" / "llm" 允许通过 core-flow
+        if judge_provider and judge_provider not in ("fake", "llm"):
             print(
                 f"error: --core-flow 不支持 --judge-provider {judge_provider}；"
-                "Core Flow 仅支持 --judge-provider fake。",
+                "Core Flow 仅支持 --judge-provider fake / llm。",
                 file=sys.stderr,
             )
             return 2
@@ -1179,6 +1199,10 @@ def _run(
             out=out,
             mock_path=mock_path,
             judge_provider=judge_provider,
+            llm_config=llm_config,
+            llm_provider=llm_provider,
+            live=live,
+            confirm_i_have_real_key=confirm_i_have_real_key,
         )
 
     dry_provider = None
@@ -1279,6 +1303,10 @@ def _run_core_flow(
     out: str,
     mock_path: str,
     judge_provider: str | None = None,
+    llm_config: str | None = None,
+    llm_provider: str | None = None,
+    live: bool = False,
+    confirm_i_have_real_key: bool = False,
 ) -> int:
     """Phase 5c：--core-flow 路径实现。
 
@@ -1289,12 +1317,12 @@ def _run_core_flow(
     - **负责**：调用 assembly.build_demo_core_flow_batch()，写 Core Contract
       artifacts（execution_trace.json / evidence.json / evaluation_result.json /
       report_summary.json / report.md）。
-    - **不负责**：不调用真实 LLM、不读 .env、不自动生成 ReviewDecision、
-      不改旧 EvalRunner 路径。
+    - **不负责**：不读 .env、不自动生成 ReviewDecision、不改旧 EvalRunner 路径。
+    - **真实 LLM 调用仅通过 factory 安全门控进入**（Phase 4）。
 
-    Phase 3 新增：
-    - ``judge_provider="fake"`` 时构造 FakeJudgeProvider，传入
-      build_demo_core_flow_batch() → CoreEvaluation
+    Phase 4 新增：
+    - ``judge_provider="llm"`` 时通过 judge_provider_factory 创建真实 LLM judge，
+      需要 ``--live --confirm-i-have-real-key --llm-config --llm-provider``
 
     Artifacts 输出（--out 目录）：
     - execution_trace.json — 每个 eval 的 ExecutionTrace
@@ -1317,10 +1345,45 @@ def _run_core_flow(
     from agent_tool_harness.signal_quality import describe as describe_sq
 
     # Phase 3：--judge-provider fake → FakeJudgeProvider
+    # Phase 4：--judge-provider llm → LLMJudgeProvider（通过 factory 安全门控）
+
+    # 安全闸门：--live / --confirm-i-have-real-key 仅允许配合 --judge-provider llm
+    if (live or confirm_i_have_real_key) and judge_provider != "llm":
+        print(
+            "error: --live / --confirm-i-have-real-key 仅在"
+            " --judge-provider llm 时允许。",
+            file=sys.stderr,
+        )
+        return 2
+
     core_judge_provider = None
     if judge_provider == "fake":
         from agent_tool_harness.fake_judge import FakeJudgeProvider
         core_judge_provider = FakeJudgeProvider()
+    elif judge_provider == "llm":
+        from agent_tool_harness.judge_provider_factory import (
+            FactoryError,
+            create_judge_provider,
+        )
+        try:
+            result = create_judge_provider(
+                llm_config_path=llm_config,  # type: ignore[arg-type]
+                llm_provider_name=llm_provider,  # type: ignore[arg-type]
+                live_enabled=live,
+                live_confirmed=confirm_i_have_real_key,
+            )
+            core_judge_provider = result.provider
+            # 记录 signal_quality 升级
+            signal_quality_note = (
+                f"real_llm_judge provider={result.provider_name} model={result.config.model}"
+            )
+            print(f"[core-flow] {signal_quality_note}", file=sys.stderr)
+        except FactoryError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except Exception as exc:
+            print(f"error: 创建 LLM judge provider 失败 — {exc}", file=sys.stderr)
+            return 2
 
     # 装配并运行批量 Core Flow
     batch = build_demo_core_flow_batch(

@@ -127,10 +127,11 @@ class LLMProviderConfig:
 LLMProviderConfig      — 配置解析和校验（只存 env var name，不存 key）
 LLMProviderRegistry    — 按名称查找 provider config
 resolve_api_key()      — 从 os.environ 读取 key（显式调用）
-JudgeTransport         — HTTP 协议调用层（已有，在 judges/provider.py）
-LiveAnthropicTransport — Anthropic-compatible HTTPS transport（已有）
-JudgeProvider          — 消费 Evidence，输出 JudgeFinding[]（Core Flow 对齐版本）
-FakeJudgeProvider      — 不调外部 API 的 fake，用于验证接口
+OpenAITransport        — OpenAI-compatible HTTPS transport（openai_transport.py）
+AnthropicTransport     — Anthropic-compatible HTTPS transport（anthropic_transport.py）
+LLMJudgeProvider       — CoreJudgeProvider 实现，消费 Evidence，输出 JudgeFinding[]（llm_judge.py）
+JudgeProviderFactory   — 安全门控工厂，唯一创建真实 LLM provider 的入口（judge_provider_factory.py）
+FakeJudgeProvider      — 不调外部 API 的 fake，用于验证接口（fake_judge.py）
 RuleJudge              — 继续作为 deterministic baseline，不受 LLM 影响
 Reporter               — 只展示 RuleFinding / JudgeFinding / Evidence，不做裁决
 ReviewDecision         — 仍然由人类显式创建
@@ -141,7 +142,8 @@ ReviewDecision         — 仍然由人类显式创建
 - `LLMProviderRegistry` 不调网络 —— 纯内存查找
 - `JudgeProvider` 不能自动生成 ReviewDecision
 - `RuleJudge` 保持独立，不与 LLM judge 耦合
-- 已有 `AnthropicCompatibleConfig` / `LiveAnthropicTransport` 保持不变，未来可迁移到新配置模型
+- 已有 `AnthropicCompatibleConfig` / `LiveAnthropicTransport`（`judges/provider.py`）保持不变
+- 新 transport（`openai_transport.py` / `anthropic_transport.py`）独立于旧模块
 
 ## 6. Implementation phases
 
@@ -165,21 +167,22 @@ ReviewDecision         — 仍然由人类显式创建
 - `load_provider_registry_from_file()` 文件加载入口
 - 30 个新测试（12 file loading + 11 CLI flags + 7 integration）
 
-### Phase 4（未来）：OpenAI-compatible transport skeleton
-- 基于已有 `LiveAnthropicTransport` 抽象出通用 `LiveOpenAITransport`
-- 复用 `JudgeTransport` Protocol
+### Phase 4（已完成 2026-05-12）：OpenAI + Anthropic transport with CLI wiring
+- `openai_transport.py` — OpenAI-compatible HTTPS transport（19 tests）
+- `anthropic_transport.py` — Anthropic-compatible HTTPS transport（15 tests）
+- `llm_judge.py` — LLMJudgeProvider（CoreJudgeProvider 实现，11 tests）
+- `judge_provider_factory.py` — 安全门控 factory（10 tests）
+- CLI `--judge-provider llm` 接入 + 双标志 + config 校验（10 tests）
+- 零新依赖（stdlib `http.client` only）
+- injected `http_factory` 保证零网络测试
+- 8 类错误 taxonomy + retry/backoff
+- 真实 LLM 调用必须显式 opt-in：`--core-flow --judge-provider llm --live --confirm-i-have-real-key --llm-config PATH --llm-provider NAME`
+- 44 个新测试，691 全量测试通过
 
-### Phase 5（未来）：Anthropic-compatible transport 收敛
-- `LiveAnthropicTransport` 已经实现，需要收敛到新配置模型
-
-### Phase 6（未来）：opt-in real LLM trial
-- CLI `--live` + `--confirm-real-api` + `--llm-provider openai-native`
-- transport 真实调 API
-- 成本追踪、错误分类
-
-### Phase 7（未来）：real evaluation hardening
+### Phase 5（未来）：real evaluation hardening
 - prompt 工程 + rubric 设计
 - 多 provider 分歧率分析
 - 成本治理 + 预算上限
+- 真实 API 验证（限于 opt-in trial）
 
-Phase 1—3 已完成。Phase 4—7 为未来工作。
+Phase 1—4 已完成。Phase 5 为未来工作。

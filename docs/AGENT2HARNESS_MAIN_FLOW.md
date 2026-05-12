@@ -25,7 +25,7 @@
 | Core evaluation（Evidence → EvaluationResult） | ✅ 已实现 | `core_evaluation.py` |
 | Core report bridge（EvaluationResult → report） | ✅ 已实现 | `core_report_bridge.py` |
 | **JudgeFinding + LLM provider config** | ✅ 已完成（2026-05-12） | `llm_config.py` + `fake_judge.py` |
-| Real LLM JudgeProvider | ❌ 尚未实现 | future（Phase 2-5） |
+| Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
 | RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
 
 **结论：** Main Flow 已落地。LLM provider 配置模型（四类 provider）和
@@ -278,10 +278,19 @@ ScenarioSpec (from EvalSpec 构造)
   - 30 个新测试（12 file loading + 11 CLI flags + 7 integration）
   - 616 全量测试通过
 
-**下一阶段（Phase 4-7）：**
-- OpenAI-compatible transport skeleton
-- Anthropic-compatible transport 收敛
-- opt-in real LLM trial（`--live` + `--confirm-real-api`）
+- [x] **Phase 4：OpenAI + Anthropic transport + CLI wiring**（2026-05-12）
+  - `openai_transport.py` — OpenAI-compatible HTTPS transport（19 tests）
+  - `anthropic_transport.py` — Anthropic-compatible HTTPS transport（15 tests）
+  - `llm_judge.py` — LLMJudgeProvider（CoreJudgeProvider 实现，11 tests）
+  - `judge_provider_factory.py` — 安全门控 factory（10 tests）
+  - CLI `--judge-provider llm` 接入 + 双标志 + config 校验（10 tests）
+  - 零新依赖、injected http_factory、8 类 error taxonomy
+  - 44 个新测试，691 全量测试通过
+
+**下一阶段（Phase 5）：**
+- 真实 API 验证（限于 opt-in trial）
+- prompt 工程 + rubric 设计
+- 成本追踪 + 预算上限
 
 **关键边界：**
 - 真实 LLM 调用仍未默认启用

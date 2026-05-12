@@ -91,21 +91,28 @@
 - **Not doing**: 不实现 RealAgentAdapter
 
 ### B3. JudgeProvider Protocol hardening
-- **Status**: in progress (2026-05-12: CoreJudgeProvider Protocol + FakeJudgeProvider + CoreEvaluation 接入 + CLI 集成 landed)
-- **Why**: 当前 Protocol 已定义，但需要验证 contract test 覆盖
+- **Status**: in progress (2026-05-12: CoreJudgeProvider Protocol + FakeJudgeProvider + LLMJudgeProvider + CoreEvaluation 接入 + CLI 集成 landed)
+- **Why**: 当前 Protocol 已定义，需要验证 contract test 覆盖和真实 LLM opt-in 路径
 - **Acceptance**: JudgeProvider Protocol 的 contract test 覆盖所有已知 provider 实现
-- **Not doing**: 不实现真实 LLM judge（FakeJudgeProvider 用于接口验证）
+- **Not doing**: 不默认调用真实 LLM（必须显式 opt-in）
 - [x] CoreJudgeProvider Protocol（`fake_judge.py`）
 - [x] FakeJudgeProvider（11 个 contract tests）
 - [x] JudgeFinding 数据类（`core_contract.py`）
 - [x] CoreEvaluation 可选消费 JudgeProvider（Phase 2，12 个 tests）
 - [x] RuleFinding + JudgeFinding 在 EvaluationResult 中并列
 - [x] CLI `--judge-provider fake` + `--core-flow` 集成（Phase 3，2026-05-12）
-	- [x] `--llm-config` / `--llm-provider` / `--dry-run-provider` CLI flags
-	- [x] `load_provider_registry_from_file()` 文件加载入口
-	- [x] `build_demo_core_flow()` / `_run_core_flow()` 接受 `judge_provider`
-	- [x] 30 个新测试（12 file loading + 11 CLI flags + 7 integration）
-	- [ ] 真实 LLM judge provider（后续轮次）
+  - [x] `--llm-config` / `--llm-provider` / `--dry-run-provider` CLI flags
+  - [x] `load_provider_registry_from_file()` 文件加载入口
+  - [x] `build_demo_core_flow()` / `_run_core_flow()` 接受 `judge_provider`
+  - [x] 30 个新测试（12 file loading + 11 CLI flags + 7 integration）
+- [x] CLI `--judge-provider llm` + `--live --confirm-i-have-real-key` 集成（Phase 4，2026-05-12）
+  - [x] `openai_transport.py` — OpenAI-compatible HTTPS transport（19 tests）
+  - [x] `anthropic_transport.py` — Anthropic-compatible HTTPS transport（15 tests）
+  - [x] `llm_judge.py` — LLMJudgeProvider（CoreJudgeProvider 实现，11 tests）
+  - [x] `judge_provider_factory.py` — 安全门控 factory（10 tests）
+  - [x] CLI `--judge-provider llm` 接入 + 双标志 + config 校验（10 tests）
+  - [x] 44 个新测试，691 全量测试通过
+  - [x] 真实 LLM 默认不调用，必须显式 opt-in
 
 ### B4. ToolExecutor Protocol spec
 - **Status**: not started
