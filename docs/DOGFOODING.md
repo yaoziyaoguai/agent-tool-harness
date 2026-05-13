@@ -6,7 +6,8 @@
 > **重要定位（2026-05-13）：** Dogfood 验证 harness 自身组件可用性，不是推荐所有
 > 用户使用 CLIAgentAdapter。主要接入路径是 TraceImportAdapter——用户用自己的
 > runner/CI 运行 Agent，产出 trace/log，通过 TraceImportAdapter 导入。
-> CLIAgentAdapter 是 optional convenience。详见 [EXTERNAL_RUNNER_WORKFLOW.md](EXTERNAL_RUNNER_WORKFLOW.md)。
+> CLIAgentAdapter 是 optional convenience。后续核心方向是 tool-use inspection
+> （详见 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)），不是跑更多 Agent。
 
 ---
 

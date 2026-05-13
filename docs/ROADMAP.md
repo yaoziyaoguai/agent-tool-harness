@@ -8,6 +8,7 @@
 4. **接口隔离** — rule checks ≠ LLM judge，mock replay ≠ RealAgentAdapter
 5. **诚实声明** — signal_quality 必须在每次 run 输出中显式披露
 6. **范围可控** — 新功能通过独立模块 + Protocol 接口实现，不往现有模块塞逻辑
+7. **工具优先** — 核心价值在 tool-use inspection，不在运行 Agent。对齐 [Anthropic effective tools](https://www.anthropic.com/engineering/writing-tools-for-agents)。
 
 ## 当前阶段：Agent2Harness Main Flow Landing
 
@@ -41,9 +42,10 @@
 native 和 simple mapping 两种模式均已可用。CLIAgentAdapter 是 optional convenience（已实现）。
 推荐工作流：外部 runner → trace/log → TraceImportAdapter → CoreEvaluation → Report → Human Review。
 
-## 下一步（按三条 Track 组织）
+## 下一步（按四条 Track 组织）
 
 三条 Track 的边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
+**Track D (Tool-Use Inspection)** 为新增——后续核心方向。
 Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 
 ### Track A: Demo（当前可跑，维护不膨胀）
@@ -103,23 +105,29 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | C9 | **CLIAgentAdapter（optional convenience）** | **Slice 1+2+3+4 done** (config + subprocess + trace import + assembly integration, 97 tests) |
 | C10 | **Real agent dogfood (本地项目)** | **Level 1+2+3+4A done, Level 4B deferred** (2026-05-13: example/dogfood case，不是主线要求) |
 
-**Track C 最新进展（2026-05-13）：** CLIAgentAdapter Slice 4 完成——assembly 集成落地。
-`build_cli_agent_core_flow()` 实现端到端闭环：ScenarioSpec → CLIAgentAdapter → fake CLI agent
-→ trace file → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation →
-EvaluationResult → ReportSummary。新增 21 个集成测试 + fake CLI agent example。
-Demo 路径（`build_demo_core_flow()`）未受影响，零回归（948 passed）。
+### Track D: Tool-Use Inspection（后续核心方向，spec 已定义）
 
-用户可通过 `trace_import.py` 以 native 或 simple_mapping 模式导入 trace JSON，进入 Core Flow：
+> 对齐 Anthropic《Writing effective tools for agents — with agents》。
+> 核心价值在 tool-use logs 检查与工具质量评测。详见 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)。
 
-```
-trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report
-```
+| ID | 事项 | 状态 |
+|----|------|------|
+| D1 | **Trace import diagnostics** (Module 1) | 🔜 future — mapping field coverage / type diagnostics / trace confidence |
+| D2 | **Tool-use correctness checks** (Module 2) | 🔜 future — deterministic rule catalog: argument validity, duplicate/ orphan/fallback/retry/grounding |
+| D3 | **Tool metrics** (Module 3) | 🔜 future — error rate, redundancy, response size, latency, token estimates |
+| D4 | **Tool ergonomics evaluation** (Module 4) | 🔜 future — low-level/overlap/namespace/name ambiguity/chain consolidation |
+| D5 | **Tool response quality** (Module 5) | 🔜 future — context meaningfulness, verbosity, error actionability, faithfulness |
+| D6 | **Tool spec quality** (Module 6) | 🔜 future — description clarity, schema strictness, examples, side effects, auth docs |
+| D7 | **Batch / multi-trace evaluation** | 🔜 future |
+| D8 | **Human review UX** | 🔜 future |
+
+**实现顺序：** Phase 1 (D1+D2 foundation) → Phase 2 (D4+D5+D6 deterministic hints) → Phase 3 (D3 metrics + D7 batch + D8 review UX)。LLM judge advisory 在各 module 中按需接入。
+
+**Track C 最新进展（2026-05-13）：** CLIAgentAdapter Slice 4 完成。TraceImportAdapter 为主要接入路径。
+用户可通过 `trace_import.py` 以 native 或 simple_mapping 模式导入 trace JSON，进入 Core Flow。
 
 详见 [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)、
-[TRACE_IMPORT_ADAPTER_SPEC.md](TRACE_IMPORT_ADAPTER_SPEC.md)、
-[CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md)。
-
-**实现顺序：** Phase A (TraceImportAdapter native) → Phase B (Simple mapping) → Phase C (CLIAgentAdapter) → Phase D (集成) → Phase E (real dogfood)。成本追踪明确推到 later。
+[TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)。
 
 ## 明确不做
 
@@ -136,3 +144,7 @@ trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvalua
 - 把 rule checks 升级成 LLM judge 巨石
 - 把 mock replay 升级成 RealAgentAdapter 巨石
 - reporter 自动做通过/不通过决策
+- 自动 optimizer（不改 tool spec、不改 Agent prompt、不自动重跑 Agent）
+- Level 4B target-agent self real provider dogfood
+- complex universal agent runner
+- 为每个 Agent 写专用 wrapper

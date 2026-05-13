@@ -285,19 +285,21 @@ ScenarioSpec (from EvalSpec 构造)
 - Dogfood Level 1+2+3+4A，Level 4B deferred
 - 架构纠偏：trace/log import 是主路径，CLIAgentAdapter 是 optional
 
-**下一阶段重点：**
-- 更好的 TraceImportAdapter diagnostics（mapping error report）
-- 更多 mapping examples（JSON/JSONL/stdout 转 trace）
-- external-runner cookbook
-- evidence quality report
-- report review UX
-- prompt 工程 + rubric 设计（LLM judge 侧）
-- 成本追踪 + 预算上限
+**下一阶段——Tool-Use Inspection（对齐 Anthropic effective tools 文章）：**
+
+后续核心方向从 "跑真实 Agent" 转为 "tool-use logs 检查与工具质量评测"。
+六大模块详见 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)：
+
+| Phase | 模块 | 说明 |
+|-------|------|------|
+| Phase 1 | Trace import diagnostics + Tool-use correctness | mapping diagnostics、field coverage、deterministic rule catalog |
+| Phase 2 | Tool spec quality + ergonomics + response quality | 工具设计质量检查（deterministic hints + LLM advisory） |
+| Phase 3 | Tool metrics + batch evaluation + human review UX | 指标统计、批量评测、review 体验 |
 
 **关键边界：**
 - 真实 LLM 调用仍未默认启用
 - FakeJudgeProvider 是默认 judge provider
 - JudgeFinding 是辅助信号，不改变 deterministic passed
 - ReviewDecision 必须人工创建
-- `--env-file` 和 `--allow-os-env` 是发起真实 LLM 调用的前置条件
 - 真实 Agent 的启动、provider、key、联网由外部 runner 或用户负责
+- 不做自动 optimizer（不改 tool spec、不改 Agent prompt、不自动重跑 Agent）

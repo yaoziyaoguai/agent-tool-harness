@@ -287,5 +287,6 @@ stdout/stderr 截断、非零 exit code warning、trace 文件缺失检测。
 - [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md) — Core Contract 对象定义
 - [TRACE_IMPORT_ADAPTER_SPEC.md](TRACE_IMPORT_ADAPTER_SPEC.md) — TraceImportAdapter 详细 spec
 - [CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md) — CLIAgentAdapter 详细 spec
+- [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md) — **后续核心方向：Tool-use inspection 六大模块**
 - [ROADMAP.md](ROADMAP.md) — 路线图
 - [BACKLOG.md](BACKLOG.md) — Backlog 条目

@@ -7,7 +7,7 @@
 
 ## Design lineage
 
-本项目源于 Anthropic Engineering 的 [Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents) 工具设计方法论。当前项目是 headless CLI prototype，实现了其中的工具设计审计和 deterministic rule checks。当前还不是完整的真实 LLM Agent evaluation platform。详细设计来源见 [docs/ANTHROPIC_LINEAGE.md](docs/ANTHROPIC_LINEAGE.md)。
+本项目对齐 Anthropic Engineering [Writing effective tools for agents — with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) 工具设计方法论。当前项目是 headless CLI prototype，核心定位为 **tool-use inspection**——围绕 Agent tool-use logs 做工具检查、评测和质量报告。实现了 tool design audit、deterministic rule checks、trace import。当前不是完整真实 LLM Agent evaluation platform。后续方向见 [docs/TOOL_USE_INSPECTION_SDD.md](docs/TOOL_USE_INSPECTION_SDD.md)。
 
 ## Current status
 
@@ -27,20 +27,18 @@
 - [x] `bootstrap` — 从 Python 工具源码 AST 扫描生成 draft tools.yaml
 - [x] `audit-judge-prompts` — judge prompt 安全/格式审计
 - [x] `judge-provider-preflight` — 本地侧 live readiness 自检（不联网）
+- [x] `TraceImportAdapter` — 从外部 trace/log 导入 ExecutionTrace（主要接入路径）
 - [x] `report.md` 生成 — 含 signal_quality 声明和方法论边界警告
 
 ## What does not work yet
 
-- [ ] 配置真实 OpenAI / Anthropic / DeepSeek API Key 后完成 Agent 评测
-- [ ] 接入真实用户项目 runtime 做端到端 Agent 评估
-- [ ] LLM Judge 语义评分
-- [ ] 真实 Agent 行为评估（当前只有 mock replay）
-- [ ] Web UI
-- [ ] MCP executor
-- [ ] HTTP / Shell executor
-- [ ] RAG / 向量库
-- [ ] 多租户 / 企业 RBAC
-- [ ] Benchmark / Leaderboard 平台
+- [ ] Tool-use correctness 完整规则集（argument validity / grounding / fallback / retry）
+- [ ] Tool metrics（error rate / redundancy / response size / latency）
+- [ ] Tool ergonomics evaluation（low-level / overlap / namespace / name ambiguity）
+- [ ] Tool response quality checks（context meaningfulness / error actionability）
+- [ ] Batch / multi-trace evaluation
+- [ ] Human review UX
+- [ ] Web UI / Benchmark / Leaderboard 平台
 
 ## Quick start
 
@@ -121,14 +119,15 @@ CLIAgentAdapter 是 **optional convenience**——适合快速验证，但不是
 | 阶段 | 内容 |
 |------|------|
 | Current | Headless CLI Demo Prototype + TraceImportAdapter（主要接入路径） |
-| Next | TraceImportAdapter diagnostics 增强 + mapping examples + external-runner cookbook |
-| Then | LLM judge prompt/rubric 工程 + report review UX |
-| Later | opt-in 真实 LLM trial |
+| Next | Tool-use inspection: trace diagnostics + correctness rules + spec quality checks |
+| Then | Tool ergonomics + response quality + LLM judge rubric |
+| Later | Tool metrics + batch evaluation + human review UX |
 
-明确不做（除非未来重新批准）：Web UI / MCP executor / RAG / Benchmark 平台 /
-把真实 Agent 启动逻辑塞进 Core / 为每个 Agent 写专用 wrapper。
+明确不做：Web UI / MCP executor / RAG / Benchmark / 把 Agent 启动逻辑塞进 Core /
+为每个 Agent 写 wrapper / 自动 optimizer / Level 4B。
 
 → 详细路线图：[`docs/ROADMAP.md`](docs/ROADMAP.md)
+→ Tool-use inspection SDD：[`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md)
 
 ## Docs
 
@@ -140,5 +139,6 @@ CLIAgentAdapter 是 **optional convenience**——适合快速验证，但不是
 | CLI 命令全集 | [`docs/CLI_USAGE.md`](docs/CLI_USAGE.md) |
 | 配置文件格式 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) |
 | 接入你的项目 | [`docs/PROJECT_INTEGRATION.md`](docs/PROJECT_INTEGRATION.md) |
+| Tool-use inspection SDD | [`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md) |
 | 路线图 | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | Review Checklist | [`docs/REVIEW_CHECKLIST.md`](docs/REVIEW_CHECKLIST.md) |
