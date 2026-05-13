@@ -4,11 +4,11 @@
 > 从 trace/log 导入到 Human Review 的完整 Core Flow。
 > 这是后续所有实现工作的依据文档。
 >
-> **核心定位（2026-05-13 架构纠偏）：**
+> **核心定位（2026-05-13 架构收口）：**
 > Agent Tool Harness 的核心职责是处理 Agent tool-use 日志 / trace / evidence，
-> 进行可复现评测和报告。**主要接入路径是 trace/log import**，不是运行真实 Agent。
-> CLIAgentAdapter 是 optional convenience runner，不是 Core 必需路径。
-> 真实 Agent 的启动、provider、key、联网、业务执行环境由外部 runner 或用户负责。
+> 进行可复现评测和报告。**唯一接入路径是 trace/log import（TraceImportAdapter）**。
+> agent-tool-harness 不运行 Agent。真实 Agent 的启动、provider、key、联网、业务执行
+> 环境由外部 runner 或用户负责。
 
 ---
 
@@ -33,25 +33,23 @@
 | **JudgeFinding + LLM provider config** | ✅ 已完成（2026-05-12） | `llm_config.py` + `fake_judge.py` |
 | Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
 | **Real LLM infrastructure & safety gate verified** | ⚠️ transport verified, semantic judge pending (2026-05-12) | `docs/DOGFOOD_REAL_LLM_001.md` |
-| **TraceImportAdapter (native + simple mapping)** | ✅ 已实现（2026-05-12）— **主要接入路径** | `agent_tool_harness/trace_import.py` |
-| **CLIAgentAdapter** | ✅ 已实现（2026-05-13）— **optional convenience** | `agent_tool_harness/cli_agent.py` |
-| C10 Real agent dogfood | ✅ Level 1+2+3+4A done, 4B deferred | Track C |
+| **TraceImportAdapter (native + simple mapping)** | ✅ 已实现（2026-05-12）— **唯一接入路径** | `agent_tool_harness/trace_import.py` |
+| C10 Real agent dogfood | Level 4A done, 4B deferred | Track C |
 | External runner workflow | 📄 已文档化 | `docs/EXTERNAL_RUNNER_WORKFLOW.md` |
 
-**结论：** Main Flow 已落地。**主要接入路径是 TraceImportAdapter**——
+**结论：** Main Flow 已落地。**唯一接入路径是 TraceImportAdapter**——
 用户用自己的脚本/CI/外部 runner 运行 Agent，产出 trace/log，通过 native 或
 simple_mapping 模式导入，进入 CoreEvaluation → Report 链路。
-CLIAgentAdapter 是 optional convenience——适合简单场景，但不要求所有用户使用，
-也不应让真实 Agent 启动逻辑污染 Core。真实 LLM 调用仍默认不启用。
+agent-tool-harness 不运行 Agent。真实 LLM 调用仍默认不启用。
 
 ---
 
 ## 2. 目标主流程
 
-### 2.1 主要接入路径：Trace / Log Import（推荐）
+### 2.1 接入路径：Trace / Log Import
 
 外部 runner 或用户自己的脚本/CI 运行 Agent，产出 trace/log 文件，通过
-TraceImportAdapter 导入。**这是推荐的主路径**——Agent Tool Harness 不负责
+TraceImportAdapter 导入。**这是唯一接入路径**——Agent Tool Harness 不负责
 运行 Agent，只负责 trace → evidence → evaluation → report。
 
 ```
@@ -82,19 +80,6 @@ ReportSummary             （统计摘要）
     ▼
 Human Review → ReviewDecision  （人工裁决——不由机器自动生成）
 ```
-
-### 2.2 辅助接入路径：CLIAgentAdapter（optional convenience）
-
-CLIAgentAdapter 通过 subprocess 运行 CLI Agent 命令，收集 trace 输出后委托
-TraceImportAdapter 解析。**适合简单场景**，但不是必需路径。
-
-```
-ScenarioSpec → CLIAgentAdapter → subprocess → trace file
-    → TraceImportAdapter → ExecutionTrace → Evidence → ...（同主路径）
-```
-
-CLIAgentAdapter 的适用/不适用场景详见 `docs/CLI_AGENT_ADAPTER_SPEC.md` 和
-`docs/EXTERNAL_RUNNER_WORKFLOW.md`。
 
 **关键边界：** 虚线以上所有步骤是机器执行的。`ReviewDecision` 是人工裁决，
 **禁止**从 `EvaluationResult` 自动派生。真实 Agent 的启动、provider、key、
@@ -164,26 +149,21 @@ ScenarioSpec (from EvalSpec 构造)
 1. **Core Contract + Demo Bridge + Core Flow** — Core Contract 对象、Demo-to-Core 桥接、
    CoreEvaluation、CoreReportBridge、assembly core flow 均已落地。
 
-2. **TraceImportAdapter**（主要接入路径）— native + simple_mapping 两种模式，
+2. **TraceImportAdapter**（唯一接入路径）— native + simple_mapping 两种模式，
    83 个测试。不运行 Agent，只导入 trace。
 
-3. **CLIAgentAdapter**（optional convenience）— Slice 1-4 已实现，97 个测试。
-   通过 subprocess 运行 CLI 命令并委托 TraceImportAdapter 解析 trace。
+3. **JudgeProvider Protocol** — FakeJudgeProvider + LLMJudgeProvider + factory + safety gates。
 
-4. **JudgeProvider Protocol** — FakeJudgeProvider + LLMJudgeProvider + factory + safety gates。
-
-5. **Dogfood** — Level 1+2（fake/toy）+ Level 3（my-first-agent wrapper）+ Level 4A（real LLM judge）。
+4. **Dogfood** — Level 4A（real LLM judge on harness side）。
    Level 4B deferred（target agent 尚缺 dogfood contract）。
 
 ### 4.2 不做
 
-- 不实现 RealAgentAdapter（不需要——trace import 是主路径）
+- 不实现 Agent runner（不需要——trace import 是唯一路径）
 - 不让真实 Agent 启动逻辑进入 Core
 - 不默认调用真实 LLM
 - 不读取 .env
 - 不让 EvaluationResult 自动生成 ReviewDecision
-- 不删除已有 CLIAgentAdapter
-- 不破坏已有测试
 
 ---
 
@@ -279,11 +259,10 @@ ScenarioSpec (from EvalSpec 构造)
 ## 7. 当前阶段与下一阶段
 
 **已完成（2026-05-13）：**
-- TraceImportAdapter（native + simple mapping）— **主要接入路径**
-- CLIAgentAdapter（Slice 1-4）— **optional convenience**
+- TraceImportAdapter（native + simple mapping）— **唯一接入路径**
 - JudgeProvider Protocol + LLMJudgeProvider + safety gates
-- Dogfood Level 1+2+3+4A，Level 4B deferred
-- 架构纠偏：trace/log import 是主路径，CLIAgentAdapter 是 optional
+- Dogfood Level 4A（harness-side LLM judge），Level 4B deferred
+- 架构收口：trace/log import 是唯一路径，agent-tool-harness 不运行 Agent
 
 **下一阶段——Tool-Use Inspection（对齐 Anthropic effective tools 文章）：**
 

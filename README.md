@@ -27,7 +27,7 @@
 - [x] `bootstrap` — 从 Python 工具源码 AST 扫描生成 draft tools.yaml
 - [x] `audit-judge-prompts` — judge prompt 安全/格式审计
 - [x] `judge-provider-preflight` — 本地侧 live readiness 自检（不联网）
-- [x] `TraceImportAdapter` — 从外部 trace/log 导入 ExecutionTrace（主要接入路径）
+- [x] `TraceImportAdapter` — 从外部 trace/log 导入 ExecutionTrace（**唯一接入路径**）
 - [x] `report.md` 生成 — 含 signal_quality 声明和方法论边界警告
 
 ## What does not work yet
@@ -109,7 +109,7 @@ print(f'passed: {result.passed}')
 "
 ```
 
-CLIAgentAdapter 是 **optional convenience**——适合快速验证，但不是推荐的主路径。
+agent-tool-harness **不运行 Agent**。所有 Agent 启动由外部 runner/CI/用户脚本负责。
 
 → 详细指南：[`docs/PROJECT_INTEGRATION.md`](docs/PROJECT_INTEGRATION.md)
 → 外部 runner 工作流：[`docs/EXTERNAL_RUNNER_WORKFLOW.md`](docs/EXTERNAL_RUNNER_WORKFLOW.md)
@@ -118,13 +118,13 @@ CLIAgentAdapter 是 **optional convenience**——适合快速验证，但不是
 
 | 阶段 | 内容 |
 |------|------|
-| Current | Headless CLI Demo Prototype + TraceImportAdapter（主要接入路径） |
+| Current | Headless CLI Demo Prototype + TraceImportAdapter（唯一接入路径） |
 | Next | Tool-use inspection: trace diagnostics + correctness rules + spec quality checks |
 | Then | Tool ergonomics + response quality + LLM judge rubric |
 | Later | Tool metrics + batch evaluation + human review UX |
 
 明确不做：Web UI / MCP executor / RAG / Benchmark / 把 Agent 启动逻辑塞进 Core /
-为每个 Agent 写 wrapper / 自动 optimizer / Level 4B。
+为每个 Agent 写 wrapper / 自动 optimizer / 运行真实 Agent。
 
 → 详细路线图：[`docs/ROADMAP.md`](docs/ROADMAP.md)
 → Tool-use inspection SDD：[`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md)

@@ -32,7 +32,7 @@ External Agent Runner / 用户脚本 / CI / 手工命令
 | External runner / 用户 | 启动 Agent、管理 key、联网、provider、捕获日志、输出 trace | — |
 | agent-tool-harness | 导入 trace、提取 Evidence、检查 tool-use、评测工具行为、生成报告、human review | 不启动 Agent、不管理 secrets、不实现 Agent runtime |
 
-**CLIAgentAdapter** 是 optional convenience runner，不是主路径。详见 [CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md) §1.1-1.2。
+agent-tool-harness **不运行 Agent**。所有 Agent 启动由外部 runner/CI/用户脚本负责。
 
 ---
 

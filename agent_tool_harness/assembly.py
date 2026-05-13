@@ -1,45 +1,30 @@
-"""Runtime assembly 层 — Demo/Core/Real 边界的第一道闸门。
+"""Runtime assembly 层 — Demo/Core 边界的第一道闸门。
 
 提供两套装配函数：
 1. 旧 AgentAdapter 装配（CLI 使用，保持向后兼容）
    - build_demo_runtime() → MockReplayAdapter
    - build_replay_runtime() → TranscriptReplayAdapter
 
-2. Core Flow 装配（本轮新增，与旧路径并存）
+2. Core Flow 装配
    - build_demo_core_flow() → DemoCoreFlowResult
-   - build_cli_agent_core_flow() → CLIAgentCoreFlowResult
-
-未来 RealAgentAdapter / JudgeProvider / ProviderConfig 必须通过这里显式 opt-in 接入。
 
 架构边界：
 - **负责**：把参数转成实例，隐藏具体类型。
 - **不负责**：不实现真实 Agent、不读取 .env、不调用外部 API。
 - **为什么 CLI 不应该直接硬编码 adapter 类型**：
   CLI 是 Core 的装配层，不应直接依赖 Demo 实现。
-  通过 assembly 函数接入，让未来 Real Integration 可以替换 adapter 而不修改 CLI 结构。
-- **为什么 CLIAgentCoreFlowResult 不生成 ReviewDecision**：
+  通过 assembly 函数接入，让未来可以替换 adapter 而不修改 CLI 结构。
+- **ReviewDecision 不在此层生成**：
   ReviewDecision 必须由人工 Reviewer 显式创建。assembly 只装配机器产出链路。
-- **CLIAgentAdapter 为什么走独立装配函数而非复用 build_demo_core_flow**：
-  demo 和 CLI agent 的 ExecutionTrace 来源不同——demo 来自内存 mock replay，
-  CLI agent 来自 subprocess + 文件 + TraceImportAdapter。拆分为独立装配函数
-  让两条路径各自独立演化，不互相污染。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC
 from pathlib import Path
 from typing import Any
 
 from agent_tool_harness.agents.agent_adapter_base import AgentAdapter
-from agent_tool_harness.core_contract import (
-    EvaluationResult,
-    Evidence,
-    ExecutionTrace,
-    ReportSummary,
-)
-from agent_tool_harness.signal_quality import RECORDED_TRAJECTORY
 
 
 @dataclass
@@ -50,30 +35,9 @@ class DemoCoreFlowResult:
     这是纯数据——不包含 IO 引用、不包含 adapter 实例、不包含 file path。
     """
 
-    trace: ExecutionTrace
-    evidence: Evidence
-    eval_result: EvaluationResult
-    signal_quality: str = ""
-    metrics: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class CLIAgentCoreFlowResult:
-    """一次 CLI agent Core Flow 的完整产物。
-
-    与 DemoCoreFlowResult 的关键区别：
-    - 额外携带 cli_agent_result: CLIAgentResult（含 exit_code / stdout / stderr /
-      elapsed_seconds）
-    - signal_quality 为 RECORDED_TRAJECTORY（CLI agent trace 是运行时记录的轨迹）
-    - 不包含 file path / IO 引用 / adapter 实例
-
-    ReviewDecision 不在此处生成——必须由人工 Reviewer 显式创建。
-    """
-
-    trace: ExecutionTrace
-    evidence: Evidence
-    eval_result: EvaluationResult
-    cli_agent_result: Any  # CLIAgentResult，避免顶层 import 用 Any
+    trace: Any  # ExecutionTrace，避免顶层 import 用 Any
+    evidence: Any  # Evidence
+    eval_result: Any  # EvaluationResult
     signal_quality: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
 
@@ -110,7 +74,7 @@ def build_replay_runtime(source_run: str | Path) -> AgentAdapter:
 
 
 # ---------------------------------------------------------------------------
-# Core Flow 装配（本轮新增）
+# Core Flow 装配
 # ---------------------------------------------------------------------------
 
 
@@ -128,8 +92,9 @@ def build_demo_core_flow(
     → Evidence → CoreEvaluation → EvaluationResult → ReportSummary
 
     当前仅支持 demo/mock 材料——所有工具调用来自 MockReplayAdapter，
-    signal_quality = tautological_replay。未来 Real Integration 将提供
-    平行的 build_real_core_flow()，接受 RealAgentAdapter + JudgeProvider。
+    signal_quality = tautological_replay。
+
+    真实 Agent trace 应通过 TraceImportAdapter 导入，不走此函数。
 
     Args:
         tool_specs: ToolSpec 列表
@@ -220,7 +185,9 @@ def build_demo_core_flow_batch(
         - signal_quality: str
         - generated_at: str
     """
-    from datetime import datetime
+    from datetime import UTC, datetime
+
+    from agent_tool_harness.core_contract import ReportSummary
 
     results: list[DemoCoreFlowResult] = []
     for eval_spec in eval_specs:
@@ -251,88 +218,6 @@ def build_demo_core_flow_batch(
         "signal_quality": report_summary.signal_quality,
         "generated_at": report_summary.generated_at,
     }
-
-
-# ---------------------------------------------------------------------------
-# CLI Agent Core Flow 装配（Slice 4）
-# ---------------------------------------------------------------------------
-
-
-def build_cli_agent_core_flow(
-    *,
-    tool_specs: list[Any],
-    eval_spec: Any,
-    cli_agent_config: Any,  # CLIAgentAdapterConfig，避免顶层 import
-    output_dir: str,
-    judge_provider: Any = None,
-) -> CLIAgentCoreFlowResult:
-    """装配并运行一次完整的 CLI agent Core Flow。
-
-    这是 CLI Agent 评测的端到端入口：
-    ScenarioSpec → CLIAgentAdapter.run() → CLIAgentResult(ExecutionTrace, Evidence)
-    → CoreEvaluation → EvaluationResult → metrics → ReportSummary
-
-    与 build_demo_core_flow() 的关键区别：
-    - ExecutionTrace 来自 subprocess CLI agent + TraceImportAdapter，而非 mock replay
-    - signal_quality = RECORDED_TRAJECTORY（CLI agent trace 是运行时记录的轨迹）
-    - 额外携带 cli_agent_result（exit_code / stdout / stderr / elapsed_seconds）
-
-    Args:
-        tool_specs: ToolSpec 列表
-        eval_spec: EvalSpec 实例
-        cli_agent_config: CLIAgentAdapterConfig 实例
-        output_dir: 输出目录（scenario input / trace output 均在此目录下）
-        judge_provider: 可选 CoreJudgeProvider，传入后 CoreEvaluation 将并列产出
-            RuleFinding + JudgeFinding
-
-    Returns:
-        CLIAgentCoreFlowResult: 包含 trace, evidence, eval_result, cli_agent_result,
-        signal_quality, metrics
-    """
-    from agent_tool_harness.cli_agent import CLIAgentAdapter
-    from agent_tool_harness.core_evaluation import CoreEvaluation
-    from agent_tool_harness.demo_core_bridge import (
-        build_report_summary,
-        execution_trace_to_evidence,
-    )
-
-    scenario = _eval_to_scenario(eval_spec, tool_specs)
-
-    adapter = CLIAgentAdapter(cli_agent_config)
-    cli_result = adapter.run(scenario, output_dir=output_dir)
-
-    # 从 CLIAgentResult 取 Evidence；trace import 失败时构造空 Evidence
-    if cli_result.evidence is not None:
-        evidence = cli_result.evidence
-    else:
-        trace = ExecutionTrace(scenario_id=scenario.scenario_id)
-        evidence = execution_trace_to_evidence(
-            trace, signal_quality=RECORDED_TRAJECTORY
-        )
-
-    evaluation = CoreEvaluation(judge_provider=judge_provider)
-    eval_result = evaluation.evaluate(evidence, eval_spec)
-
-    metrics = {
-        "total_evals": 1,
-        "passed": 1 if eval_result.passed else 0,
-        "failed": 0 if eval_result.passed else 1,
-        "error_evals": 0,
-        "signal_quality": RECORDED_TRAJECTORY,
-    }
-    report_summary = build_report_summary(metrics)
-
-    return CLIAgentCoreFlowResult(
-        trace=evidence.trace,
-        evidence=evidence,
-        eval_result=eval_result,
-        cli_agent_result=cli_result,
-        signal_quality=RECORDED_TRAJECTORY,
-        metrics={
-            "report_summary": report_summary,
-            **metrics,
-        },
-    )
 
 
 def _eval_to_scenario(eval_spec: Any, tool_specs: list[Any]) -> Any:

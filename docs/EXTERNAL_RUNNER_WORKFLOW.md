@@ -142,28 +142,12 @@ json.dump(trace, sys.stdout, indent=2)
 
 ---
 
-## 4. CLIAgentAdapter：什么时候用
+## 4. agent-tool-harness 不运行 Agent
 
-CLIAgentAdapter 是 optional convenience——agent-tool-harness 提供的简易 subprocess runner。
+agent-tool-harness **不运行 Agent**。所有 Agent 启动由外部 runner/CI/用户脚本负责。
+harness 只负责 trace → evidence → evaluation → report。
 
-### 适合使用
-
-- 没有现成的外部 runner/CI pipeline
-- Agent 是简单 CLI 命令，可 subprocess 调用
-- 快速验证：想快速看到 CoreEvaluation → Report 闭环
-- 环境简单：不需要特殊容器/GPU/网络配置
-
-### 不适合使用
-
-- Agent 需要复杂运行环境（GPU 集群、容器编排、分布式）
-- Agent 的 provider/key/network 需要精细控制
-- 已有 CI/CD pipeline 或外部调度系统
-- trace 已经存在，不需要重新运行
-- Agent 运行时间长、资源消耗大
-- 需要在受控生产环境中运行
-
-**推荐：** 大多数生产场景用外部 runner + TraceImportAdapter。CLIAgentAdapter 仅用于
-简单验证和开发阶段快速测试。
+之前存在的 CLIAgentAdapter（内部 subprocess runner）已移除。
 
 ---
 
