@@ -1,14 +1,20 @@
 # CLIAgentAdapter Specification
 
+> **定位**: Optional convenience runner——不是 Core 必需路径。
 > **状态**: Implementation complete — Slice 1+2+3+4 done (2026-05-13).
-> Slice 4 (assembly integration) 已实现。
 > **父文档**: [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)
+>
+> **重要：** CLIAgentAdapter 是辅助接入方式。**主要接入路径是 TraceImportAdapter**——
+> 用户用自己的脚本/CI/外部 runner 运行 Agent，产出 trace/log，通过
+> TraceImportAdapter 导入。详见 [EXTERNAL_RUNNER_WORKFLOW.md](EXTERNAL_RUNNER_WORKFLOW.md)。
 
 ---
 
 ## 1. Purpose
 
 `CLIAgentAdapter` 负责通过本地 CLI 命令运行用户 Agent，收集 trace 输出，并委托 `TraceImportAdapter` 将 trace 解析为 `ExecutionTrace`。
+
+**这是 optional convenience**——适合用户没有外部 runner、想快速验证的场景。不要求所有用户使用。
 
 **负责**:
 - 从 `ScenarioSpec` 生成 input file
@@ -23,6 +29,26 @@
 - 不用 `shell=True`（除非显式 opt-in）
 - 不自动重试
 - 不把 secrets 写入 report
+- 不作为主要接入路径
+
+### 1.1 When to use CLIAgentAdapter
+
+- 用户没有现成的外部 runner/CI pipeline
+- Agent 是简单 CLI 命令，可以 subprocess 调用
+- 不需要复杂的环境配置（env、secrets、网络）
+- 快速验证——想快速看到 CoreEvaluation → Report 闭环
+
+### 1.2 When NOT to use CLIAgentAdapter
+
+- Agent 需要复杂运行环境（GPU 集群、容器编排、分布式）
+- Agent 的 provider/key/network 需要精细控制
+- 已有 CI/CD pipeline 或外部调度系统
+- trace 已经存在（直接文件），不需要重新运行
+- Agent 运行时间长、资源消耗大
+- 需要在受控生产环境中运行
+
+**推荐替代方案：** 用自己的脚本/CI 运行 Agent，保存 trace/log，通过
+TraceImportAdapter 导入。详见 [EXTERNAL_RUNNER_WORKFLOW.md](EXTERNAL_RUNNER_WORKFLOW.md)。
 
 ---
 

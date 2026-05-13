@@ -1,6 +1,8 @@
 # TraceImportAdapter Specification
 
-> **状态**: Implementation complete — native schema + simple mapping (2026-05-12) + CLIAgentAdapter Slice 1-4 + C10 Level 1+2 dogfood (2026-05-13)。Level 3/4 尚未完成。
+> **定位**: **主要接入路径**——agent-tool-harness 推荐用户通过 trace/log import 接入。
+> **状态**: Implementation complete — native schema + simple mapping (2026-05-12)。
+> CLIAgentAdapter / dogfood 是 optional convenience，不改变 TraceImportAdapter 的主路径定位。
 > **父文档**: [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)
 
 ---
@@ -268,34 +270,29 @@ class TraceImportAdapter:
 - 不自动生成 ReviewDecision
 - 不读取 .env / 不调用外部 API
 
-### 8.3 CLIAgentAdapter — 已实现（Slice 1-4, 2026-05-13）
+### 8.3 CLIAgentAdapter — optional convenience（已实现，Slice 1-4, 2026-05-13）
 
-CLIAgentAdapter 已完成并通过 TraceImportAdapter 导入 CLI agent 产出的 trace。
+CLIAgentAdapter 是可选的 subprocess-based runner，委托 TraceImportAdapter 解析 trace。
+**不作为主要接入路径推荐**——用户优先应使用 TraceImportAdapter 直接导入已有 trace。
 
 | 组件 | 位置 |
 |------|------|
-| CLIAgentAdapter | `agent_tool_harness/cli_agent.py`（509 行） |
+| CLIAgentAdapter | `agent_tool_harness/cli_agent.py` |
 | Assembly Core Flow | `agent_tool_harness/assembly.py` → `build_cli_agent_core_flow()` |
 | 集成测试 | `tests/test_cli_agent_adapter.py`（80 tests）+ `tests/test_cli_agent_core_flow.py`（21 tests） |
 
-实现的能力:
-- CLI 命令 subprocess 执行 + timeout + env_policy + stdout/stderr truncation
-- TraceImportAdapter 委托解析 trace → ExecutionTrace + Evidence
-- `build_cli_agent_core_flow()` 端到端闭环：ScenarioSpec → CLI Agent → trace file → TraceImportAdapter → CoreEvaluation → Report
-
-### 8.4 C10 Safe Local Dogfood — Level 1+2 done（2026-05-13）
+### 8.4 Dogfood — Level 1+2+3+4A done, Level 4B deferred（2026-05-13）
 
 | Level | 状态 | 说明 |
 |-------|------|------|
-| Level 1 (fake CLI agent) | ✅ | `examples/cli_agent_fake/` — 全量调用 available_tools |
-| Level 2 (toy CLI agent) | ✅ | `examples/cli_agent_toy/` — 按 goal 关键词选择工具 |
-| Level 3 (real local agent) | ❌ | 需要用户显式 opt-in |
-| Level 4 (real LLM / external API) | ❌ | 需要用户显式配置密钥 |
+| Level 1 (fake CLI agent) | ✅ | `examples/cli_agent_fake/` |
+| Level 2 (toy CLI agent) | ✅ | `examples/cli_agent_toy/` |
+| Level 3 (my-first-agent wrapper) | ✅ | `examples/my_first_agent_demo/adapter.py` |
+| Level 4A (real LLM judge) | ✅ | harness 侧 LLMJudgeProvider opt-in |
+| Level 4B (target agent self provider) | ❌ deferred | target agent 尚缺 dogfood contract |
 
-Dogfood smoke tests: `tests/test_cli_agent_dogfood.py`（12 tests）。
-
-Level 1+2 验证了 CLIAgentAdapter → TraceImportAdapter → CoreEvaluation 的端到端闭环，
-但未使用真实私密 Agent，未调用真实 LLM 或外部 API。
+Dogfood 验证了 CLIAgentAdapter → TraceImportAdapter → CoreEvaluation 的闭环，
+但这些都是 example/dogfood case，不代表推荐所有用户使用 CLIAgentAdapter。
 
 ### 8.5 已知局限
 

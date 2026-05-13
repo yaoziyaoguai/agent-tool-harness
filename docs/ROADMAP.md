@@ -36,9 +36,10 @@
 **当前 signal_quality 上限：** `tautological_replay`（mock replay）和
 `recorded_trajectory`（transcript replay）。这些不是真实 Agent 能力信号。
 
-**当前阶段：TraceImportAdapter native + simple mapping**（2026-05-12）
+**当前阶段：TraceImportAdapter（主要接入路径）**（2026-05-12）
 用户可通过 `trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report` 导入已有 trace。
-native 和 simple mapping 两种模式均已可用。下一步是 CLIAgentAdapter（Phase C）。
+native 和 simple mapping 两种模式均已可用。CLIAgentAdapter 是 optional convenience（已实现）。
+推荐工作流：外部 runner → trace/log → TraceImportAdapter → CoreEvaluation → Report → Human Review。
 
 ## 下一步（按三条 Track 组织）
 
@@ -98,9 +99,9 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | C5 | Cost / latency evidence capture | **deferred** (推迟到 Real Agent Integration 之后——先让 trace 跑通，再加成本预算) |
 | C6 | Deterministic + LLM judge 组合 | done (2026-05-12: CoreEvaluation judge_provider 接入; passed 仍由 RuleJudge 决定, JudgeFinding 为 advisory) |
 | C7 | LiveAnthropicTransport 验证或删除 | not started (legacy LiveAnthropicTransport 保持不动，新 transport 独立) |
-| C8 | **TraceImportAdapter** | **native + simple mapping done** (2026-05-12: trace_import.py + 83 tests) |
-| C9 | **CLIAgentAdapter** | **Slice 1+2+3+4 done** (config + subprocess + trace import + assembly integration, 97 tests) |
-| C10 | **Real agent dogfood (本地项目)** | **Level 1+2+3+4A done, Level 4B deferred** (2026-05-13: fake + toy CLI agent dogfood + my-first-agent wrapper + real LLM judge; Level 4B 等待 target agent 提供 dogfood contract) |
+| C8 | **TraceImportAdapter（主要接入路径）** | **native + simple mapping done** (2026-05-12: trace_import.py + 83 tests) |
+| C9 | **CLIAgentAdapter（optional convenience）** | **Slice 1+2+3+4 done** (config + subprocess + trace import + assembly integration, 97 tests) |
+| C10 | **Real agent dogfood (本地项目)** | **Level 1+2+3+4A done, Level 4B deferred** (2026-05-13: example/dogfood case，不是主线要求) |
 
 **Track C 最新进展（2026-05-13）：** CLIAgentAdapter Slice 4 完成——assembly 集成落地。
 `build_cli_agent_core_flow()` 实现端到端闭环：ScenarioSpec → CLIAgentAdapter → fake CLI agent

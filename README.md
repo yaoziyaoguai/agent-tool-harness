@@ -85,23 +85,48 @@ python -m agent_tool_harness.cli run \
 > MockReplayAdapter 的 PASS/FAIL 是结构性的（`signal_quality: tautological_replay`），
 > 不代表真实 Agent 能力。RuleJudge 是确定性匹配，不是 LLM 语义判定。
 
-## How to integrate your project (prototype level)
+## How to integrate your project
 
-当前支持 prototype-level 集成：用配置文件描述你的项目和工具，在本 Harness 中
-跑 mock replay + rule checks。**不支持真实 Agent runtime 接入。**
+**推荐工作流（trace/log import，主路径）：**
+
+1. 用自己的脚本/CI/外部 runner 运行 Agent
+2. 保存 tool-use trace/log（JSON/JSONL/stdout）
+3. 写 mapping config（如果格式非 native schema）
+4. 用 `TraceImportAdapter` 导入 trace
+5. 运行 `CoreEvaluation`
+6. 生成 `Report`
+7. Human Review
+
+```bash
+# 示例：导入 trace 并评测
+python -c "
+from agent_tool_harness.trace_import import TraceImportAdapter
+from agent_tool_harness.core_evaluation import CoreEvaluation
+
+adapter = TraceImportAdapter(mode='native')
+trace = adapter.import_file('path/to/trace.json')
+evidence = adapter.to_evidence(trace)
+result = CoreEvaluation().evaluate(evidence)
+print(f'passed: {result.passed}')
+"
+```
+
+CLIAgentAdapter 是 **optional convenience**——适合快速验证，但不是推荐的主路径。
 
 → 详细指南：[`docs/PROJECT_INTEGRATION.md`](docs/PROJECT_INTEGRATION.md)
+→ 外部 runner 工作流：[`docs/EXTERNAL_RUNNER_WORKFLOW.md`](docs/EXTERNAL_RUNNER_WORKFLOW.md)
 
 ## Roadmap
 
 | 阶段 | 内容 |
 |------|------|
-| Current | Headless CLI Demo Prototype |
-| Next | 文档瘦身 + 入口收敛 |
-| Then | RealAgentAdapter / JudgeProvider / ProviderConfig 设计 |
+| Current | Headless CLI Demo Prototype + TraceImportAdapter（主要接入路径） |
+| Next | TraceImportAdapter diagnostics 增强 + mapping examples + external-runner cookbook |
+| Then | LLM judge prompt/rubric 工程 + report review UX |
 | Later | opt-in 真实 LLM trial |
 
-明确不做（除非未来重新批准）：Web UI / MCP executor / RAG / Benchmark 平台。
+明确不做（除非未来重新批准）：Web UI / MCP executor / RAG / Benchmark 平台 /
+把真实 Agent 启动逻辑塞进 Core / 为每个 Agent 写专用 wrapper。
 
 → 详细路线图：[`docs/ROADMAP.md`](docs/ROADMAP.md)
 

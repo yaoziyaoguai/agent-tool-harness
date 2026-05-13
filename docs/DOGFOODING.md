@@ -2,6 +2,11 @@
 
 > 本文档定义 Agent2Harness 项目的 dogfood 分层和对应安全边界。
 > Dogfood = "吃自己的狗粮"，即在实际使用中验证 harness 自身。
+>
+> **重要定位（2026-05-13）：** Dogfood 验证 harness 自身组件可用性，不是推荐所有
+> 用户使用 CLIAgentAdapter。主要接入路径是 TraceImportAdapter——用户用自己的
+> runner/CI 运行 Agent，产出 trace/log，通过 TraceImportAdapter 导入。
+> CLIAgentAdapter 是 optional convenience。详见 [EXTERNAL_RUNNER_WORKFLOW.md](EXTERNAL_RUNNER_WORKFLOW.md)。
 
 ---
 

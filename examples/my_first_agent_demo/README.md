@@ -1,5 +1,9 @@
 # Level 3 my-first-agent Demo Adapter
 
+> **定位：** Example / dogfood case——不是推荐的主路径，不要求 agent-tool-harness
+> 为每个 Agent 写专用 wrapper。推荐用户优先使用外部 runner + TraceImportAdapter。
+> 详见 [docs/EXTERNAL_RUNNER_WORKFLOW.md](../../docs/EXTERNAL_RUNNER_WORKFLOW.md)。
+
 C10 Level 3 local-only wrapper dogfood：将 my-first-agent 的 safe local demo
 （`agent/local_demo.py` → `run_local_demo()`）接入 agent-tool-harness 的
 CLIAgentAdapter → TraceImportAdapter → CoreEvaluation 闭环。

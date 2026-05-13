@@ -1,8 +1,14 @@
 # Agent2Harness Main Flow
 
 > 本文档定义 Agent Tool Harness 的 **Agent2Harness 主流程**——
-> 从 ScenarioSpec 到 Human Review 的完整 Core Flow。
+> 从 trace/log 导入到 Human Review 的完整 Core Flow。
 > 这是后续所有实现工作的依据文档。
+>
+> **核心定位（2026-05-13 架构纠偏）：**
+> Agent Tool Harness 的核心职责是处理 Agent tool-use 日志 / trace / evidence，
+> 进行可复现评测和报告。**主要接入路径是 trace/log import**，不是运行真实 Agent。
+> CLIAgentAdapter 是 optional convenience runner，不是 Core 必需路径。
+> 真实 Agent 的启动、provider、key、联网、业务执行环境由外部 runner 或用户负责。
 
 ---
 
@@ -27,32 +33,35 @@
 | **JudgeFinding + LLM provider config** | ✅ 已完成（2026-05-12） | `llm_config.py` + `fake_judge.py` |
 | Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
 | **Real LLM infrastructure & safety gate verified** | ⚠️ transport verified, semantic judge pending (2026-05-12) | `docs/DOGFOOD_REAL_LLM_001.md` |
-| **TraceImportAdapter (native schema)** | ✅ 已实现（2026-05-12） | `agent_tool_harness/trace_import.py` |
-| **TraceImportAdapter (simple mapping)** | ✅ 已实现（2026-05-12） | `docs/TRACE_IMPORT_ADAPTER_SPEC.md` |
-| **CLIAgentAdapter Slice 1-4** | ✅ 已实现（2026-05-13） | `agent_tool_harness/cli_agent.py` + `assembly.py` `build_cli_agent_core_flow()` |
-| CLIAgentAdapter assembly integration | ✅ 已完成（2026-05-13） | `tests/test_cli_agent_core_flow.py`（21 tests） |
-| Fake CLI agent core flow | ✅ 已跑通（2026-05-13） | `examples/cli_agent_fake/` |
-| RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
-| C10 Real agent dogfood | ✅ Level 1+2 done（2026-05-13） | Track C |
+| **TraceImportAdapter (native + simple mapping)** | ✅ 已实现（2026-05-12）— **主要接入路径** | `agent_tool_harness/trace_import.py` |
+| **CLIAgentAdapter** | ✅ 已实现（2026-05-13）— **optional convenience** | `agent_tool_harness/cli_agent.py` |
+| C10 Real agent dogfood | ✅ Level 1+2+3+4A done, 4B deferred | Track C |
+| External runner workflow | 📄 已文档化 | `docs/EXTERNAL_RUNNER_WORKFLOW.md` |
 
-**结论：** Main Flow 已落地。CLIAgentAdapter Slice 1-4 已实现，覆盖命令校验、
-subprocess 执行、trace import 集成、assembly core flow 装配。`build_cli_agent_core_flow()`
-端到端闭环已验证：ScenarioSpec → CLI Agent → trace file → TraceImportAdapter →
-ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → ReportSummary。
-C10 Level 1+2 dogfood 已完成（fake + toy CLI agent，12 smoke tests）。Level 3/4（真实本地 Agent / 真实 LLM）尚未实施。
-真实 LLM 调用仍默认不启用。
+**结论：** Main Flow 已落地。**主要接入路径是 TraceImportAdapter**——
+用户用自己的脚本/CI/外部 runner 运行 Agent，产出 trace/log，通过 native 或
+simple_mapping 模式导入，进入 CoreEvaluation → Report 链路。
+CLIAgentAdapter 是 optional convenience——适合简单场景，但不要求所有用户使用，
+也不应让真实 Agent 启动逻辑污染 Core。真实 LLM 调用仍默认不启用。
 
 ---
 
 ## 2. 目标主流程
 
+### 2.1 主要接入路径：Trace / Log Import（推荐）
+
+外部 runner 或用户自己的脚本/CI 运行 Agent，产出 trace/log 文件，通过
+TraceImportAdapter 导入。**这是推荐的主路径**——Agent Tool Harness 不负责
+运行 Agent，只负责 trace → evidence → evaluation → report。
+
 ```
-ScenarioSpec              （评测场景纯数据）
-    │
+External Agent Runner / 用户脚本 / CI / 手工命令
+    │  运行要测评的 Agent
+    │  产出 trace/log/stdout/json/jsonl
     ▼
-Agent2HarnessAdapter      （adapter 协议：ScenarioSpec → ExecutionTrace）
-    │                      DemoAgent2HarnessAdapter（本轮实现）
-    │                      ReplayAgent2HarnessAdapter（本轮实现）
+TraceImportAdapter        （原生 JSON → ExecutionTrace）
+    │  native mode: 直接导入标准 schema
+    │  simple_mapping mode: 字段映射导入非标准格式
     │
     ▼
 ExecutionTrace            （执行轨迹：ToolCall[] + ToolResult[] + final_answer）
@@ -61,11 +70,11 @@ ExecutionTrace            （执行轨迹：ToolCall[] + ToolResult[] + final_an
 Evidence                  （证据包：trace + artifacts + cost + latency + signal_quality）
     │
     ▼
-CoreEvaluation            （本轮实现：Evidence → EvaluationResult）
-    │                     复用 RuleJudge + demo_core_bridge
+CoreEvaluation            （Evidence → EvaluationResult）
+    │  RuleJudge（deterministic）+ optional JudgeProvider（advisory）
     │
     ▼
-EvaluationResult          （机器评分汇总：findings[] + passed + summary）
+EvaluationResult          （机器评分汇总：RuleFinding[] + JudgeFinding[]）
     │
     ▼
 ReportSummary             （统计摘要）
@@ -74,8 +83,22 @@ ReportSummary             （统计摘要）
 Human Review → ReviewDecision  （人工裁决——不由机器自动生成）
 ```
 
+### 2.2 辅助接入路径：CLIAgentAdapter（optional convenience）
+
+CLIAgentAdapter 通过 subprocess 运行 CLI Agent 命令，收集 trace 输出后委托
+TraceImportAdapter 解析。**适合简单场景**，但不是必需路径。
+
+```
+ScenarioSpec → CLIAgentAdapter → subprocess → trace file
+    → TraceImportAdapter → ExecutionTrace → Evidence → ...（同主路径）
+```
+
+CLIAgentAdapter 的适用/不适用场景详见 `docs/CLI_AGENT_ADAPTER_SPEC.md` 和
+`docs/EXTERNAL_RUNNER_WORKFLOW.md`。
+
 **关键边界：** 虚线以上所有步骤是机器执行的。`ReviewDecision` 是人工裁决，
-**禁止**从 `EvaluationResult` 自动派生。
+**禁止**从 `EvaluationResult` 自动派生。真实 Agent 的启动、provider、key、
+联网、业务执行环境由外部 runner 或用户负责——不进入 agent-tool-harness Core。
 
 ---
 
@@ -134,46 +157,33 @@ ScenarioSpec (from EvalSpec 构造)
 
 ---
 
-## 4. 本轮落地范围
+## 4. 当前落地范围
 
-### 4.1 做
+### 4.1 已完成
 
-1. **Demo adapter wrapper** — `DemoAgent2HarnessAdapter` / `ReplayAgent2HarnessAdapter`
-   - 包装现有 `MockReplayAdapter` / `TranscriptReplayAdapter`
-   - 实现 `Agent2HarnessAdapter` Protocol
-   - 输入 `ScenarioSpec`，输出 `ExecutionTrace`
-   - 不修改旧 adapter 内部逻辑
+1. **Core Contract + Demo Bridge + Core Flow** — Core Contract 对象、Demo-to-Core 桥接、
+   CoreEvaluation、CoreReportBridge、assembly core flow 均已落地。
 
-2. **Core evaluation** — `core_evaluation.py`
-   - 输入 `Evidence` + `EvalSpec`（可选）
-   - 内部复用 `RuleJudge` + `demo_core_bridge`
-   - 输出 `EvaluationResult`
-   - 不生成 `ReviewDecision`
+2. **TraceImportAdapter**（主要接入路径）— native + simple_mapping 两种模式，
+   83 个测试。不运行 Agent，只导入 trace。
 
-3. **Core report bridge** — `core_report_bridge.py`
-   - 输入 `EvaluationResult` / `ReportSummary`
-   - 让现有 `MarkdownReport` 或最小新代码可以展示 Core Contract 结果
-   - 不大改现有 report 结构
+3. **CLIAgentAdapter**（optional convenience）— Slice 1-4 已实现，97 个测试。
+   通过 subprocess 运行 CLI 命令并委托 TraceImportAdapter 解析 trace。
 
-4. **Integration entry point** — `assembly.py` 新增 `build_demo_core_flow()`
-   - 从 `ScenarioSpec` 开始
-   - 经过 demo adapter wrapper
-   - 产出 `Evidence` → `EvaluationResult` → `ReportSummary`
-   - 不接 CLI（先通过 tests 固化）
+4. **JudgeProvider Protocol** — FakeJudgeProvider + LLMJudgeProvider + factory + safety gates。
 
-5. **Integration tests** — `tests/test_agent2harness_main_flow.py`
+5. **Dogfood** — Level 1+2（fake/toy）+ Level 3（my-first-agent wrapper）+ Level 4A（real LLM judge）。
+   Level 4B deferred（target agent 尚缺 dogfood contract）。
 
 ### 4.2 不做
 
-- 不实现 RealAgentAdapter
-- 不实现真实 LLM Judge
-- 不实现真实 ProviderConfig
+- 不实现 RealAgentAdapter（不需要——trace import 是主路径）
+- 不让真实 Agent 启动逻辑进入 Core
+- 不默认调用真实 LLM
 - 不读取 .env
-- 不调用外部 API
 - 不让 EvaluationResult 自动生成 ReviewDecision
-- 不让 Reporter 做最终裁决
-- 不大改 CLI 命令结构
-- 不删除旧 EvalRunner / MockReplayAdapter
+- 不删除已有 CLIAgentAdapter
+- 不破坏已有测试
 
 ---
 
@@ -268,49 +278,21 @@ ScenarioSpec (from EvalSpec 构造)
 
 ## 7. 当前阶段与下一阶段
 
-**已完成（2026-05-12）：**
-- [x] LLM Provider Config 模型（`llm_config.py`）— 四类 provider 配置 + Registry + resolve_api_key
-- [x] JudgeFinding 数据类（`core_contract.py`）— LLM judge advisory finding
-- [x] CoreJudgeProvider Protocol（`fake_judge.py`）— `evaluate(Evidence) → list[JudgeFinding]`
-- [x] FakeJudgeProvider（`fake_judge.py`）— deterministic fake，零网络依赖
-- [x] 示例配置（`examples/llm_providers.example.yaml`）
-- [x] 设计文档（`docs/LLM_PROVIDER_CONFIG.md`）
-- [x] 30 个测试（19 config + 11 fake judge）
-- [x] **Phase 2：CoreEvaluation 可选消费 JudgeProvider**（2026-05-12）
-  - `CoreEvaluation.__init__` 新增 `judge_provider: CoreJudgeProvider | None = None`
-  - `evaluate()` 调用 `judge_provider.evaluate(evidence)`，追加 JudgeFinding 到 findings
-  - `EvaluationResult.passed` 仍由 RuleJudge 决定
-  - 12 个新测试（`tests/test_core_evaluation.py`）
-- [x] **Phase 3：CLI flags + dry-run + fake judge 集成**（2026-05-12）
-  - `--judge-provider fake` CLI flag（仅与 `--core-flow` 配合）
-  - `--llm-config` / `--llm-provider` / `--dry-run-provider` flags
-  - `load_provider_registry_from_file()` 文件加载入口
-  - `build_demo_core_flow()` / `_run_core_flow()` 接受 `judge_provider`
-  - 30 个新测试（12 file loading + 11 CLI flags + 7 integration）
-  - 616 全量测试通过
+**已完成（2026-05-13）：**
+- TraceImportAdapter（native + simple mapping）— **主要接入路径**
+- CLIAgentAdapter（Slice 1-4）— **optional convenience**
+- JudgeProvider Protocol + LLMJudgeProvider + safety gates
+- Dogfood Level 1+2+3+4A，Level 4B deferred
+- 架构纠偏：trace/log import 是主路径，CLIAgentAdapter 是 optional
 
-- [x] **Phase 4：OpenAI + Anthropic transport + CLI wiring**（2026-05-12）
-  - `openai_transport.py` — OpenAI-compatible HTTPS transport（19 tests）
-  - `anthropic_transport.py` — Anthropic-compatible HTTPS transport（15 tests）
-  - `llm_judge.py` — LLMJudgeProvider（CoreJudgeProvider 实现，11 tests）
-  - `judge_provider_factory.py` — 安全门控 factory（10 tests）
-  - CLI `--judge-provider llm` 接入 + 双标志 + config 校验（10 tests）
-  - 零新依赖、injected http_factory、8 类 error taxonomy
-  - 44 个新测试，691 全量测试通过
-
-- [x] **Phase 5：真实 LLM infrastructure & safety gate 验证**（2026-05-12）
-  - openai-compatible transport + factory wiring + --env-file secret loading 跑通
-  - RuleFinding + JudgeFinding 在 EvaluationResult 中正确并列
-  - ReviewDecision 未自动生成（符合预期）
-  - `model_env` 从 .env 正确解析
-  - CLI log 中 model= 显示 resolved model（修复：使用 `provider.model` 而非 `config.model`）
-  - ⚠️ Semantic JudgeFinding 因 provider response parsing bad_response 尚未成功产出，待调试
-  - 详见 `docs/DOGFOOD_REAL_LLM_001.md`
-
-**下一阶段（Phase 6）：**
-- prompt 工程 + rubric 设计
+**下一阶段重点：**
+- 更好的 TraceImportAdapter diagnostics（mapping error report）
+- 更多 mapping examples（JSON/JSONL/stdout 转 trace）
+- external-runner cookbook
+- evidence quality report
+- report review UX
+- prompt 工程 + rubric 设计（LLM judge 侧）
 - 成本追踪 + 预算上限
-- 多 provider 分歧率分析
 
 **关键边界：**
 - 真实 LLM 调用仍未默认启用
@@ -318,4 +300,4 @@ ScenarioSpec (from EvalSpec 构造)
 - JudgeFinding 是辅助信号，不改变 deterministic passed
 - ReviewDecision 必须人工创建
 - `--env-file` 和 `--allow-os-env` 是发起真实 LLM 调用的前置条件
-- dry-run 不读取 .env 或 os.environ
+- 真实 Agent 的启动、provider、key、联网由外部 runner 或用户负责

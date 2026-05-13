@@ -24,13 +24,14 @@ Agent2Harness 当前已完成以下能力：
 
 ## 2. Goals
 
-1. **TraceImportAdapter**: 导入用户已有 trace 文件（不运行 Agent）
-2. **CLIAgentAdapter**: 通过 CLI 命令运行用户 Agent 并收集 trace
+1. **TraceImportAdapter（主要接入路径）**: 导入用户已有 trace 文件（不运行 Agent）
+2. **CLIAgentAdapter（optional convenience）**: 通过 CLI 命令运行用户 Agent 并收集 trace
 3. **复用 Agent2Harness Core Flow**: ExecutionTrace / Evidence / CoreEvaluation 不变
 4. **复用 RuleFinding + JudgeFinding + Report**: 现有 judge/report 能力直接消费真实 trace
 5. **低接入成本**: 用户不需要改造整个项目
 6. **显式 opt-in**: 默认不运行真实 Agent
 7. **不作成本追踪**: cost/latency tracking 推迟到后续阶段
+8. **推荐工作流**: 外部 runner → trace/log → TraceImportAdapter → CoreEvaluation → Report → Human Review
 
 ---
 
@@ -52,11 +53,12 @@ Agent2Harness 当前已完成以下能力：
 
 ## 4. Architecture
 
-### 4.1 TraceImportAdapter 流程
+### 4.1 Primary Integration Path: Trace / Log Import（推荐）
 
 ```
-user trace file (JSON)
-    │
+External Agent Runner / 用户脚本 / CI / 手工命令
+    │  运行要测评的 Agent
+    │  产出 trace/log/stdout/json/jsonl
     ▼
 TraceImportAdapter
     │  模式 A: native mode（直接反序列化 ExecutionTrace）
@@ -76,32 +78,35 @@ EvaluationResult            ← RuleFinding[] + JudgeFinding[]
     │
     ▼
 Report                      ← MarkdownReport + JSON artifacts（已有）
+    │
+    ▼
+Human Review → ReviewDecision
 ```
 
-### 4.2 CLIAgentAdapter 流程
+**这是推荐的主路径。** Agent Tool Harness 不负责运行 Agent——只负责 trace → evidence →
+evaluation → report。真实 Agent 的启动、provider、key、联网、业务执行环境均由
+外部 runner 或用户负责。
+
+### 4.2 Auxiliary Path: CLIAgentAdapter（optional convenience）
 
 ```
 ScenarioSpec
     │
     ▼
-scenario input file          ← 从 ScenarioSpec 生成（JSON，写入 temp/out dir）
+CLIAgentAdapter            ← subprocess 执行 CLI 命令
     │
     ▼
-user CLI command             ← 外部进程，Agent2Harness 不感知内部实现
-    │  python run_agent.py --input {scenario_file} --trace-out {trace_file}
+trace output file
     │
     ▼
-trace output file            ← 用户 Agent 产出的 trace JSON
+TraceImportAdapter         ← CLIAgentAdapter 委托 TraceImportAdapter 解析 trace
     │
     ▼
-TraceImportAdapter           ← CLIAgentAdapter 委托 TraceImportAdapter 解析 trace
-    │
-    ▼
-ExecutionTrace
-    │
-    ▼
-Evidence → CoreEvaluation → EvaluationResult → Report
+ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → Report
 ```
+
+CLIAgentAdapter 是 optional convenience runner——适合简单场景，不是 Core 必需路径。
+详见 [CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md) 的 "When to use / When not to use" 节。
 
 ### 4.3 两者关系
 
@@ -117,6 +122,9 @@ Evidence → CoreEvaluation → EvaluationResult → Report
 ```
 
 CLIAgentAdapter **不自己解析 trace**。它负责运行命令，然后把 trace 文件交给 TraceImportAdapter。
+
+**重要：** CLIAgentAdapter 是 optional convenience，不是主要接入路径。推荐用户优先使用
+外部 runner + TraceImportAdapter。详见 [EXTERNAL_RUNNER_WORKFLOW.md](EXTERNAL_RUNNER_WORKFLOW.md)。
 
 ---
 
