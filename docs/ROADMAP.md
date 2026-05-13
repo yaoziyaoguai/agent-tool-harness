@@ -113,7 +113,7 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | ID | 事项 | 状态 |
 |----|------|------|
 | D1 | **Trace import diagnostics** (Module 1) | 🔜 future — mapping field coverage / type diagnostics / trace confidence |
-| D2 | **Tool-use correctness checks** (Module 2) | 🔜 future — deterministic rule catalog: argument validity, duplicate/ orphan/fallback/retry/grounding |
+| D2 | **Tool-use correctness checks** (Module 2) | 🟢 9 trace-level invariant rules done (2026-05-13) — `tool_inspection.py`: call_id duplicate, orphan call/result, arguments present/type, tool_name non-empty, status valid。集成到 CoreEvaluation。其余 (fallback/retry/grounding/order) deferred。 |
 | D3 | **Tool metrics** (Module 3) | 🔜 future — error rate, redundancy, response size, latency, token estimates |
 | D4 | **Tool ergonomics evaluation** (Module 4) | 🔜 future — low-level/overlap/namespace/name ambiguity/chain consolidation |
 | D5 | **Tool response quality** (Module 5) | 🔜 future — context meaningfulness, verbosity, error actionability, faithfulness |
@@ -121,7 +121,7 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | D7 | **Batch / multi-trace evaluation** | 🔜 future |
 | D8 | **Human review UX** | 🔜 future |
 
-**实现顺序：** Phase 1 (D1+D2 foundation) → Phase 2 (D4+D5+D6 deterministic hints) → Phase 3 (D3 metrics + D7 batch + D8 review UX)。LLM judge advisory 在各 module 中按需接入。
+**实现顺序：** Phase 1 (D1 foundation + D2 trace-level 部分完成) → Phase 2 (D4+D5+D6 deterministic hints) → Phase 3 (D3 metrics + D7 batch + D8 review UX)。LLM judge advisory 在各 module 中按需接入。D2 剩余规则 (fallback/retry/grounding/order/argument validity) 在后续轮次实现。
 
 **Track C 最新进展（2026-05-13）：** CLIAgentAdapter 已移除。TraceImportAdapter 为唯一接入路径。
 用户可通过 `trace_import.py` 以 native 或 simple_mapping 模式导入 trace JSON，进入 Core Flow。

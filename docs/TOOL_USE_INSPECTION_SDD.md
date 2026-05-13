@@ -2,7 +2,8 @@
 
 > **定位**: agent-tool-harness 的后续核心方向——围绕 Agent tool-use logs 做工具检查、评测和质量报告。
 > **对齐**: Anthropic [Writing effective tools for agents — with agents](https://www.anthropic.com/engineering/writing-tools-for-agents)。
-> **状态**: SDD defined (2026-05-13), implementation pending — 6 modules spec'd, none yet implemented beyond existing RuleJudge/ToolDesignAuditor foundation.
+> **状态**: SDD defined (2026-05-13), implementation in progress — 9 trace-level invariant rules landed (2026-05-13),
+> CoreEvaluation integrated. Phase 1 trace import diagnostics + evidence quality report deferred.
 
 ---
 
@@ -78,7 +79,9 @@ agent-tool-harness **不运行 Agent**。所有 Agent 启动由外部 runner/CI/
 
 **对应文章思想：** testing tools with agents——通过日志检查 Agent 是否正确使用了工具。
 
-**当前状态：** RuleJudge 已有 must_call_tool / forbidden_first_tool / must_use_evidence。其余未实现。
+**当前状态：** RuleJudge 已有 must_call_tool / forbidden_first_tool / must_use_evidence。
+Trace-level 不变量规则已实现：ToolUseInspector (9 rules, deterministic, all produce RuleFinding)。
+CoreEvaluation 已集成 trace-level 检查，passed 由所有 RuleFinding 共同决定。
 
 **规则目录（deterministic — RuleFinding）：**
 
@@ -87,12 +90,15 @@ agent-tool-harness **不运行 Agent**。所有 Agent 启动由外部 runner/CI/
 | Schema | `tool_call` has `call_id` | ✅ TraceImportAdapter validation |
 | Pairing | `tool_result` can pair with `call_id` | ✅ TraceImportAdapter validation |
 | Identity | `tool_name` preserved across call-result pair | ✅ TraceImportAdapter validation |
-| Arguments | `arguments` present and structurally valid | 🔜 future |
-| Status | `status` is valid ("success" / "error") | ✅ TraceImportAdapter validation |
+| Arguments | `arguments` present and structurally valid | ✅ ToolUseInspector (tool_call.arguments.present + tool_call.arguments.is_object) |
+| Status | `status` is valid ("success" / "error") | ✅ ToolUseInspector (tool_result.status.valid) + TraceImportAdapter validation |
 | Output | `output` or `error` at least one non-empty | ✅ TraceImportAdapter validation |
-| Uniqueness | no duplicate `call_id` | 🔜 future |
-| Orphan | no orphan `tool_call` (missing result) | ✅ TraceImportAdapter cross-ref |
-| Orphan | no orphan `tool_result` (missing call) | 🔜 future |
+| Uniqueness | no duplicate `call_id` (tool_calls) | ✅ ToolUseInspector (tool_call.call_id.duplicate) |
+| Uniqueness | no duplicate `call_id` (tool_results) | ✅ ToolUseInspector (tool_result.call_id.duplicate) |
+| Orphan | no orphan `tool_call` (missing result) | ✅ ToolUseInspector (tool_pair.orphan_call) + TraceImportAdapter cross-ref |
+| Orphan | no orphan `tool_result` (missing call) | ✅ ToolUseInspector (tool_pair.orphan_result) |
+| Name | tool_call tool_name non-empty | ✅ ToolUseInspector (tool_call.tool_name.non_empty) |
+| Name | tool_result tool_name non-empty | ✅ ToolUseInspector (tool_result.tool_name.non_empty) |
 | Expected | required tool called per eval spec | ✅ RuleJudge must_call_tool |
 | Forbidden | forbidden tool not called | ✅ RuleJudge forbidden_first_tool |
 | Order | required tool call order | 🔜 future |
@@ -205,10 +211,16 @@ agent-tool-harness **不运行 Agent**。所有 Agent 启动由外部 runner/CI/
 从 "继续跑真实 Agent" 转向 "tool-use inspection 能力建设"：
 
 **Phase 1 — Foundation (当前 → 近期):**
-1. Tool-use inspection rule catalog spec（Module 2 规则集完整 spec）
-2. Trace import diagnostics（Module 1 mapping diagnostics / field coverage）
-3. Tool-use correctness checks 实现（Module 2 未实现的 deterministic rules）
-4. Evidence quality report
+1. ~~Tool-use inspection rule catalog spec（Module 2 规则集完整 spec）~~ ✅ 9 trace-level rules done (2026-05-13)
+2. Trace import diagnostics（Module 1 mapping diagnostics / field coverage）— 🔜 future
+3. ~~Tool-use correctness checks 实现（Module 2 未实现的 deterministic rules）~~ ✅ 9 rules done (ToolUseInspector, 2026-05-13)
+4. Evidence quality report — 🔜 future
+
+**已落地 (2026-05-13):**
+- `agent_tool_harness/tool_inspection.py` — ToolUseInspector class, 9 deterministic rules
+- `agent_tool_harness/core_evaluation.py` — ToolUseInspector 集成到 CoreEvaluation
+- `tests/test_tool_inspection.py` — 24 tests (包括单元测试 + CoreEvaluation 集成)
+- 所有 888 tests passing, zero regressions
 
 **Phase 2 — Inspection (近期 → 中期):**
 5. Tool spec quality checks（Module 6）

@@ -106,7 +106,7 @@ def test_kb_sso_all_rules_pass_in_core_flow():
         f"全部规则必须 PASS，实际 {len(failed)} 条 FAIL:\n"
         + "\n".join(f"  - {f.rule_type}: {f.message}" for f in failed)
     )
-    assert len(eval_result.findings) == 8, (
-        f"预期 8 条规则，实际 {len(eval_result.findings)} 条"
+    assert len(eval_result.findings) == 17, (
+        f"预期 17 条规则（8 eval-level + 9 trace-level），实际 {len(eval_result.findings)} 条"
     )
     assert eval_result.passed is True

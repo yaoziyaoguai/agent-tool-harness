@@ -266,7 +266,7 @@ def test_core_evaluation_with_custom_judge():
         scenario_id="s1",
         tool_calls=[ToolCall(tool_name="t1", arguments={}, call_id="c1")],
         tool_results=[
-            ToolResult(call_id="c1", status="success", output={"x": 1})
+            ToolResult(call_id="c1", tool_name="t1", status="success", output={"x": 1})
         ],
         final_answer="ok",
     )
@@ -277,7 +277,9 @@ def test_core_evaluation_with_custom_judge():
     eval_result = evaluation.evaluate(evidence, eval_spec)
 
     assert eval_result.passed is True
-    assert eval_result.findings[0].rule_type == "always_pass"
+    assert any(
+        f.rule_type == "always_pass" for f in eval_result.findings
+    ), "应包含 always_pass 规则"
 
 
 # ---------------------------------------------------------------------------

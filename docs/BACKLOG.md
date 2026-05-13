@@ -273,9 +273,10 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 - **Not doing**: 不做 LLM auto mapping，不做自动 trace repair
 
 ### D2. Tool-use correctness checks (Module 2)
-- **Status**: 🔜 future（RuleJudge 已有 must_call_tool / forbidden_first_tool / must_use_evidence；其余未实现）
+- **Status**: 🟢 9 trace-level invariant rules done (2026-05-13)。剩余 rules (fallback, retry, grounding, required order, argument semantic validity) deferred。
+- **Landed**: `tool_inspection.py` (ToolUseInspector, 24 tests), CoreEvaluation 集成。9 rules: `tool_call.call_id.duplicate`, `tool_result.call_id.duplicate`, `tool_pair.orphan_call`, `tool_pair.orphan_result`, `tool_call.arguments.present`, `tool_call.arguments.is_object`, `tool_call.tool_name.non_empty`, `tool_result.tool_name.non_empty`, `tool_result.status.valid`。全部 deterministic, RuleFinding, zero-network。passed 由所有 RuleFinding 共同决定。
 - **Why**: 确定性规则检查是评测可信度的基础
-- **Acceptance**: 完整 rule catalog spec + implementation: argument validity, duplicate call_id, orphan result, required order, fallback, retry, grounding
+- **Acceptance (remaining)**: fallback, retry, grounding, required order, argument semantic validity
 - **Not doing**: 不让 LLM 替代 deterministic rules
 
 ### D3. Tool metrics (Module 3)

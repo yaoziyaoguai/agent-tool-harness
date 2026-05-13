@@ -27,13 +27,16 @@
 from __future__ import annotations
 
 from agent_tool_harness.config.eval_spec import EvalSpec
-from agent_tool_harness.core_contract import EvaluationResult, Evidence
+from agent_tool_harness.core_contract import EvaluationResult, Evidence, RuleFinding
 from agent_tool_harness.demo_core_bridge import (
     execution_trace_to_agent_run_result,
     judge_result_to_evaluation_result,
 )
 from agent_tool_harness.fake_judge import CoreJudgeProvider
 from agent_tool_harness.judges.rule_judge import RuleJudge
+from agent_tool_harness.tool_inspection import ToolUseInspector
+
+_SENTINEL = object()
 
 
 class CoreEvaluation:
@@ -62,6 +65,7 @@ class CoreEvaluation:
         self,
         judge: RuleJudge | None = None,
         judge_provider: CoreJudgeProvider | None = None,
+        inspector: ToolUseInspector | None = _SENTINEL,
     ):
         """初始化 CoreEvaluation。
 
@@ -71,6 +75,7 @@ class CoreEvaluation:
         """
         self._judge = judge or RuleJudge()
         self._judge_provider = judge_provider
+        self._inspector = ToolUseInspector() if inspector is _SENTINEL else inspector
 
     def evaluate(
         self, evidence: Evidence, eval_spec: EvalSpec
@@ -92,15 +97,31 @@ class CoreEvaluation:
         # 反向桥接：ExecutionTrace → AgentRunResult
         agent_run_result = execution_trace_to_agent_run_result(evidence.trace)
 
+        # trace-level 确定性不变量检查（ToolUseInspector）
+        trace_findings: list[RuleFinding] = []
+        if self._inspector is not None:
+            trace_findings = self._inspector.inspect(evidence.trace)
+
         # 确定性规则检查
         judge_result = self._judge.judge(eval_spec, agent_run_result)
 
         # JudgeResult → EvaluationResult
         evaluation_result = judge_result_to_evaluation_result(judge_result)
 
+        # 合并 trace-level RuleFinding 到 EvaluationResult
+        evaluation_result.findings = list(trace_findings) + list(evaluation_result.findings)
+
         # 可选 LLM judge 辅助评估
         if self._judge_provider is not None:
             judge_findings = self._judge_provider.evaluate(evidence)
             evaluation_result.findings = list(evaluation_result.findings) + list(judge_findings)
+
+        # 重算 passed：所有 deterministic RuleFinding 都通过才为 True
+        # (JudgeFinding 不影响 passed)
+        evaluation_result.passed = all(
+            f.rule_passed
+            for f in evaluation_result.findings
+            if isinstance(f, RuleFinding)
+        )
 
         return evaluation_result
