@@ -15,7 +15,33 @@ CLIAgentAdapter → TraceImportAdapter → CoreEvaluation 闭环。
 - 不读 .env / agent_log.jsonl / sessions/ / runs/。
 - 不联网、不调用真实 LLM/API。
 
+## 环境策略（Level 3 安全边界）
+
+adapter wrapper 遵循 minimal 环境策略：
+
+| 约束 | 值 | 说明 |
+|------|-----|------|
+| `env_policy` | `"minimal"` | 子进程仅继承 PATH / HOME / TMPDIR / TEMP / TMP，不继承完整宿主环境 |
+| `allow_shell` | `False` | 禁止 shell 注入，command 强制使用 `list[str]` |
+| `timeout_seconds` | `300.0`（默认） | 硬安全边界，超时即杀 |
+| 读取 .env | **否** | 无 `dotenv` / `load_dotenv` |
+| 继承宿主环境 | **否** | `env_policy="minimal"` 确保不泄漏 API key / 数据库密码等 |
+| 调用真实 LLM/API | **否** | `run_local_demo()` 永远使用 FakeProvider |
+| 联网 | **否** | 零 HTTP/socket 调用 |
+| 修改 my-first-agent | **否** | 只通过 `sys.path` 导入，`tempfile.mkdtemp()` 作为 workspace |
+
+这是 **Level 3 local-only wrapper dogfood**，不是 Level 4A（real LLM judge opt-in），
+也不是 Level 4B（agent-self-improvement loop）。
+
 ## 用法
+
+### 前提
+
+设置 `MY_FIRST_AGENT_PATH` 环境变量指向 my-first-agent 项目根目录：
+
+```bash
+export MY_FIRST_AGENT_PATH=/path/to/my-first-agent
+```
 
 ### 1. 直接运行 adapter
 
@@ -86,16 +112,24 @@ result = build_cli_agent_core_flow(
             "--trace-out", "{trace_output_path}",
         ],
         working_dir=".",
+        # Level 3 安全边界：minimal env，不继承宿主环境
+        env_policy="minimal",
+        allow_shell=False,
+        timeout_seconds=300.0,
     ),
     output_dir="/tmp/agent2harness-level3-dogfood",
 )
 print(f"passed: {result.eval_result.passed}")
 ```
 
+> **注意**：示例中使用 `env_policy="minimal"`。如果 adapter 需要 `MY_FIRST_AGENT_PATH`
+> 环境变量，需使用 `env_policy="inherit"` 或在 `env_allowlist` 中显式列出。
+> 示例中未写入任何真实 API key、base_url 或 model 名称。
+
 ## Signal Quality
 
 `recorded_trajectory`——wrapper 调用真实 my-first-agent 的 `run_local_demo()`，
-trace 来自真实本地执行（虽然是 fake provider），不是 mock replay。
+trace 来自真实本地执行（my-first-agent 自身使用 FakeProvider），不是 mock replay。
 
 ## ReviewDecision
 
@@ -106,5 +140,7 @@ trace 来自真实本地执行（虽然是 fake provider），不是 mock replay
 - 不读取 .env
 - 不联网
 - 不调用真实 LLM/API
+- 不继承完整宿主环境（env_policy=minimal）
 - 不修改 my-first-agent
 - wrapper 只做 schema 适配
+- my-first-agent 自身走 FakeProvider，不调用真实 LLM/API
