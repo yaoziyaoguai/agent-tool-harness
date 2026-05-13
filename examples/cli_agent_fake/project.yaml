@@ -1,0 +1,47 @@
+# Fake CLI Agent — 工具定义
+# 这些工具定义仅供 RuleJudge 使用，fake_agent.py 运行时不会读取此文件。
+
+tools:
+  - name: search
+    namespace: knowledge
+    version: "1.0"
+    description: 搜索知识库
+    when_to_use: 需要查找信息时
+    when_not_to_use: 信息已知时
+    input_schema:
+      type: object
+      properties:
+        query:
+          type: string
+      required: [query]
+    output_contract:
+      evidence: list
+    token_policy:
+      max_tokens_per_call: 1000
+    side_effects:
+      destructive: false
+    executor:
+      type: python
+      module: search_tool
+
+  - name: lookup
+    namespace: trace
+    version: "1.0"
+    description: 查询 trace 详情
+    when_to_use: 需要 trace 详情时
+    when_not_to_use: 不需要时
+    input_schema:
+      type: object
+      properties:
+        id:
+          type: string
+      required: [id]
+    output_contract:
+      evidence: list
+    token_policy:
+      max_tokens_per_call: 500
+    side_effects:
+      destructive: false
+    executor:
+      type: python
+      module: lookup_tool

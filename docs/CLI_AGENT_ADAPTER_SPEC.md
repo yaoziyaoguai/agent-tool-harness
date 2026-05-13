@@ -1,7 +1,7 @@
 # CLIAgentAdapter Specification
 
-> **状态**: Implementation in progress — Slice 1+2+3 done (2026-05-13).
-> Slice 4 (assembly integration) 尚未实现。
+> **状态**: Implementation complete — Slice 1+2+3+4 done (2026-05-13).
+> Slice 4 (assembly integration) 已实现。
 > **父文档**: [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)
 
 ---

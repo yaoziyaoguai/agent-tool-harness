@@ -244,7 +244,7 @@ CLIAgentAdapter Slice 1+2 已实现。
 - **Phase**: A (native) ✅ → B (simple mapping) ✅
 
 ### C9. CLIAgentAdapter
-- **Status**: **Slice 1+2 已实现** (2026-05-13: `agent_tool_harness/cli_agent.py`, 51 tests)
+- **Status**: **Slice 1+2+3+4 done** (2026-05-13: `agent_tool_harness/cli_agent.py`, 76 tests; `agent_tool_harness/assembly.py` `build_cli_agent_core_flow()`, 21 integration tests; 97 total)
 - **Why**: 通过 CLI 命令运行用户 Agent，复用 TraceImportAdapter 解析 trace
 - **Acceptance**:
   - [x] Slice 1: command list[str] 校验 + 占位符检查 + working_dir 校验
@@ -252,12 +252,12 @@ CLIAgentAdapter Slice 1+2 已实现。
   - [x] Slice 1: prepare_run() 生成 CLIAgentPreparedRun 执行计划
   - [x] Slice 2: subprocess 执行 + timeout + env policy + truncation
   - [x] Slice 3: TraceImportAdapter 解析 trace → ExecutionTrace + Evidence
-  - [ ] Slice 4: assembly 集成
+  - [x] Slice 4: assembly 集成 — `build_cli_agent_core_flow()` 端到端闭环
 - **Not doing**: 不自己解析复杂 trace, 不自动读取 .env
-- **Phase**: Slice 1 ✅ → Slice 2 ✅ → Slice 3 ✅ → Slice 4 pending
+- **Phase**: Slice 1 ✅ → Slice 2 ✅ → Slice 3 ✅ → Slice 4 ✅
 
 ### C10. Real agent dogfood (local project)
-- **Status**: **blocked** (needs C8 + C9)
+- **Status**: **available** (C9 assembly integration landed 2026-05-13)
 - **Why**: 在 TraceImportAdapter + CLIAgentAdapter 实现后，用本地真实 Agent 项目验证
 - **Acceptance**: 一次完整评测闭环：ScenarioSpec → 真实 Agent trace → ExecutionTrace → CoreEvaluation → Report
 - **Not doing**: 不做 benchmark, 不发布结果

@@ -1,7 +1,7 @@
 # Real Agent Integration SDD (Software Design Document)
 
-> **状态**: Implementation in progress — Phase A (native schema) + Phase B (simple mapping) complete (2026-05-12).
-> CLIAgentAdapter (Phase C/D) 尚未实现。
+> **状态**: Implementation in progress — Phase A (native schema) + Phase B (simple mapping) + Phase C (CLIAgentAdapter Slice 1-4) + Phase D (integration) complete (2026-05-13).
+> Phase E (real agent dogfood) 尚未实现。
 > **依赖**: Agent2Harness Core Flow (landed), CoreJudgeProvider (landed), LLMJudgeProvider (landed), explicit --env-file secret loading (landed).
 
 ---
@@ -244,7 +244,7 @@ CLIAgentAdapter **不自己解析 trace**。它负责运行命令，然后把 tr
 | Slice 1: command config + input file preparation | ✅ (2026-05-13, 27 tests) |
 | Slice 2: subprocess execution + timeout + env | ✅ (2026-05-13, 51 tests) |
 | Slice 3: TraceImportAdapter integration | ✅ (2026-05-13, 76 tests) |
-| Slice 4: assembly integration | ❌ |
+| Slice 4: assembly integration | ✅ (2026-05-13, 21 tests, `build_cli_agent_core_flow()`) |
 
 实现位置:
 - `agent_tool_harness/cli_agent.py` — CLIAgentAdapterConfig + CLIAgentPreparedRun + CLIAgentResult + CLIAgentAdapter
@@ -256,7 +256,12 @@ Slice 2 实现: subprocess.run() 执行、timeout 控制、env_policy (minimal/a
 stdout/stderr 截断、非零 exit code warning、trace 文件缺失检测。
 不集成 TraceImportAdapter。
 
-### Phase D/E: Integration / Dogfood ❌
+### Phase D: CLIAgentAdapter → TraceImportAdapter 集成 ✅ (2026-05-13)
+
+已完成。CLIAgentAdapter.run() 委托 TraceImportAdapter 解析 trace，
+端到端链路已通过 `build_cli_agent_core_flow()` 验证。
+
+### Phase E: Real Agent Dogfood ❌
 
 尚未实现。详见 [CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md)。
 
