@@ -47,8 +47,10 @@ class CoreEvaluation:
       可选消费 JudgeProvider 做辅助评估，产出 EvaluationResult（含 RuleFinding +
       可选 JudgeFinding 列表）。
     - **不负责**：不实现 LLM 语义判断、不生成 ReviewDecision、不读配置。
-    - **EvaluationResult.passed 仍然只由 deterministic RuleJudge 决定**——
-      JudgeFinding 是辅助信号，不改变 passed/failed 判定。
+    - **EvaluationResult.passed 由所有 deterministic RuleFinding 共同决定**——
+      trace-level ToolUseInspector findings 和 eval-level RuleJudge findings
+      都属于 deterministic RuleFinding。任一 rule_passed=False 则整体 passed=False。
+      JudgeFinding 为 advisory only，不影响 passed。ReviewDecision 不自动生成。
 
     使用方式：
         # 仅 RuleJudge（向后兼容）

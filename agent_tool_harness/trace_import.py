@@ -8,7 +8,9 @@
 - **为什么 TraceImportAdapter 不运行 Agent**: TraceImportAdapter 是纯数据导入器——
   输入是用户已经产出的 trace JSON 文件，不是评测场景。它把已有 trace 转成 Core
   Flow 可以消费的 ``ExecutionTrace``，让用户可以先验证下游链路（judge / report /
-  review）而不需要先跑通真实 Agent。运行 Agent 是 ``CLIAgentAdapter`` 的职责（未来）。
+  review）而不需要先跑通真实 Agent。运行 Agent 由 external runner / CI /
+  用户脚本负责——agent-tool-harness 不内置运行目标 Agent，TraceImportAdapter
+  只负责导入 external runner 产生的 trace/log。
 - **当前支持的模式**:
   - **native mode**（默认）: 用户 trace 直接符合 ``ExecutionTrace`` 字段结构，
     反序列化 + 校验，不需映射。
