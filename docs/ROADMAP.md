@@ -112,7 +112,7 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 
 | ID | 事项 | 状态 |
 |----|------|------|
-| D1 | **Trace import diagnostics** (Module 1) | 🔜 future — mapping field coverage / type diagnostics / trace confidence |
+| D1 | **Trace import diagnostics** (Module 1) | 🟢 done (2026-05-13) — mapping field coverage + type diagnostics + trace confidence + dry-run (48 tests) |
 | D2 | **Tool-use correctness checks** (Module 2) | 🟢 9 trace-level invariant rules done (2026-05-13) — `tool_inspection.py`: call_id duplicate, orphan call/result, arguments present/type, tool_name non-empty, status valid。集成到 CoreEvaluation。其余 (fallback/retry/grounding/order) deferred。 |
 | D3 | **Tool metrics** (Module 3) | 🔜 future — error rate, redundancy, response size, latency, token estimates |
 | D4 | **Tool ergonomics evaluation** (Module 4) | 🔜 future — low-level/overlap/namespace/name ambiguity/chain consolidation |

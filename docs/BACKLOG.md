@@ -267,9 +267,10 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 > **RuleFinding deterministic → passed; JudgeFinding advisory only; ReviewDecision human explicit.**
 
 ### D1. Trace import diagnostics (Module 1)
-- **Status**: 🔜 future
-- **Why**: mapping 字段覆盖率、类型错误、list item 问题需要结构化诊断
-- **Acceptance**: mapping dry-run 报告字段覆盖率 + 类型错误位置 + trace confidence level
+- **Status**: 🟢 done (2026-05-13) — field coverage + type diagnostics + confidence + dry-run (48 tests)
+- **Landed**: `trace_diagnostics.py` (TraceDiagnostics class, 4 capabilities): FieldCoverageReport, FieldTypeReport/TypeDiagnostic, TraceConfidence/TraceProvenance, DryRunResult。所有检查 deterministic, zero-network。dry_run 模拟 mapping 但不产生 ExecutionTrace。dry_run_native 校验 native schema。
+- **Why**: mapping 字段覆盖率、类型错误需要结构化诊断
+- **Acceptance**: ✅ mapping dry-run 报告字段覆盖率 + 类型错误位置 + trace confidence level
 - **Not doing**: 不做 LLM auto mapping，不做自动 trace repair
 
 ### D2. Tool-use correctness checks (Module 2)

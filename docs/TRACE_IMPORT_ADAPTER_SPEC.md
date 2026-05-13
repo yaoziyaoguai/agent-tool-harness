@@ -269,7 +269,28 @@ class TraceImportAdapter:
 - 不自动生成 ReviewDecision
 - 不读取 .env / 不调用外部 API
 
-### 8.3 已知局限
+### 8.3 Trace diagnostics — 已实现 (2026-05-13)
+
+`agent_tool_harness/trace_diagnostics.py` — 纯诊断层，不修改 trace、不产生 ExecutionTrace。
+
+支持的能力:
+- **mapping field coverage**: 检查 simple_mapping 配置对 source data 的字段覆盖率，报告 mapped/unmapped required fields、extra source keys、coverage_ratio
+- **field type diagnostics**: per-field 类型检查，报告 expected vs actual type
+- **trace confidence**: 基于 provenance (native/simple_mapping/wrapper_bridge) + coverage + type errors 的可信度评估 (high/medium/low)
+- **mapping dry-run**: 模拟 mapping 过程但不产生 ExecutionTrace，捕获会阻止 import 的错误
+- **native dry-run**: 独立校验 native schema 字段和类型
+
+实现位置:
+- `agent_tool_harness/trace_diagnostics.py` — `TraceDiagnostics` class + 6 个 frozen dataclass
+- `tests/test_trace_diagnostics.py` — 48 tests
+
+明确不做:
+- 不修改 trace / 不产生 ExecutionTrace
+- 不抛异常（dry-run 内部 catch TraceImportError）
+- 不调用外部 API / 不读 .env
+- 不用 LLM 解析 / 不自动修复
+
+### 8.4 已知局限
 
 - `ExecutionTrace` 当前没有 `observations` 字段——`observations` 被存入
   `Evidence.artifacts["observations"]`
