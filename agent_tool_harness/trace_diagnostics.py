@@ -333,7 +333,7 @@ class TraceDiagnostics:
                 errors=["trace data must be a JSON object"],
             )
 
-        # 1. 字段覆盖率（native mode: 检查 required fields 是否存在）
+        # 1. 必要字段存在性检查（native mode 无 mapping config）
         coverage = self._check_native_coverage(data)
 
         # 2. 类型诊断
@@ -768,29 +768,39 @@ class TraceDiagnostics:
 
     @staticmethod
     def _check_native_coverage(data: dict[str, Any]) -> FieldCoverageReport:
-        """native mode 字段覆盖率检查。"""
+        """native mode 必要字段存在性检查。
+
+        native mode 没有 mapping config——这里的 "coverage" 指 native schema
+        required fields 是否在 data 中存在，而非 mapping 覆盖率。
+        FieldCoverageReport.mapped_required 在此上下文中意为 "present required fields"。
+
+        不做:
+        - 不检查可选字段（native mode 无可选字段 mapping 概念）
+        - 不检查 output/error 至少一个（那是 schema validation 的职责，
+          由 _validate_native_schema 负责）
+        """
         warnings: list[str] = []
 
-        # 必要顶层字段
-        unmapped: list[str] = []
-        mapped = 0
+        # 必要顶层字段存在性
+        missing: list[str] = []
+        present_count = 0
         for f in _NATIVE_REQUIRED_TOP_FIELDS:
             if f in data:
                 val = data[f]
                 if f == "scenario_id":
                     if isinstance(val, str) and val.strip():
-                        mapped += 1
+                        present_count += 1
                     else:
-                        unmapped.append(f)
+                        missing.append(f)
                 elif f in ("tool_calls", "tool_results"):
                     if isinstance(val, list) and len(val) > 0:
-                        mapped += 1
+                        present_count += 1
                     else:
-                        unmapped.append(f)
+                        missing.append(f)
             else:
-                unmapped.append(f)
+                missing.append(f)
 
-        # 列表内字段（检查第一个 item）
+        # 列表内必要字段存在性（检查第一个 item）
         for list_field in ("tool_calls", "tool_results"):
             items = data.get(list_field)
             if isinstance(items, list) and len(items) > 0:
@@ -804,32 +814,20 @@ class TraceDiagnostics:
                     for sub_f in req_fields:
                         path = f"{list_field}[].{sub_f}"
                         if sub_f in first:
-                            mapped += 1
+                            present_count += 1
                         else:
-                            unmapped.append(path)
-
-        # 可选字段
-        unmapped_opt: list[str] = []
-        mapped_opt = 0
-        for f in _NATIVE_OPTIONAL_TOP_FIELDS:
-            if f in data:
-                mapped_opt += 1
-            else:
-                unmapped_opt.append(f)
+                            missing.append(path)
 
         total = len(_NATIVE_REQUIRED_PATHS)
-        ratio = mapped / total if total > 0 else 0.0
-
-        # extra source keys（native mode: 所有顶层 key 都是合法的）
-        extra: list[str] = []
+        ratio = present_count / total if total > 0 else 0.0
 
         return FieldCoverageReport(
             total_required=total,
-            mapped_required=mapped,
-            unmapped_required=unmapped,
-            mapped_optional=mapped_opt,
-            unmapped_optional=unmapped_opt,
-            extra_source_keys=extra,
+            mapped_required=present_count,
+            unmapped_required=missing,
+            mapped_optional=0,
+            unmapped_optional=[],
+            extra_source_keys=[],  # native mode: 所有顶层 key 都合法
             coverage_ratio=ratio,
             warnings=warnings,
         )
@@ -878,7 +876,20 @@ class TraceDiagnostics:
 
     @staticmethod
     def _validate_native_schema(data: dict[str, Any]) -> list[str]:
-        """native schema 关键校验——返回会阻止 import 的错误列表。"""
+        """native schema 关键校验——返回会阻止 import 的错误列表。
+
+        这是 dry-run diagnostics 的 lightweight native schema check。
+        **正式 import 仍以 TraceImportAdapter._import_dict 为准**——
+        这里不能替代正式 import。如果 TraceImportAdapter 的 schema 规则扩展，
+        需要同步更新此处或抽取 shared validator。
+
+        与 TraceImportAdapter._import_dict 的校验对齐：
+        - scenario_id 非空字符串
+        - tool_calls / tool_results 为 list 且非空
+        - 每个 item 有 call_id / tool_name
+        - output 或 error 至少一个非空
+        - call_id 交叉引用
+        """
         errors: list[str] = []
 
         # scenario_id

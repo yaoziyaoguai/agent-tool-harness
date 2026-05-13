@@ -521,6 +521,84 @@ class TestDryRunSimpleMapping:
         with pytest.raises(AttributeError):
             result.passed = True  # type: ignore[misc]
 
+    # ------------------------------------------------------------------
+    # P2-1 修复验证: simple_mapping 语义不回归
+    # ------------------------------------------------------------------
+
+    def test_field_coverage_structure_preserved(self):
+        """req 4: simple_mapping mode 仍保留 mapping field coverage。
+
+        mapped_required / unmapped_required / mapped_optional /
+        unmapped_optional / extra_source_keys 全部按 mapping 配置计算。
+        """
+        diag = TraceDiagnostics()
+        mapping = _make_mapping()
+        data = _user_trace_dict()
+        result = diag.dry_run(data, mapping=mapping)
+
+        fc = result.field_coverage
+        assert fc.total_required == 10
+        assert fc.mapped_required == 10
+        assert fc.unmapped_required == []
+        assert fc.mapped_optional >= 3  # final_answer + messages + observations
+        # timestamp 的 mapping key "ts" 不在 item 中 → unmapped_optional
+        assert "tool_calls[].timestamp" in fc.unmapped_optional
+
+    def test_output_or_error_semantics_not_regressed(self):
+        """req 5: simple_mapping output/error 字段映射不回归。
+
+        output/error 字段在 simple_mapping 中被正确映射。mapping 层负责
+        字段名映射和类型守卫；P2 output/error 非空校验在 _import_dict
+        的 _parse_tool_results 中执行，dry_run 的 _apply_simple_mapping
+        只做映射不执行下游校验。
+        """
+        diag = TraceDiagnostics()
+        mapping = _make_mapping()
+        data = _user_trace_dict()
+        # 正常 output/error 字段映射 → dry_run 通过
+        result = diag.dry_run(data, mapping=mapping)
+        assert result.passed is True
+
+        # 验证 output/error 字段已正确映射到 native schema
+        # （通过 _apply_simple_mapping 模拟）
+        from agent_tool_harness.trace_import import TraceImportAdapter
+
+        mapped = TraceImportAdapter._apply_simple_mapping(data, mapping)
+        assert mapped["tool_results"][0]["output"] == {"result": "ok"}
+        assert mapped["tool_results"][0]["error"] is None
+
+    def test_dry_run_success_behavior_not_regressed(self):
+        """req 6: dry-run success 行为不回归。
+
+        完整有效数据 → passed=True, medium confidence, 无 errors。
+        """
+        diag = TraceDiagnostics()
+        mapping = _make_mapping()
+        data = _user_trace_dict()
+        result = diag.dry_run(data, mapping=mapping)
+
+        assert result.passed is True
+        assert result.mode == "simple_mapping"
+        assert result.errors == []
+        assert result.confidence.level == "medium"
+        assert result.field_coverage.coverage_ratio == 1.0
+        assert result.type_diagnostics.all_passed is True
+
+    def test_dry_run_failure_behavior_not_regressed(self):
+        """req 6: dry-run failure 行为不回归。
+
+        空数据 → passed=False, low confidence, 有 errors。
+        """
+        diag = TraceDiagnostics()
+        mapping = _make_mapping()
+        data: dict = {}
+        result = diag.dry_run(data, mapping=mapping)
+
+        assert result.passed is False
+        assert len(result.errors) >= 1
+        assert result.field_coverage.coverage_ratio == 0.0
+        assert result.confidence.level == "low"
+
 
 class TestDryRunNative:
     def test_passes_with_valid_native_data(self):
@@ -591,6 +669,74 @@ class TestDryRunNative:
 
         assert result.type_diagnostics.all_passed is False
         assert result.confidence.level == "medium"  # native + type errors
+
+    # ------------------------------------------------------------------
+    # P2-1 修复验证: native mode 不产生 simple_mapping-style 字段
+    # ------------------------------------------------------------------
+
+    def test_native_coverage_no_mapping_semantics(self):
+        """req 1: native mode 不产生 simple_mapping-style unmapped mapping fields。
+
+        native mode 没有 mapping config，coverage report 中的 mapped_optional /
+        unmapped_optional / extra_source_keys 应始终为零/空。
+        """
+        diag = TraceDiagnostics()
+        data = _native_trace_dict()
+        result = diag.dry_run_native(data)
+
+        fc = result.field_coverage
+        assert fc.mapped_optional == 0
+        assert fc.unmapped_optional == []
+        assert fc.extra_source_keys == []
+
+        # 即使数据有额外顶层 key，native mode 也不报告 extra
+        data["custom_field"] = "anything"
+        result2 = diag.dry_run_native(data)
+        assert result2.field_coverage.extra_source_keys == []
+
+    def test_native_optional_timestamp_missing_not_coverage_failure(self):
+        """req 3: native mode optional timestamp 缺失不被当成 coverage failure。
+
+        timestamp 是可选字段，不在 _NATIVE_REQUIRED_PATHS 中，
+        缺失不应出现在 unmapped_required 中。
+        """
+        diag = TraceDiagnostics()
+        data = _native_trace_dict()
+        # 确保 tool_calls item 没有 timestamp
+        assert "timestamp" not in data["tool_calls"][0]
+
+        result = diag.dry_run_native(data)
+        assert "timestamp" not in str(result.field_coverage.unmapped_required)
+        assert result.passed is True
+        assert result.field_coverage.coverage_ratio == 1.0
+
+    def test_native_output_or_error_diagnostic_message(self):
+        """req 2 补充: output/error 缺失时给出清晰 diagnostic message。
+
+        区分 coverage 层（output key 存在即算 present）和 validation 层
+        （output 非空 dict 或 error 非空 str 至少一个）。
+        """
+        diag = TraceDiagnostics()
+        data = _native_trace_dict()
+        data["tool_results"][0]["output"] = {}
+        data["tool_results"][0]["error"] = None
+
+        result = diag.dry_run_native(data)
+
+        # coverage: output key 存在 → 不在 unmapped_required 中
+        assert "tool_results[].output" not in result.field_coverage.unmapped_required
+        # validation: output 为空 + error 为空 → 报错
+        assert any("needs output or error" in e for e in result.errors)
+        assert result.passed is False
+
+    def test_native_missing_output_key_in_coverage(self):
+        """output key 完全缺失时应出现在 coverage unmapped_required 中。"""
+        diag = TraceDiagnostics()
+        data = _native_trace_dict()
+        del data["tool_results"][0]["output"]
+
+        result = diag.dry_run_native(data)
+        assert "tool_results[].output" in result.field_coverage.unmapped_required
 
 
 class TestDryRunNativeNonDict:
