@@ -1,10 +1,10 @@
-"""CLIAgentAdapter Slice 1+2 测试 — command/config 校验 + input file 准备 + subprocess 执行。
+"""CLIAgentAdapter Slice 1+2+3 测试 — config 校验 + subprocess 执行 + trace import。
 
 架构边界:
 - 所有测试 zero-network, deterministic.
 - 使用 fake ScenarioSpec + tmp_path + fake CLI 命令.
 - 不读 .env、不调用外部 API。
-- 不集成 TraceImportAdapter（Slice 3）。
+- Slice 3 通过 _import_trace 委托 TraceImportAdapter，不重新实现解析逻辑。
 - 不生成 ReviewDecision。
 """
 
@@ -68,7 +68,12 @@ def _echo_cmd(msg: str = "hello") -> list[str]:
     return ["echo", msg, _INPUT_ARG, _TRACE_ARG]
 
 
-_DEFAULT_TRACE_JSON = '{"scenario_id":"t","tool_calls":[],"tool_results":[]}'
+_DEFAULT_TRACE_JSON = (
+    '{"scenario_id":"t",'
+    '"tool_calls":[{"call_id":"c1","tool_name":"echo","arguments":{}}],'
+    '"tool_results":[{"call_id":"c1","tool_name":"echo","status":"success","output":{"msg":"ok"}}]'
+    '}'
+)
 
 
 def _write_trace_cmd(
@@ -332,27 +337,7 @@ class TestBoundaryBehavior:
 
         assert "ReviewDecision" not in dir(ca)
 
-    def test_no_trace_import_adapter_import(self):
-        """Slice 2 不 import TraceImportAdapter。"""
-        import ast
-
-        import agent_tool_harness.cli_agent as ca
-
-        source = Path(ca.__file__).read_text(encoding="utf-8") if ca.__file__ else ""
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                module = (
-                    node.module
-                    if isinstance(node, ast.ImportFrom)
-                    else node.names[0].name
-                )
-                if module and "trace_import" in module:
-                    pytest.fail(
-                        f"Slice 2 must not import TraceImportAdapter: {ast.dump(node)}"
-                    )
-
-    def test_config_fields_present_for_slice_3(self):
+    def test_config_fields_present_for_slice_4(self):
         """CLIAgentAdapterConfig 已预留 Slice 3 字段但本轮不消费。"""
         cfg = _valid_config()
         assert cfg.trace_format == "native"
@@ -392,13 +377,14 @@ class TestRunSuccess:
         assert "error-output" in result.stderr_summary
 
     def test_run_writes_trace_file(self, tmp_path: Path):
-        """CLI 命令写入 trace 文件后，文件存在于 trace_output_path。"""
-        cfg = _valid_config(command=_write_trace_cmd())
+        """CLI 命令写入有效 trace 文件 → import 成功，execution_trace 非 None。"""
+        cfg = _valid_config(command=_write_trace_cmd(), trace_format="native")
         adapter = CLIAgentAdapter(cfg)
         out_dir = tmp_path / "out"
         result = adapter.run(_valid_scenario(), output_dir=out_dir)
         trace_file = out_dir / "trace_output.json"
         assert trace_file.exists()
+        assert result.execution_trace is not None  # Slice 3 导入
         assert result.errors == []
 
     def test_run_command_reflects_argv(self, tmp_path: Path):
@@ -644,7 +630,7 @@ class TestShellSafety:
 
 
 class TestSlice2Boundary:
-    """不读 .env / 不调 API / 不集成 TraceImportAdapter / 不生成 ReviewDecision。"""
+    """不读 .env / 不调 API / 不生成 ReviewDecision。"""
 
     def test_no_env_file_read(self):
         """cli_agent 模块不 import dotenv / load_dotenv。"""
@@ -683,3 +669,395 @@ class TestSlice2Boundary:
                     m in (module or "") for m in ("urllib", "requests", "httpx")
                 ):
                     pytest.fail(f"must not import network library: {module}")
+
+
+# ===========================================================================
+# Slice 3 helpers — 写完整 trace 文件的 fake CLI 命令
+# ===========================================================================
+
+_NATIVE_TRACE_DICT: dict = {
+    "scenario_id": "test-scenario",
+    "tool_calls": [
+        {"call_id": "c1", "tool_name": "tool.a", "arguments": {"key": "val"}},
+        {"call_id": "c2", "tool_name": "tool.b", "arguments": {}},
+    ],
+    "tool_results": [
+        {
+            "call_id": "c1",
+            "tool_name": "tool.a",
+            "status": "success",
+            "output": {"result": "ok"},
+        },
+        {
+            "call_id": "c2",
+            "tool_name": "tool.b",
+            "status": "error",
+            "error": "failed",
+        },
+    ],
+    "final_answer": "task completed",
+}
+
+_SIMPLE_MAPPING_TRACE_DICT: dict = {
+    "id": "test-scenario",
+    "calls": [{"cid": "c1", "name": "tool.a", "args": {"key": "val"}}],
+    "results": [
+        {"call": "c1", "name": "tool.a", "status": "success", "out": {"result": "ok"}}
+    ],
+    "answer": "task completed",
+}
+
+_VALID_SIMPLE_MAPPING: dict = {
+    "scenario_id_path": "id",
+    "tool_calls_path": "calls",
+    "tool_results_path": "results",
+    "tool_call_id_field": "cid",
+    "tool_call_name_field": "name",
+    "tool_result_call_id_field": "call",
+    "tool_result_name_field": "name",
+    "tool_result_output_field": "out",
+    "final_answer_path": "answer",
+}
+
+
+def _write_json_cmd(json_dict: dict) -> list[str]:
+    """生成一个 Python 命令，将 json_dict 写入 {trace_output_path}。"""
+    trace_json = json.dumps(json_dict, ensure_ascii=False)
+    script = (
+        "import pathlib,json,sys;"
+        f"pathlib.Path(sys.argv[1]).write_text({trace_json!r})"
+    )
+    return ["python", "-c", script, _TRACE_ARG, _INPUT_ARG]
+
+
+# ===========================================================================
+# Slice 3: TraceImportAdapter 集成测试
+# ===========================================================================
+
+
+class TestTraceImportNative:
+    """run 成功后 native trace 被 TraceImportAdapter 导入。"""
+
+    def test_native_trace_imported_to_execution_trace(self, tmp_path: Path):
+        """native trace 文件 → execution_trace 非 None。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_NATIVE_TRACE_DICT), trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is not None
+        assert result.evidence is not None
+        assert result.errors == []
+
+    def test_native_trace_scenario_id(self, tmp_path: Path):
+        """导入的 ExecutionTrace 保留 scenario_id。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_NATIVE_TRACE_DICT), trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is not None
+        assert result.execution_trace.scenario_id == "test-scenario"
+
+    def test_native_trace_tool_calls(self, tmp_path: Path):
+        """tool_calls 完整导入，call_id / tool_name 保持一致。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_NATIVE_TRACE_DICT), trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        trace = result.execution_trace
+        assert trace is not None
+        assert len(trace.tool_calls) == 2
+        assert trace.tool_calls[0].call_id == "c1"
+        assert trace.tool_calls[0].tool_name == "tool.a"
+
+    def test_native_trace_tool_results(self, tmp_path: Path):
+        """tool_results 完整导入，call_id / tool_name 保持一致。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_NATIVE_TRACE_DICT), trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        trace = result.execution_trace
+        assert trace is not None
+        assert len(trace.tool_results) == 2
+        assert trace.tool_results[0].call_id == "c1"
+        assert trace.tool_results[0].tool_name == "tool.a"
+
+    def test_native_trace_final_answer(self, tmp_path: Path):
+        """final_answer 正确导入。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_NATIVE_TRACE_DICT), trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is not None
+        assert result.execution_trace.final_answer == "task completed"
+
+    def test_native_evidence_signal_quality(self, tmp_path: Path):
+        """Evidence.signal_quality 为 recorded_trajectory。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_NATIVE_TRACE_DICT), trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.evidence is not None
+        assert "recorded" in result.evidence.signal_quality.lower()
+
+    def test_native_evidence_wraps_trace(self, tmp_path: Path):
+        """Evidence.trace 指向同一个 ExecutionTrace。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_NATIVE_TRACE_DICT), trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.evidence is not None
+        assert result.evidence.trace is result.execution_trace
+
+
+class TestTraceImportSimpleMapping:
+    """simple mapping mode 通过 SimpleMappingConfig 导入非标准 trace。"""
+
+    def test_simple_mapping_imports_trace(self, tmp_path: Path):
+        """simple mapping trace → execution_trace 非 None。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_SIMPLE_MAPPING_TRACE_DICT),
+            trace_format="simple_mapping",
+            trace_mapping=dict(_VALID_SIMPLE_MAPPING),
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is not None
+        assert result.evidence is not None
+
+    def test_simple_mapping_scenario_id(self, tmp_path: Path):
+        """映射后 scenario_id 正确（id → scenario_id）。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_SIMPLE_MAPPING_TRACE_DICT),
+            trace_format="simple_mapping",
+            trace_mapping=dict(_VALID_SIMPLE_MAPPING),
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is not None
+        assert result.execution_trace.scenario_id == "test-scenario"
+
+    def test_simple_mapping_tool_calls_remapped(self, tmp_path: Path):
+        """映射后 tool_calls 使用映射的字段名（cid → call_id, name → tool_name）。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_SIMPLE_MAPPING_TRACE_DICT),
+            trace_format="simple_mapping",
+            trace_mapping=dict(_VALID_SIMPLE_MAPPING),
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        trace = result.execution_trace
+        assert trace is not None
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].call_id == "c1"
+        assert trace.tool_calls[0].tool_name == "tool.a"
+
+    def test_simple_mapping_does_not_reimplement_parser(self, tmp_path: Path):
+        """CLIAgentAdapter 通过 SimpleMappingConfig 委托，不自己解析。"""
+        cfg = _valid_config(
+            command=_write_json_cmd(_SIMPLE_MAPPING_TRACE_DICT),
+            trace_format="simple_mapping",
+            trace_mapping=dict(_VALID_SIMPLE_MAPPING),
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        # 正确的 simple_mapping 导入应该成功
+        assert result.execution_trace is not None
+        assert result.errors == []
+
+
+class TestTraceImportErrors:
+    """trace import 受控错误处理。"""
+
+    def test_invalid_json_trace_file(self, tmp_path: Path):
+        """trace 文件是无效 JSON → import error，execution_trace=None。"""
+        cmd = [
+            "python", "-c",
+            "import pathlib,sys;pathlib.Path(sys.argv[1]).write_text('not json')",
+            _TRACE_ARG, _INPUT_ARG,
+        ]
+        cfg = _valid_config(command=cmd, trace_format="native")
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is None
+        assert result.evidence is None
+        assert any("trace import" in e for e in result.errors)
+
+    def test_schema_invalid_trace_file(self, tmp_path: Path):
+        """trace 文件 schema 不合法 → import error。"""
+        # 缺少必要字段 scenario_id
+        invalid_trace = {"tool_calls": [], "tool_results": []}
+        cfg = _valid_config(
+            command=_write_json_cmd(invalid_trace), trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is None
+        assert result.evidence is None
+        assert any("trace import" in e for e in result.errors)
+
+    def test_invalid_simple_mapping_config(self, tmp_path: Path):
+        """trace_mapping 缺少必要字段 → import error。"""
+        bad_mapping = {"scenario_id_path": "id"}  # 缺 tool_calls_path 等
+        cfg = _valid_config(
+            command=_write_json_cmd(_SIMPLE_MAPPING_TRACE_DICT),
+            trace_format="simple_mapping",
+            trace_mapping=bad_mapping,
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is None
+        assert result.evidence is None
+        assert any("trace import" in e for e in result.errors)
+
+    def test_trace_missing_no_import_error(self, tmp_path: Path):
+        """trace 文件缺失时只有 missing error，无 import error。"""
+        cfg = _valid_config(command=_echo_cmd("no trace"), trace_format="native")
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is None
+        assert any("not found" in e for e in result.errors)
+        # 不应有 "trace import failed"——根本没调用 TraceImportAdapter
+        assert not any("trace import" in e for e in result.errors)
+
+
+class TestTraceImportWithNonZeroExit:
+    """non-zero exit + trace 存在 → 仍导入 trace。"""
+
+    def test_non_zero_exit_still_imports_trace(self, tmp_path: Path):
+        """非零 exit 但 trace 文件存在且有效 → 仍导入。"""
+        # 先写 trace，再 exit 3
+        trace_json = json.dumps(_NATIVE_TRACE_DICT, ensure_ascii=False)
+        script = (
+            "import pathlib,sys;"
+            f"pathlib.Path(sys.argv[1]).write_text({trace_json!r});"
+            "sys.exit(3)"
+        )
+        cmd = ["python", "-c", script, _TRACE_ARG, _INPUT_ARG]
+        cfg = _valid_config(command=cmd, trace_format="native")
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.exit_code == 3
+        assert any("non-zero" in e for e in result.errors)
+        # trace 应成功导入
+        assert result.execution_trace is not None
+        assert result.evidence is not None
+
+    def test_timeout_no_trace_import(self, tmp_path: Path):
+        """超时时不尝试导入 trace。"""
+        cfg = _valid_config(
+            command=_sleep_cmd(30), timeout_seconds=0.3, trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.execution_trace is None
+        assert result.evidence is None
+        assert any("timed out" in e for e in result.errors)
+        # 不应有 import error——根本没尝试导入
+        assert not any("trace import" in e for e in result.errors)
+
+
+class TestSlice3Boundary:
+    """Slice 3 边界：不生成 ReviewDecision / 不接 assembly / 复用 TraceImportAdapter。"""
+
+    def test_no_review_decision(self):
+        """cli_agent 模块不导入或定义 ReviewDecision。"""
+        import agent_tool_harness.cli_agent as ca
+
+        assert "ReviewDecision" not in dir(ca)
+
+    def test_trace_import_adapter_is_imported(self):
+        """Slice 3 确实 import 了 TraceImportAdapter（证明复用而非重写）。"""
+        import agent_tool_harness.cli_agent as ca
+
+        assert hasattr(ca, "TraceImportAdapter")
+
+    def test_simple_mapping_config_is_imported(self):
+        """SimpleMappingConfig 被导入以构造 mapping。"""
+        import agent_tool_harness.cli_agent as ca
+
+        assert hasattr(ca, "SimpleMappingConfig")
+
+    def test_no_assembly_import(self):
+        """cli_agent 不 import assembly。"""
+        import ast
+
+        import agent_tool_harness.cli_agent as ca
+
+        source = Path(ca.__file__).read_text(encoding="utf-8") if ca.__file__ else ""
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                module = (
+                    node.module
+                    if isinstance(node, ast.ImportFrom)
+                    else node.names[0].name
+                )
+                if module and "assembly" in module:
+                    pytest.fail("must not import assembly")
+
+
+# ===========================================================================
+# Slice 2 回归：确保 Slice 3 不变破坏已有行为
+# ===========================================================================
+
+
+class TestSlice3NoSlice2Regression:
+    """Slice 3 不回归 Slice 2 行为。"""
+
+    def test_stdout_truncation_regression(self, tmp_path: Path):
+        """stdout 截断仍然工作。"""
+        long_msg = "A" * 200
+        cfg = _valid_config(
+            command=_echo_cmd(long_msg), max_stdout_chars=50, trace_format="native"
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert "truncated" in result.stdout_summary
+
+    def test_stderr_capture_regression(self, tmp_path: Path):
+        """stderr 捕获仍然工作。"""
+        cfg = _valid_config(command=_stderr_cmd("err"), trace_format="native")
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert "err" in result.stderr_summary
+
+    def test_env_policy_minimal_regression(self, tmp_path: Path):
+        """env_policy minimal 仍然工作。"""
+        check_cmd = [
+            "python", "-c",
+            "import json,os,sys;json.dump(sorted(os.environ.keys()),sys.stdout)",
+            _INPUT_ARG, _TRACE_ARG,
+        ]
+        os.environ["TEST_SLICE3_REG"] = "no"
+        try:
+            cfg = _valid_config(command=check_cmd, env_policy="minimal")
+            adapter = CLIAgentAdapter(cfg)
+            result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+            assert "TEST_SLICE3_REG" not in result.stdout_summary
+        finally:
+            del os.environ["TEST_SLICE3_REG"]
+
+    def test_allow_shell_regression(self, tmp_path: Path):
+        """allow_shell=True 仍然工作。"""
+        cfg = _valid_config(
+            command=["echo", "regression-shell", _INPUT_ARG, _TRACE_ARG],
+            allow_shell=True,
+        )
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert "regression-shell" in result.stdout_summary
+
+    def test_non_zero_exit_regression(self, tmp_path: Path):
+        """非零 exit still captured as before。"""
+        cfg = _valid_config(command=_exit_cmd(4), trace_format="native")
+        adapter = CLIAgentAdapter(cfg)
+        result = adapter.run(_valid_scenario(), output_dir=tmp_path / "out")
+        assert result.exit_code == 4
+        assert any("non-zero" in e for e in result.errors)

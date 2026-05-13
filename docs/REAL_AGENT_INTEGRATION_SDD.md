@@ -243,7 +243,7 @@ CLIAgentAdapter **不自己解析 trace**。它负责运行命令，然后把 tr
 |-------|--------|
 | Slice 1: command config + input file preparation | ✅ (2026-05-13, 27 tests) |
 | Slice 2: subprocess execution + timeout + env | ✅ (2026-05-13, 51 tests) |
-| Slice 3: TraceImportAdapter integration | ❌ |
+| Slice 3: TraceImportAdapter integration | ✅ (2026-05-13, 76 tests) |
 | Slice 4: assembly integration | ❌ |
 
 实现位置:

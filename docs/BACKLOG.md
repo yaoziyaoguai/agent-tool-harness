@@ -251,10 +251,10 @@ CLIAgentAdapter Slice 1+2 已实现。
   - [x] Slice 1: ScenarioSpec → input file + 受控 trace output path
   - [x] Slice 1: prepare_run() 生成 CLIAgentPreparedRun 执行计划
   - [x] Slice 2: subprocess 执行 + timeout + env policy + truncation
-  - [ ] Slice 3: TraceImportAdapter 解析 trace → ExecutionTrace
+  - [x] Slice 3: TraceImportAdapter 解析 trace → ExecutionTrace + Evidence
   - [ ] Slice 4: assembly 集成
 - **Not doing**: 不自己解析复杂 trace, 不自动读取 .env
-- **Phase**: Slice 1 ✅ → Slice 2 ✅ → Slice 3-4 pending
+- **Phase**: Slice 1 ✅ → Slice 2 ✅ → Slice 3 ✅ → Slice 4 pending
 
 ### C10. Real agent dogfood (local project)
 - **Status**: **blocked** (needs C8 + C9)

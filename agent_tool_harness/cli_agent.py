@@ -23,8 +23,8 @@
 Slice 分层
 ----------
 - Slice 1（done）：CLIAgentAdapterConfig / 命令校验 / input file 准备 / prepare_run
-- Slice 2（本轮）：subprocess 执行 / timeout / env 策略 / stdout stderr 截断 / run()
-- Slice 3（后续）：TraceImportAdapter 集成 / trace 解析
+- Slice 2（done）：subprocess 执行 / timeout / env 策略 / stdout stderr 截断 / run()
+- Slice 3（本轮）：TraceImportAdapter 集成 / trace 解析 / evidence 生成
 - Slice 4（后续）：assembly 集成 / CLI flag
 """
 
@@ -38,7 +38,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agent_tool_harness.core_contract import ExecutionTrace, ScenarioSpec
+from agent_tool_harness.core_contract import Evidence, ExecutionTrace, ScenarioSpec
+
+# TraceImportAdapter 在 Slice 3 中用于解析 trace 文件。
+# 导入时机: 模块级导入，因为 Slice 3 的 _import_trace() 是 run() 的核心路径。
+from agent_tool_harness.trace_import import SimpleMappingConfig, TraceImportAdapter
 
 # ---------------------------------------------------------------------------
 # 错误类型
@@ -163,8 +167,10 @@ class CLIAgentResult:
 
     架构边界:
     - **负责**: 携带一次 CLI Agent 执行的完整信息，供上游 (assembly/report) 消费。
-    - **不负责**: 不解析 trace——execution_trace 由 Slice 3 TraceImportAdapter 填入。
+    - **不负责**: 不自己解析 trace——execution_trace 和 evidence 由
+      TraceImportAdapter 填入（Slice 3）。
     - elapsed_seconds 记录端到端墙上时间，仅供 advisory，不参与 pass/fail 裁决。
+    - execution_trace / evidence 为 None 表示 trace import 未发生或失败。
     """
 
     exit_code: int
@@ -173,6 +179,7 @@ class CLIAgentResult:
     stdout_summary: str
     stderr_summary: str
     execution_trace: ExecutionTrace | None
+    evidence: Evidence | None
     errors: list[str]
     elapsed_seconds: float
 
@@ -191,12 +198,13 @@ class CLIAgentAdapter:
     - **为什么不能自己解析 trace**: 单一职责——CLI 负责进程编排，
       TraceImport 负责 trace 解析。两个模块独立测试，可组合使用。
 
-    Slice 1+2 实现范围:
+    Slice 1+2+3 实现范围:
     - 命令校验（通过 CLIAgentAdapterConfig.__post_init__）
     - ScenarioSpec → input JSON 文件
     - 受控 trace output path（禁止路径穿越）
     - prepare_run() 生成 CLIAgentPreparedRun 执行计划
     - run() 执行 CLI Agent 命令（subprocess + timeout + env policy + 截断）
+    - _import_trace() 委托 TraceImportAdapter 解析 trace（native + simple_mapping）
     """
 
     def __init__(self, config: CLIAgentAdapterConfig) -> None:
@@ -337,7 +345,54 @@ class CLIAgentAdapter:
         return raw
 
     # ------------------------------------------------------------------
-    # run（Slice 2: subprocess 执行）
+    # trace import（Slice 3: TraceImportAdapter 集成）
+    # ------------------------------------------------------------------
+
+    def _import_trace(
+        self, trace_path: Path
+    ) -> tuple[ExecutionTrace | None, Evidence | None, list[str]]:
+        """委托 TraceImportAdapter 解析 trace 文件。
+
+        这是 CLIAgentAdapter 与 TraceImportAdapter 的唯一集成点。
+        CLIAgentAdapter **不自己解析 trace**——只根据 ``config.trace_format``
+        构造对应的 TraceImportAdapter 并委托解析。TraceImportAdapter 已有
+        完整的 native + simple_mapping 两模式实现和校验逻辑，CLIAgentAdapter
+        不应重复实现。
+
+        为什么 trace import 失败只产出 errors 而不抛异常:
+        - trace import 失败是 advisory 信息，不改变进程执行事实。
+        - 调用方通过 ``execution_trace is None`` 判断是否成功。
+
+        Returns:
+            (execution_trace, evidence, import_errors)
+            import_errors 为空表示导入成功。
+        """
+        import_errors: list[str] = []
+
+        # 根据 trace_format 构造 TraceImportAdapter
+        mode = self._config.trace_format
+        mapping: SimpleMappingConfig | None = None
+        if mode == "simple_mapping" and self._config.trace_mapping:
+            try:
+                mapping = SimpleMappingConfig(**self._config.trace_mapping)
+            except Exception as e:
+                import_errors.append(
+                    f"trace import: invalid simple_mapping config: {e}"
+                )
+                return None, None, import_errors
+
+        try:
+            adapter = TraceImportAdapter(mode=mode, mapping=mapping)
+            execution_trace = adapter.import_file(trace_path)
+            evidence = adapter.to_evidence(execution_trace)
+        except Exception as e:
+            import_errors.append(f"trace import failed: {e}")
+            return None, None, import_errors
+
+        return execution_trace, evidence, import_errors
+
+    # ------------------------------------------------------------------
+    # run（Slice 2+3: subprocess 执行 + trace import）
     # ------------------------------------------------------------------
 
     def run(
@@ -412,15 +467,24 @@ class CLIAgentAdapter:
         )
 
         # 非零 exit code → warning（不阻断 trace 解析）
-        if exit_code != 0 and not any("timed out" in e for e in errors):
+        is_timeout = any("timed out" in e for e in errors)
+        if exit_code != 0 and not is_timeout:
             errors.append(f"command exited with non-zero code: {exit_code}")
 
-        # trace 文件缺失
+        # trace 文件缺失或超时 → 不导入 trace
+        # 超时时 trace 文件即使存在也可能不完整，不尝试导入。
         trace_path = Path(prepared.trace_output_path)
         if not trace_path.exists():
             errors.append(
                 f"trace output file not found: {prepared.trace_output_path}"
             )
+
+        # Slice 3: trace 存在且非超时 → 委托 TraceImportAdapter 解析
+        execution_trace: ExecutionTrace | None = None
+        evidence: Evidence | None = None
+        if trace_path.exists() and not is_timeout:
+            execution_trace, evidence, import_errors = self._import_trace(trace_path)
+            errors.extend(import_errors)
 
         return CLIAgentResult(
             exit_code=exit_code,
@@ -428,7 +492,8 @@ class CLIAgentAdapter:
             working_dir=prepared.working_dir,
             stdout_summary=stdout_summary,
             stderr_summary=stderr_summary,
-            execution_trace=None,  # Slice 3 接入
+            execution_trace=execution_trace,
+            evidence=evidence,
             errors=errors,
             elapsed_seconds=elapsed,
         )
