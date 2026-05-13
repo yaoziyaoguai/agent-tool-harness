@@ -1,7 +1,7 @@
 # Real Agent Integration SDD (Software Design Document)
 
-> **状态**: Implementation in progress — Phase A (native schema) + Phase B (simple mapping) + Phase C (CLIAgentAdapter Slice 1-4) + Phase D (integration) + Phase E (Level 1+2 dogfood) complete (2026-05-13).
-> Phase E Level 3 (real local agent) 和 Level 4 (real LLM) 尚未实现。详见 [DOGFOODING.md](DOGFOODING.md)。
+> **状态**: Implementation in progress — Phase A (native schema) + Phase B (simple mapping) + Phase C (CLIAgentAdapter Slice 1-4) + Phase D (integration) + Phase E (Level 1+2+3+4A dogfood) complete (2026-05-13).
+> Phase E Level 4B (target agent self real provider) deferred——前置条件未满足，详见 [DOGFOODING.md](DOGFOODING.md)。
 > **依赖**: Agent2Harness Core Flow (landed), CoreJudgeProvider (landed), LLMJudgeProvider (landed), explicit --env-file secret loading (landed).
 
 ---
@@ -265,8 +265,9 @@ stdout/stderr 截断、非零 exit code warning、trace 文件缺失检测。
 
 - Level 1 (fake CLI agent) ✅ — `examples/cli_agent_fake/`
 - Level 2 (toy CLI agent) ✅ — `examples/cli_agent_toy/`
-- Level 3 (real local agent) ❌ — 需要用户显式启用
-- Level 4 (real LLM / external API) ❌ — 需要用户显式配置密钥
+- Level 3 (real local agent wrapper) ✅ — `examples/my_first_agent_demo/adapter.py`
+- Level 4A (real LLM judge, harness 侧) ✅ — LLMJudgeProvider opt-in dogfood
+- Level 4B (target agent self real provider) ❌ deferred — target agent 尚缺 dogfood contract（headless CLI / --input / --trace-out / native trace export / real provider opt-in）
 
 详见 [DOGFOODING.md](DOGFOODING.md)。
 
