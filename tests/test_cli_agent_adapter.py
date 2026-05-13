@@ -188,6 +188,35 @@ class TestWorkingDirValidation:
 
 
 # ---------------------------------------------------------------------------
+# timeout_seconds 校验（P2.1: 配置阶段提前拒绝 <=0，不等 subprocess 失败）
+# ---------------------------------------------------------------------------
+
+
+class TestTimeoutValidation:
+    """timeout_seconds 必须是正数——安全边界校验。"""
+
+    def test_timeout_zero_rejected(self):
+        """timeout_seconds=0 必须在配置阶段拒绝——不是合法的超时值。"""
+        with pytest.raises(CLIAgentError, match="timeout_seconds must be > 0"):
+            _valid_config(timeout_seconds=0)
+
+    def test_timeout_negative_rejected(self):
+        """timeout_seconds<0 必须在配置阶段拒绝——负数没有语义。"""
+        with pytest.raises(CLIAgentError, match="timeout_seconds must be > 0"):
+            _valid_config(timeout_seconds=-1)
+
+    def test_timeout_positive_accepted(self):
+        """timeout_seconds>0 是合法配置——正常成功路径不受影响。"""
+        cfg = _valid_config(timeout_seconds=30.0)
+        assert cfg.timeout_seconds == 30.0
+
+    def test_timeout_default_accepted(self):
+        """默认 timeout_seconds=300.0 是合法配置。"""
+        cfg = _valid_config()
+        assert cfg.timeout_seconds == 300.0
+
+
+# ---------------------------------------------------------------------------
 # input file 准备
 # ---------------------------------------------------------------------------
 

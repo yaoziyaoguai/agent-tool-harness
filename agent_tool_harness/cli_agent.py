@@ -137,6 +137,16 @@ class CLIAgentAdapterConfig:
                     f"working_dir is not a directory: {self.working_dir}"
                 )
 
+        # 4. timeout_seconds 必须是正数（安全边界：在配置阶段提前拒绝 <=0，
+        #    避免等到 subprocess.run 才暴露——后者行为不可审计）。
+        #    timeout 是运行真实本地 CLI agent 的硬安全边界：防止失控进程无限挂起。
+        #    这不改变正常成功路径——timeout >=1 的合法配置不受影响。
+        if self.timeout_seconds <= 0:
+            raise CLIAgentError(
+                f"timeout_seconds must be > 0, got {self.timeout_seconds}. "
+                f"timeout is a hard safety boundary for CLI agent subprocess execution."
+            )
+
 
 # ---------------------------------------------------------------------------
 # Prepared run（只 plan，不 execute）

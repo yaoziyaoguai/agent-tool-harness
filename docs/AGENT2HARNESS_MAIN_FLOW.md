@@ -29,13 +29,18 @@
 | **Real LLM infrastructure & safety gate verified** | ⚠️ transport verified, semantic judge pending (2026-05-12) | `docs/DOGFOOD_REAL_LLM_001.md` |
 | **TraceImportAdapter (native schema)** | ✅ 已实现（2026-05-12） | `agent_tool_harness/trace_import.py` |
 | **TraceImportAdapter (simple mapping)** | ✅ 已实现（2026-05-12） | `docs/TRACE_IMPORT_ADAPTER_SPEC.md` |
-| **CLIAgentAdapter** | 📐 设计阶段（2026-05-12） | `docs/CLI_AGENT_ADAPTER_SPEC.md` |
+| **CLIAgentAdapter Slice 1-4** | ✅ 已实现（2026-05-13） | `agent_tool_harness/cli_agent.py` + `assembly.py` `build_cli_agent_core_flow()` |
+| CLIAgentAdapter assembly integration | ✅ 已完成（2026-05-13） | `tests/test_cli_agent_core_flow.py`（21 tests） |
+| Fake CLI agent core flow | ✅ 已跑通（2026-05-13） | `examples/cli_agent_fake/` |
 | RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
+| C10 Real agent dogfood | ⚠️ available, 尚未实施 | Track C |
 
-**结论：** Main Flow 已落地。LLM provider 配置模型（四类 provider）和
-FakeJudgeProvider（接口验证骨架）已就绪。真实 LLM 调用仍默认不启用。
-TraceImportAdapter native schema 已实现（`agent_tool_harness/trace_import.py`），
-用户可通过 `trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report` 导入已有 trace。
+**结论：** Main Flow 已落地。CLIAgentAdapter Slice 1-4 已实现，覆盖命令校验、
+subprocess 执行、trace import 集成、assembly core flow 装配。`build_cli_agent_core_flow()`
+端到端闭环已验证：ScenarioSpec → CLI Agent → trace file → TraceImportAdapter →
+ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → ReportSummary。
+C10（real agent dogfood）尚未实施——当前仅 fake CLI agent 验证通过，未使用真实私密 Agent。
+真实 LLM 调用仍默认不启用。
 
 ---
 

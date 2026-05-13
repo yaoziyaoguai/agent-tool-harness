@@ -12,7 +12,7 @@
 
 项目当前 Demo Track（mock replay + deterministic checks）可用。Core Track
 合约层已落地。Real Integration Track 中 TraceImportAdapter 已实现（native + simple mapping），
-CLIAgentAdapter Slice 1+2 已实现。
+CLIAgentAdapter Slice 1+2+3+4 已实现，assembly core flow 端到端闭环已跑通。
 
 三条 track 的边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
 
@@ -174,7 +174,8 @@ CLIAgentAdapter Slice 1+2 已实现。
 
 > 真实世界接入。所有 Real 组件通过 Protocol 接口接入 Core，不修改 Core。
 > 必须显式 opt-in。
-> **当前状态**: 设计阶段。TraceImportAdapter 已完成，CLIAgentAdapter Slice 1+2 已完成。
+> **当前状态**: TraceImportAdapter 已完成，CLIAgentAdapter Slice 1+2+3+4 已完成（assembly core flow 闭环）。
+> C10 real agent dogfood available, 尚未实施。
 > 详见 [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)。
 
 ### C1. Opt-in safety model spec
