@@ -47,12 +47,22 @@ def run(scenario_input: Path, trace_output: Path) -> None:
             "call_id": call_id,
             "tool_name": tool_name,
             "status": "success",
-            "output": {"result": f"simulated output from {tool_name}"},
+            "output": {
+                "evidence": [{"id": f"ev-{i + 1:03d}", "label": f"evidence from {tool_name}"}],
+                "summary": f"simulated {tool_name} result",
+            },
             "error": None,
         })
 
+    evidence_ids = ", ".join(
+        eid for tr in tool_results
+        for eid_obj in tr.get("output", {}).get("evidence", [])
+        for eid in [eid_obj.get("id", "")]
+    )
+
     final_answer = (
-        f"Executed {len(tool_calls)} tool(s) for scenario '{scenario_id}': "
+        f"Root cause: timeout. Evidence: {evidence_ids}. "
+        f"Fake agent executed {len(tool_calls)} tool(s) for scenario '{scenario_id}': "
         + ", ".join(tc["tool_name"] for tc in tool_calls)
         + ". All tools returned success."
     )

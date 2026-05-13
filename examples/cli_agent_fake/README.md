@@ -1,6 +1,10 @@
 # Fake CLI Agent Example
 
-用于验证 CLIAgentAdapter → Core Flow 端到端闭环的 fake CLI agent 示例。
+C10 Level 1 dogfood: 用于验证 CLIAgentAdapter → Core Flow 端到端闭环的
+fake CLI agent 示例。
+
+> **Dogfood Level**: Level 1 — Fake CLI Agent Dogfood
+> 详见 [docs/DOGFOODING.md](../../docs/DOGFOODING.md)
 
 ## 架构边界
 
@@ -12,6 +16,43 @@
 所有行为 deterministic，零网络依赖。
 
 ## 用法
+
+### Dogfood 快速命令
+
+```bash
+# 从项目根目录运行，验证完整 Core Flow 闭环
+python -c "
+from agent_tool_harness.assembly import build_cli_agent_core_flow
+from agent_tool_harness.cli_agent import CLIAgentAdapterConfig
+from agent_tool_harness.config.loader import load_tools, load_evals
+
+tools = load_tools('examples/cli_agent_fake/project.yaml')
+evals = load_evals('examples/cli_agent_fake/evals.yaml')
+
+for eval_spec in evals:
+    result = build_cli_agent_core_flow(
+        tool_specs=tools,
+        eval_spec=eval_spec,
+        cli_agent_config=CLIAgentAdapterConfig(
+            command=['python', 'examples/cli_agent_fake/fake_agent.py',
+                     '--input', '{input_path}',
+                     '--trace-out', '{trace_output_path}'],
+            working_dir='.',
+        ),
+        output_dir='/tmp/agent2harness-fake-dogfood',
+    )
+    print(f'eval {eval_spec.id}: passed={result.eval_result.passed}, '
+          f'signal={result.signal_quality}, '
+          f'tools={[c.tool_name for c in result.trace.tool_calls]}')
+"
+```
+
+预期输出:
+```
+Fake agent completed: N tool call(s), trace → /tmp/agent2harness-fake-dogfood/trace_output.json
+eval fake-cli-search: passed=True, signal=recorded_trajectory, tools=['knowledge.search']
+eval fake-cli-both-tools: passed=True, signal=recorded_trajectory, tools=['knowledge.search', 'trace.lookup']
+```
 
 ### 1. 直接运行 fake_agent.py
 

@@ -33,13 +33,13 @@
 | CLIAgentAdapter assembly integration | ✅ 已完成（2026-05-13） | `tests/test_cli_agent_core_flow.py`（21 tests） |
 | Fake CLI agent core flow | ✅ 已跑通（2026-05-13） | `examples/cli_agent_fake/` |
 | RealAgentAdapter | ❌ 尚未实现 | future（Track C） |
-| C10 Real agent dogfood | ⚠️ available, 尚未实施 | Track C |
+| C10 Real agent dogfood | ✅ Level 1+2 done（2026-05-13） | Track C |
 
 **结论：** Main Flow 已落地。CLIAgentAdapter Slice 1-4 已实现，覆盖命令校验、
 subprocess 执行、trace import 集成、assembly core flow 装配。`build_cli_agent_core_flow()`
 端到端闭环已验证：ScenarioSpec → CLI Agent → trace file → TraceImportAdapter →
 ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → ReportSummary。
-C10（real agent dogfood）尚未实施——当前仅 fake CLI agent 验证通过，未使用真实私密 Agent。
+C10 Level 1+2 dogfood 已完成（fake + toy CLI agent，12 smoke tests）。Level 3/4（真实本地 Agent / 真实 LLM）尚未实施。
 真实 LLM 调用仍默认不启用。
 
 ---

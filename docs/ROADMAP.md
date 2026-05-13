@@ -100,7 +100,7 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | C7 | LiveAnthropicTransport 验证或删除 | not started (legacy LiveAnthropicTransport 保持不动，新 transport 独立) |
 | C8 | **TraceImportAdapter** | **native + simple mapping done** (2026-05-12: trace_import.py + 83 tests) |
 | C9 | **CLIAgentAdapter** | **Slice 1+2+3+4 done** (config + subprocess + trace import + assembly integration, 97 tests) |
-| C10 | **Real agent dogfood (本地项目)** | **available** (C9 assembly integration landed 2026-05-13) |
+| C10 | **Real agent dogfood (本地项目)** | **Level 1+2 done** (2026-05-13: fake + toy CLI agent dogfood, 12 smoke tests) |
 
 **Track C 最新进展（2026-05-13）：** CLIAgentAdapter Slice 4 完成——assembly 集成落地。
 `build_cli_agent_core_flow()` 实现端到端闭环：ScenarioSpec → CLIAgentAdapter → fake CLI agent

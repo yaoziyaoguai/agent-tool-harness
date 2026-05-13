@@ -1,7 +1,7 @@
 # Real Agent Integration SDD (Software Design Document)
 
-> **状态**: Implementation in progress — Phase A (native schema) + Phase B (simple mapping) + Phase C (CLIAgentAdapter Slice 1-4) + Phase D (integration) complete (2026-05-13).
-> Phase E (real agent dogfood) 尚未实现。
+> **状态**: Implementation in progress — Phase A (native schema) + Phase B (simple mapping) + Phase C (CLIAgentAdapter Slice 1-4) + Phase D (integration) + Phase E (Level 1+2 dogfood) complete (2026-05-13).
+> Phase E Level 3 (real local agent) 和 Level 4 (real LLM) 尚未实现。详见 [DOGFOODING.md](DOGFOODING.md)。
 > **依赖**: Agent2Harness Core Flow (landed), CoreJudgeProvider (landed), LLMJudgeProvider (landed), explicit --env-file secret loading (landed).
 
 ---
@@ -261,9 +261,14 @@ stdout/stderr 截断、非零 exit code warning、trace 文件缺失检测。
 已完成。CLIAgentAdapter.run() 委托 TraceImportAdapter 解析 trace，
 端到端链路已通过 `build_cli_agent_core_flow()` 验证。
 
-### Phase E: Real Agent Dogfood ❌
+### Phase E: Real Agent Dogfood
 
-尚未实现。详见 [CLI_AGENT_ADAPTER_SPEC.md](CLI_AGENT_ADAPTER_SPEC.md)。
+- Level 1 (fake CLI agent) ✅ — `examples/cli_agent_fake/`
+- Level 2 (toy CLI agent) ✅ — `examples/cli_agent_toy/`
+- Level 3 (real local agent) ❌ — 需要用户显式启用
+- Level 4 (real LLM / external API) ❌ — 需要用户显式配置密钥
+
+详见 [DOGFOODING.md](DOGFOODING.md)。
 
 ---
 
