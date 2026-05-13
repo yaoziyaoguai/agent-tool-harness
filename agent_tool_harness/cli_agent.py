@@ -22,8 +22,8 @@
 
 Slice 分层
 ----------
-- Slice 1（本轮）：CLIAgentAdapterConfig / 命令校验 / input file 准备 / prepare_run
-- Slice 2（后续）：subprocess 执行 / timeout / env 策略 / stdout stderr 截断
+- Slice 1（done）：CLIAgentAdapterConfig / 命令校验 / input file 准备 / prepare_run
+- Slice 2（本轮）：subprocess 执行 / timeout / env 策略 / stdout stderr 截断 / run()
 - Slice 3（后续）：TraceImportAdapter 集成 / trace 解析
 - Slice 4（后续）：assembly 集成 / CLI flag
 """
@@ -31,11 +31,14 @@ Slice 分层
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agent_tool_harness.core_contract import ScenarioSpec
+from agent_tool_harness.core_contract import ExecutionTrace, ScenarioSpec
 
 # ---------------------------------------------------------------------------
 # 错误类型
@@ -154,8 +157,28 @@ class CLIAgentPreparedRun:
     trace_output_path: str
 
 
+@dataclass
+class CLIAgentResult:
+    """CLI Agent 运行结果。
+
+    架构边界:
+    - **负责**: 携带一次 CLI Agent 执行的完整信息，供上游 (assembly/report) 消费。
+    - **不负责**: 不解析 trace——execution_trace 由 Slice 3 TraceImportAdapter 填入。
+    - elapsed_seconds 记录端到端墙上时间，仅供 advisory，不参与 pass/fail 裁决。
+    """
+
+    exit_code: int
+    command: str
+    working_dir: str
+    stdout_summary: str
+    stderr_summary: str
+    execution_trace: ExecutionTrace | None
+    errors: list[str]
+    elapsed_seconds: float
+
+
 # ---------------------------------------------------------------------------
-# CLIAgentAdapter（Slice 1: 仅 prepare，不 run）
+# CLIAgentAdapter（Slice 1+2: prepare + run）
 # ---------------------------------------------------------------------------
 
 
@@ -168,11 +191,12 @@ class CLIAgentAdapter:
     - **为什么不能自己解析 trace**: 单一职责——CLI 负责进程编排，
       TraceImport 负责 trace 解析。两个模块独立测试，可组合使用。
 
-    Slice 1 实现范围:
+    Slice 1+2 实现范围:
     - 命令校验（通过 CLIAgentAdapterConfig.__post_init__）
     - ScenarioSpec → input JSON 文件
     - 受控 trace output path（禁止路径穿越）
     - prepare_run() 生成 CLIAgentPreparedRun 执行计划
+    - run() 执行 CLI Agent 命令（subprocess + timeout + env policy + 截断）
     """
 
     def __init__(self, config: CLIAgentAdapterConfig) -> None:
@@ -262,4 +286,149 @@ class CLIAgentAdapter:
             working_dir=working_dir,
             input_path=str(input_path),
             trace_output_path=str(trace_output_path),
+        )
+
+    # ------------------------------------------------------------------
+    # env
+    # ------------------------------------------------------------------
+
+    def _build_env(self) -> dict[str, str]:
+        """根据 env_policy 构建子进程环境变量。
+
+        - minimal: 仅 PATH / HOME / TMPDIR / TEMP / TMP
+        - allowlist: 仅传递 env_allowlist 中列出的变量
+        - inherit: 传递全部 os.environ（需显式 opt-in）
+        """
+        policy = self._config.env_policy
+
+        if policy == "inherit":
+            return dict(os.environ)
+
+        if policy == "allowlist":
+            allowed = set(self._config.env_allowlist or [])
+            return {k: v for k, v in os.environ.items() if k in allowed}
+
+        # minimal
+        minimal: dict[str, str] = {}
+        for key in ("PATH", "HOME", "TMPDIR", "TEMP", "TMP"):
+            if key in os.environ:
+                minimal[key] = os.environ[key]
+        return minimal
+
+    # ------------------------------------------------------------------
+    # output helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _truncate(text: str, max_chars: int | None, label: str) -> str:
+        """按 max_chars 截断文本，超出时附加截断标记。max_chars=None 不截断。"""
+        if max_chars is None or len(text) <= max_chars:
+            return text
+        truncated = text[:max_chars]
+        return f"{truncated}...(truncated, total {len(text)} chars)"
+
+    @staticmethod
+    def _decode_output(raw: str | bytes | None) -> str:
+        """将 subprocess 输出统一转为 str。"""
+        if raw is None:
+            return ""
+        if isinstance(raw, bytes):
+            return raw.decode("utf-8", errors="replace")
+        return raw
+
+    # ------------------------------------------------------------------
+    # run（Slice 2: subprocess 执行）
+    # ------------------------------------------------------------------
+
+    def run(
+        self,
+        scenario: ScenarioSpec,
+        *,
+        output_dir: Path | str,
+    ) -> CLIAgentResult:
+        """执行 CLI Agent 命令并收集结果。
+
+        完整流程:
+        1. prepare_run() → CLIAgentPreparedRun（input file + argv + 路径）
+        2. _build_env() → 子进程环境变量
+        3. subprocess.run() → exit_code / stdout / stderr
+        4. 截断 stdout/stderr → stdout_summary / stderr_summary
+        5. 检查 trace 文件是否存在 → errors
+
+        不解析 trace——execution_trace 始终为 None（Slice 3 接入）。
+        """
+        prepared = self.prepare_run(scenario, output_dir=output_dir)
+        errors: list[str] = []
+
+        # 构建环境变量
+        env = self._build_env()
+
+        # 确定 shell 参数——allow_shell 时传拼接字符串
+        if self._config.allow_shell:
+            popen_args: list[str] | str = " ".join(prepared.argv)
+        else:
+            popen_args = prepared.argv
+
+        # 执行
+        t0 = time.monotonic()
+        try:
+            result = subprocess.run(
+                popen_args,
+                cwd=prepared.working_dir,
+                env=env,
+                capture_output=True,
+                timeout=self._config.timeout_seconds,
+                shell=self._config.allow_shell,
+                text=True,
+            )
+            exit_code = result.returncode
+            stdout_raw: str | bytes | None = result.stdout
+            stderr_raw: str | bytes | None = result.stderr
+        except subprocess.TimeoutExpired as e:
+            exit_code = -1
+            stdout_raw = e.stdout
+            stderr_raw = e.stderr
+            errors.append(
+                f"command timed out after {self._config.timeout_seconds}s"
+            )
+        except OSError as e:
+            exit_code = -1
+            stdout_raw = ""
+            stderr_raw = str(e)
+            errors.append(f"command execution failed: {e}")
+
+        elapsed = time.monotonic() - t0
+
+        # 解码并截断
+        stdout_summary = self._truncate(
+            self._decode_output(stdout_raw),
+            self._config.max_stdout_chars,
+            "stdout",
+        )
+        stderr_summary = self._truncate(
+            self._decode_output(stderr_raw),
+            self._config.max_stderr_chars,
+            "stderr",
+        )
+
+        # 非零 exit code → warning（不阻断 trace 解析）
+        if exit_code != 0 and not any("timed out" in e for e in errors):
+            errors.append(f"command exited with non-zero code: {exit_code}")
+
+        # trace 文件缺失
+        trace_path = Path(prepared.trace_output_path)
+        if not trace_path.exists():
+            errors.append(
+                f"trace output file not found: {prepared.trace_output_path}"
+            )
+
+        return CLIAgentResult(
+            exit_code=exit_code,
+            command=" ".join(prepared.argv),
+            working_dir=prepared.working_dir,
+            stdout_summary=stdout_summary,
+            stderr_summary=stderr_summary,
+            execution_trace=None,  # Slice 3 接入
+            errors=errors,
+            elapsed_seconds=elapsed,
         )

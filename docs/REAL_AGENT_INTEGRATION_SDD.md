@@ -242,17 +242,19 @@ CLIAgentAdapter **不自己解析 trace**。它负责运行命令，然后把 tr
 | Slice | Status |
 |-------|--------|
 | Slice 1: command config + input file preparation | ✅ (2026-05-13, 27 tests) |
-| Slice 2: subprocess execution + timeout + env | ❌ |
+| Slice 2: subprocess execution + timeout + env | ✅ (2026-05-13, 51 tests) |
 | Slice 3: TraceImportAdapter integration | ❌ |
 | Slice 4: assembly integration | ❌ |
 
 实现位置:
-- `agent_tool_harness/cli_agent.py` — CLIAgentAdapterConfig + CLIAgentPreparedRun + CLIAgentAdapter
-- `tests/test_cli_agent_adapter.py` — 27 tests
+- `agent_tool_harness/cli_agent.py` — CLIAgentAdapterConfig + CLIAgentPreparedRun + CLIAgentResult + CLIAgentAdapter
+- `tests/test_cli_agent_adapter.py` — 51 tests
 
 Slice 1 实现: command 必须是 list[str]、占位符 {input_path}/{trace_output_path} 校验、
 working_dir 校验、ScenarioSpec → input JSON file、prepare_run() 生成执行计划。
-不运行 subprocess、不集成 TraceImportAdapter。
+Slice 2 实现: subprocess.run() 执行、timeout 控制、env_policy (minimal/allowlist/inherit)、
+stdout/stderr 截断、非零 exit code warning、trace 文件缺失检测。
+不集成 TraceImportAdapter。
 
 ### Phase D/E: Integration / Dogfood ❌
 

@@ -99,7 +99,7 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | C6 | Deterministic + LLM judge 组合 | done (2026-05-12: CoreEvaluation judge_provider 接入; passed 仍由 RuleJudge 决定, JudgeFinding 为 advisory) |
 | C7 | LiveAnthropicTransport 验证或删除 | not started (legacy LiveAnthropicTransport 保持不动，新 transport 独立) |
 | C8 | **TraceImportAdapter** | **native + simple mapping done** (2026-05-12: trace_import.py + 83 tests) |
-| C9 | **CLIAgentAdapter** | **Slice 1 done** (config + command + input prep, 27 tests); Slice 2-4 pending |
+| C9 | **CLIAgentAdapter** | **Slice 1+2 done** (config + command + input prep + subprocess, 51 tests); Slice 3-4 pending |
 | C10 | **Real agent dogfood (本地项目)** | **blocked** (needs C9) |
 
 **Track C 最新进展（2026-05-12）：** TraceImportAdapter native + simple mapping 已实现（88 tests）。
