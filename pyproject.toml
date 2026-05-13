@@ -23,6 +23,9 @@ include = ["agent_tool_harness*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "integration: integration tests that depend on real external components",
+]
 
 [tool.ruff]
 line-length = 100

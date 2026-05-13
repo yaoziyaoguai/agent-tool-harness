@@ -68,17 +68,17 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 | B7 | Core contract tests | in progress (81+ tests across 11 test files) |
 | B8 | Forbidden dependency tests | in progress (AST-based check) |
 
-**Track B/C 最新进展（2026-05-12）：**
+**Track B/C 最新进展（2026-05-13）：**
 
 **Real LLM infrastructure & safety gate** 已验证通过（`docs/DOGFOOD_REAL_LLM_001.md`）。
 openai-compatible transport + factory wiring + --env-file secret loading 均已跑通。
 Semantic JudgeFinding 因 provider response parsing bad_response 尚未成功产出，
 待后续调试。TraceImportAdapter / CLIAgentAdapter 不受此影响。
 
-**Real Agent Integration SDD** 进入设计阶段（`docs/REAL_AGENT_INTEGRATION_SDD.md`）。
+**Real Agent Integration SDD** 进入实现阶段（`docs/REAL_AGENT_INTEGRATION_SDD.md`）。
 TraceImportAdapter + CLIAgentAdapter spec 已完成。
 
-**Track B 进展（2026-05-11）：** Agent2Harness main flow 端到端落地完成。
+**Track B 进展（2026-05-13）：** Agent2Harness main flow 端到端落地完成。
 新增 4 个模块（`agent2harness_adapter.py`, `core_evaluation.py`, `core_report_bridge.py`,
 `assembly.py` 扩展），新增 3 个文档（`AGENT2HARNESS_MAIN_FLOW.md` + 2 个更新），
 新增 18 个集成测试（`test_agent2harness_main_flow.py`）。完整 Core Flow 链路已验证：
@@ -87,7 +87,7 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 [AGENT2HARNESS_CORE_SPEC.md](AGENT2HARNESS_CORE_SPEC.md)、
 [DEMO_TO_CORE_MIGRATION.md](DEMO_TO_CORE_MIGRATION.md)。
 
-### Track C: Real Integration（active，设计阶段）
+### Track C: Real Integration（active，实现阶段）
 
 | ID | 事项 | 状态 |
 |----|------|------|
