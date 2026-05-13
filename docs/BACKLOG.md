@@ -299,10 +299,11 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 - **Not doing**: 不做 automatic response rewriting
 
 ### D6. Tool spec quality (Module 6)
-- **Status**: 🔜 future（ToolDesignAuditor + bootstrap 有基础检查，未系统化）
+- **Status**: 🟢 10 deterministic rules done (2026-05-13)。examples/auth/response_format deferred（ToolSpec schema 不支持）。
+- **Landed**: `tool_spec_inspection.py` (ToolSpecInspector class, 10 rules, 39 tests): `tool_spec.description.exists` (ERROR), `tool_spec.description.useful_length` (WARNING), `tool_spec.input_schema.exists` (ERROR), `tool_spec.parameter.name.explicit` (WARNING), `tool_spec.required_parameter.documented` (WARNING), `tool_spec.output_contract.documented` (WARNING), `tool_spec.side_effects.documented` (WARNING), `tool_spec.when_to_use.documented` (WARNING), `tool_spec.when_not_to_use.documented` (WARNING), `tool_spec.token_policy.defined` (INFO)。全部 deterministic, zero-network。ERROR 影响 EvaluationResult.passed, WARNING/INFO 不影响。CoreEvaluation 通过可选 `spec_inspector` + `tool_specs` 参数接入。
 - **Why**: tool descriptions/schemas 质量直接影响 Agent tool selection
-- **Acceptance**: 完整 spec quality check catalog: description clarity, schema strictness, examples, side_effects annotation, auth docs, when_to_use/when_not_to_use
-- **Not doing**: 不做自动 spec generation（bootstrap 已存在，不扩展）
+- **Acceptance**: ✅ 10 deterministic rules landed, CoreEvaluation integrated
+- **Not doing**: 不做自动 spec generation（bootstrap 已存在，不扩展）；不复用 ToolDesignAuditor（D4 工效学互补不重叠）
 
 ### D7. Batch / multi-trace evaluation
 - **Status**: 🔜 future

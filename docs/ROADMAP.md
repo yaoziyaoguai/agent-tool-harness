@@ -117,7 +117,7 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | D3 | **Tool metrics** (Module 3) | 🔜 future — error rate, redundancy, response size, latency, token estimates |
 | D4 | **Tool ergonomics evaluation** (Module 4) | 🔜 future — low-level/overlap/namespace/name ambiguity/chain consolidation |
 | D5 | **Tool response quality** (Module 5) | 🔜 future — context meaningfulness, verbosity, error actionability, faithfulness |
-| D6 | **Tool spec quality** (Module 6) | 🔜 future — description clarity, schema strictness, examples, side effects, auth docs |
+| D6 | **Tool spec quality** (Module 6) | 🟢 10 deterministic rules done (2026-05-13) — `tool_spec_inspection.py`: description.exists, description.useful_length, input_schema.exists, parameter.name.explicit, required_parameter.documented, output_contract.documented, side_effects.documented, when_to_use.documented, when_not_to_use.documented, token_policy.defined。CoreEvaluation 集成。examples/auth/response_format deferred（ToolSpec schema 不支持）。|
 | D7 | **Batch / multi-trace evaluation** | 🔜 future |
 | D8 | **Human review UX** | 🔜 future |
 

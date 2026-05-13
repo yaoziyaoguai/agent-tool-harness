@@ -48,8 +48,9 @@ class CoreEvaluation:
       可选 JudgeFinding 列表）。
     - **不负责**：不实现 LLM 语义判断、不生成 ReviewDecision、不读配置。
     - **EvaluationResult.passed 由所有 deterministic RuleFinding 共同决定**——
-      trace-level ToolUseInspector findings 和 eval-level RuleJudge findings
-      都属于 deterministic RuleFinding。任一 rule_passed=False 则整体 passed=False。
+      trace-level ToolUseInspector findings、eval-level RuleJudge findings、
+      tool-spec ToolSpecInspector findings 都属于 deterministic RuleFinding。
+      任一 rule_passed=False 则整体 passed=False。
       JudgeFinding 为 advisory only，不影响 passed。ReviewDecision 不自动生成。
 
     使用方式：
@@ -60,7 +61,11 @@ class CoreEvaluation:
         eval_result = CoreEvaluation(
             judge_provider=FakeJudgeProvider()
         ).evaluate(evidence, eval_spec)
-        # eval_result.findings 同时包含 RuleFinding 和 JudgeFinding
+
+        # 含 tool spec inspection（Phase 2 / D6）
+        eval_result = CoreEvaluation(
+            spec_inspector=ToolSpecInspector()
+        ).evaluate(evidence, eval_spec, tool_specs=tool_specs)
     """
 
     def __init__(
@@ -68,19 +73,26 @@ class CoreEvaluation:
         judge: RuleJudge | None = None,
         judge_provider: CoreJudgeProvider | None = None,
         inspector: ToolUseInspector | None = _SENTINEL,
+        spec_inspector: object | None = None,  # ToolSpecInspector | None
     ):
         """初始化 CoreEvaluation。
 
         judge 参数允许注入（测试可注入 mock），默认使用 RuleJudge。
         judge_provider 可选——传入 CoreJudgeProvider 实现（如 FakeJudgeProvider）
         后，evaluate() 会将 JudgeFinding 追加到 EvaluationResult.findings 中。
+        spec_inspector 可选——传入 ToolSpecInspector 实例后，evaluate() 可通过
+        tool_specs 参数接收 ToolSpec 列表并运行 spec quality inspection。
         """
         self._judge = judge or RuleJudge()
         self._judge_provider = judge_provider
         self._inspector = ToolUseInspector() if inspector is _SENTINEL else inspector
+        self._spec_inspector = spec_inspector
 
     def evaluate(
-        self, evidence: Evidence, eval_spec: EvalSpec
+        self,
+        evidence: Evidence,
+        eval_spec: EvalSpec,
+        tool_specs: list | None = None,  # list[ToolSpec] | None
     ) -> EvaluationResult:
         """消费 Evidence，产出 EvaluationResult。
 
@@ -88,10 +100,16 @@ class CoreEvaluation:
         1. ExecutionTrace → AgentRunResult（反向桥接，供 RuleJudge 消费）
         2. RuleJudge.judge(eval_spec, agent_run_result) → JudgeResult
         3. JudgeResult → EvaluationResult（通过 demo_core_bridge）
-        4. 如果配置了 judge_provider：
+        4. 如果配置了 spec_inspector 且 tool_specs 非空：
+           a. 调用 spec_inspector.inspect(tool_specs) → list[RuleFinding]
+           b. 追加到 EvaluationResult.findings
+        5. 如果配置了 judge_provider：
            a. 调用 judge_provider.evaluate(evidence) → list[JudgeFinding]
            b. 追加到 EvaluationResult.findings
            c. **不改变** RuleJudge 的 passed 判定
+
+        tool_specs 参数仅当构造时传入 spec_inspector 时才生效。
+        不传时向后兼容，行为不变。
 
         EvaluationResult 不自动生成 ReviewDecision——人工 Reviewer 必须在查看
         所有 evidence 后显式创建 ReviewDecision。
@@ -113,13 +131,20 @@ class CoreEvaluation:
         # 合并 trace-level RuleFinding 到 EvaluationResult
         evaluation_result.findings = list(trace_findings) + list(evaluation_result.findings)
 
+        # tool spec quality inspection（D6 — 可选）
+        if self._spec_inspector is not None and tool_specs:
+            spec_findings = self._spec_inspector.inspect(tool_specs)
+            evaluation_result.findings = (
+                list(evaluation_result.findings) + list(spec_findings)
+            )
+
         # 可选 LLM judge 辅助评估
         if self._judge_provider is not None:
             judge_findings = self._judge_provider.evaluate(evidence)
             evaluation_result.findings = list(evaluation_result.findings) + list(judge_findings)
 
         # 重算 passed：所有 deterministic RuleFinding 都通过才为 True
-        # (JudgeFinding 不影响 passed)
+        # (JudgeFinding 不影响 passed。D6 WARNING/INFO finding rule_passed=True)
         evaluation_result.passed = all(
             f.rule_passed
             for f in evaluation_result.findings
