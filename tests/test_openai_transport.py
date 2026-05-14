@@ -642,7 +642,8 @@ def test_sanitized_shape_no_secrets():
     })
     assert shape["content_type"] == "str"
     assert shape["content_len"] == 5000
-    assert len(shape["content_preview"]) <= 200
+    # content_preview 已被移除（安全：即使截断也可能泄露用户数据）
+    assert "content_preview" not in shape
     # 不包含完整 content
     assert "a" * 5000 not in str(shape)
 

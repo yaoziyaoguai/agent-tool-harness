@@ -505,6 +505,7 @@ def _sanitized_response_shape(payload: dict) -> dict:
     - raw response body
     - api_key / Authorization header
     - 完整 content 文本（只保留类型和长度）
+    - content 内容预览（即使截断也可能泄露用户数据）
     """
     shape: dict[str, object] = {
         "top_level_keys": sorted(payload.keys()),
@@ -522,7 +523,6 @@ def _sanitized_response_shape(payload: dict) -> dict:
                 shape["content_type"] = type(content).__name__
                 if isinstance(content, str):
                     shape["content_len"] = len(content)
-                    shape["content_preview"] = content[:200]
                 elif isinstance(content, list):
                     shape["content_parts_count"] = len(content)
                 elif isinstance(content, dict):

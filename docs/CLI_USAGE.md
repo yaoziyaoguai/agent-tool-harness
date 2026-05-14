@@ -81,7 +81,8 @@ python -m agent_tool_harness.cli judge-provider-preflight --out <dir>
 ## 重要约束
 
 - `run` 命令硬编码 `MockReplayAdapter`，不支持注入自定义 adapter。
-- `--judge-provider anthropic_compatible_live` 需要 `--live --confirm-i-have-real-key`
-  双标志 + 4 个 env var。此路径代码存在但从未对真实端点验证。
+- `--judge-provider anthropic_compatible_live` 为 legacy 路径（superseded），不推荐新使用。
+  当前推荐 `--judge-provider llm` 配合 `--live --confirm-i-have-real-key` + explicit secret source。
+  openai-compatible / anthropic-compatible transport 已通过 real LLM smoke 验证。
 - `bootstrap` / `scaffold-*` 不执行用户代码、不联网、不读 `.env`。
 - 所有 `llm_cost.json` 为 advisory-only，不是真实账单。

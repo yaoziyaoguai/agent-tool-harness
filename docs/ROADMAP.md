@@ -13,7 +13,7 @@
 ## 当前阶段：Agent2Harness Main Flow Landing
 
 **已完成：**
-- [x] 13 个 CLI 子命令
+- [x] 14 个 CLI 子命令
 - [x] Config Loader（YAML → Spec）
 - [x] MockReplayAdapter（good/bad 分支）
 - [x] TranscriptReplayAdapter（历史轨迹重放）

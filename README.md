@@ -48,22 +48,51 @@ pip install -e ".[dev]"
 python -m pytest tests/ -q
 ```
 
-### Import a trace
+### Import a trace and evaluate
 
 The primary workflow: your external runner produces a trace → harness imports and evaluates.
 
 ```bash
 python -c "
 from agent_tool_harness.trace_import import import_trace_as_evidence
+from agent_tool_harness.core_evaluation import CoreEvaluation, EvalSpec
 
+# 1. Import a native-schema trace
 evidence = import_trace_as_evidence('examples/trace_import/native_trace.json')
 trace = evidence.trace
-print(f'scenario:    {trace.scenario_id}')
-print(f'tool_calls:  {len(trace.tool_calls)}')
-print(f'tool_results: {len(trace.tool_results)}')
-print(f'signal_quality: {evidence.signal_quality}')
+print(f'Imported: scenario={trace.scenario_id}')
+print(f'  tool_calls={len(trace.tool_calls)} tool_results={len(trace.tool_results)}')
+print(f'  signal_quality={evidence.signal_quality}')
+
+# 2. Run deterministic tool-use inspection (no LLM required)
+eval_spec = EvalSpec(
+    id=trace.scenario_id, name=trace.scenario_id,
+    category='knowledge_search', split='dev', realism_level='recorded',
+    complexity='simple', source='external_runner',
+    user_prompt='Find root cause and recommendation',
+    initial_context={}, verifiable_outcome={},
+    success_criteria=['identify root cause', 'provide recommendation'],
+    expected_tool_behavior={}, judge={},
+)
+result = CoreEvaluation().evaluate(evidence, eval_spec)
+
+# 3. Inspect deterministic findings
+print(f'Evaluation passed: {result.passed}')
+print(f'Findings: {len(result.findings)} (severity: high→ERROR, medium→WARNING, info→advisory)')
+for f in result.findings:
+    print(f'  [{f.severity}] {f.message[:140]}')
 "
 ```
+
+This minimal snippet runs 9 deterministic tool-use correctness checks (D2: call_id uniqueness,
+call/result pairing, argument validity, orphan detection) plus RuleJudge — **zero network,
+zero API key, zero .env**. `passed` is determined by deterministic RuleFinding only;
+JudgeFinding and ReviewDecision are advisory/human only.
+
+`passed` may be `False` when the eval_spec has no ``judge.rules`` configured, which is
+expected for a bare import without custom rules. Full v3.0.0 evaluation also supports
+D4 (tool ergonomics), D5 (response quality), and D6 (tool spec quality) inspectors,
+which can be enabled by passing their instances to the ``CoreEvaluation`` constructor.
 
 ### Run a mock replay demo (CLI)
 
@@ -176,7 +205,7 @@ See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full arch
 - [x] Markdown report + structured JSON artifacts
 - [x] RuleFinding determines deterministic passed
 - [x] JudgeFinding advisory only, ReviewDecision human explicit only
-- [x] 13 CLI subcommands — audit, scaffold, replay, bootstrap, preflight, and more
+- [x] 14 CLI subcommands — audit, scaffold, replay, bootstrap, preflight, and more
 
 ### Deferred
 
@@ -195,6 +224,7 @@ See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full arch
 | Category | Document | Covers |
 |----------|----------|--------|
 | **Getting started** | [`docs/START_HERE.md`](docs/START_HERE.md) | 30-second fit check |
+| | [`docs/ONBOARDING.md`](docs/ONBOARDING.md) | Minimum onboarding path & command cheat-sheet |
 | | [`examples/trace_import/README.md`](examples/trace_import/README.md) | Trace import examples |
 | **User guides** | [`docs/EXTERNAL_RUNNER_WORKFLOW.md`](docs/EXTERNAL_RUNNER_WORKFLOW.md) | External runner → trace import workflow |
 | | [`docs/TRACE_IMPORT_ADAPTER_SPEC.md`](docs/TRACE_IMPORT_ADAPTER_SPEC.md) | Trace import spec (native + simple mapping) |
@@ -202,6 +232,7 @@ See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full arch
 | | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | YAML config file formats |
 | | [`docs/PROJECT_INTEGRATION.md`](docs/PROJECT_INTEGRATION.md) | Integrating your project |
 | | [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) | Real LLM judge opt-in config |
+| **Reference** | [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md) | Artifact schema reference & versioning policy |
 | **Architecture** | [`docs/AGENT2HARNESS_MAIN_FLOW.md`](docs/AGENT2HARNESS_MAIN_FLOW.md) | Core flow: Trace → Evidence → Evaluation → Report |
 | | [`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md) | Tool-use inspection design (D1–D8) |
 | | [`docs/CURRENT_IMPLEMENTATION.md`](docs/CURRENT_IMPLEMENTATION.md) | Honest capability matrix |

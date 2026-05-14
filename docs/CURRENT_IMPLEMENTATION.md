@@ -6,7 +6,7 @@ agent-tool-harness v3.0.0 是一个 **tool-use inspection platform**。
 Primary path: external runner → trace/log import → inspect/evaluate/report。
 所有功能纯本地、离线、不联网、不需要 API 密钥。
 
-## CLI 命令（13 个）
+## CLI 命令（14 个）
 
 | 命令 | 功能 |
 |------|------|

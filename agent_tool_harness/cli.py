@@ -88,10 +88,10 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--evals", required=True)
     run.add_argument("--out", required=True)
     run.add_argument("--mock-path", choices=["good", "bad"], default="good")
-    # v1.1 第二轮：可选 dry-run JudgeProvider。默认 None 走纯 v1.0 路径，
-    # judge_results.json 字节兼容；若指定 ``recorded`` 必须同时给
-    # ``--judge-recording`` 路径。**不**支持 ``--judge-provider llm`` 等
-    # 真实外部调用——v1.1 第一轮明确不接 LLM。
+    # v3.0.0: --judge-provider 支持 recorded / composite / fake / llm。
+    # llm 需同时传 --live --confirm-i-have-real-key 才进入真实网络分支，
+    # 否则抛 disabled_live_provider。legacy anthropic_compatible_offline /
+    # anthropic_compatible_live 保留仅为向后兼容，不推荐新使用。
     run.add_argument(
         "--judge-provider",
         choices=[
@@ -103,64 +103,59 @@ def _build_parser() -> argparse.ArgumentParser:
             "llm",
         ],
         default=None,
-        help="可选 dry-run judge provider；'recorded' 仅写 advisory，"
-        "'composite' 同时跑 deterministic + recorded 并输出 disagreement metrics，"
-        "'anthropic_compatible_offline' 用 AnthropicCompatibleJudgeProvider 的 "
-        "offline_fixture 模式（**不联网、不读真实 key、不调真实模型**）并由 "
-        "CompositeJudgeProvider 包裹。"
-        "'anthropic_compatible_live' 装配 LiveAnthropicTransport，**默认 disabled**："
-        "必须同时传 --live + --confirm-i-have-real-key 且 4 个 env var 完整才进入 "
-        "live-ready 分支；任一缺失则 advisory 全部返回 disabled_live_provider 或 "
-        "missing_config 错误（脱敏）。CI / smoke 应走 --judge-fake-transport-fixture "
-        "注入 fake transport，绝不真实联网。"
-        "结果写入 judge_results.json::dry_run_provider，不会覆盖 deterministic baseline。",
+        help="可选 judge provider。'recorded' 仅写 advisory；"
+        "'composite' 同时跑 deterministic + recorded；"
+        "'fake' deterministic fake provider（默认）；"
+        "'llm' 装配真实 LLM judge transport——必须同时传 --live + "
+        "--confirm-i-have-real-key 且配置完整才进入 live 分支；"
+        "任一缺失则返回 disabled_live_provider 错误（脱敏）。"
+        "'anthropic_compatible_offline' / 'anthropic_compatible_live' "
+        "为 legacy provider 名称，保留向后兼容但不推荐新使用。",
     )
     run.add_argument(
         "--judge-recording",
         default=None,
         help="recorded provider 的 judgment fixture 路径（json/yaml，schema 见 docs/ARTIFACTS.md）。",  # noqa: E501
     )
-    # v1.4 第二轮：把 preflight 的双标志契约同步到 ``run``。anthropic_compatible_live
-    # 必须**双标志齐备 + env 完整**才尝试 live；任一缺失则 advisory 走脱敏错误路径，
-    # 让用户在 judge_results.json 里**显眼**看到 disabled_live_provider，而不是默默
-    # fallback 成 PASS。CI / smoke 永远不该传这两个 flag——本 CLI 不会因为传了它们
-    # 就自动调网络，但仍是契约上"用户已知情同意"的边界。
+    # v3.0.0: --live / --confirm-i-have-real-key 为真实 LLM judge 的双重 opt-in 安全
+    # 闸门。两个 flag 必须同时传 + --judge-provider llm + 配置完整才进入 live 分支；
+    # 任一缺失则返回 disabled_live_provider 错误（脱敏）。CI / smoke 永远不传这两个
+    # flag——本 CLI 不会因为传了它们就自动调网络，但仍是契约上"用户已知情同意"的边界。
     run.add_argument(
         "--live",
         action="store_true",
         default=False,
-        help="anthropic_compatible_live 专用：声明意图打开 live。必须与 "
-        "--confirm-i-have-real-key 同时使用才视为完整 opt-in。",
+        help="真实 LLM judge 第一重 opt-in：声明意图打开 live 网络调用。必须与 "
+        "--confirm-i-have-real-key 同时使用 + --judge-provider llm + 配置完整才进入 "
+        "live 分支；任一缺失则返回 disabled_live_provider 错误（脱敏）。",
     )
     run.add_argument(
         "--confirm-i-have-real-key",
         action="store_true",
         default=False,
         dest="confirm_i_have_real_key",
-        help="anthropic_compatible_live 专用二次确认。**仅** opt-in 完整 + env "
-        "完整 + 未注入 fake transport 时才会真实联网（v1.4 把代码骨架放好了，"
-        "但 CI / smoke 永远走 fake）。",
+        help="真实 LLM judge 第二重 opt-in（二次确认）。**仅**双标志齐备 + "
+        "--judge-provider llm + env 完整 + 未注入 fake transport 时才会真实联网。"
+        "CI / smoke 永远走 fake。",
     )
     run.add_argument(
         "--judge-fake-transport-fixture",
         default=None,
         dest="judge_fake_transport_fixture",
-        help="anthropic_compatible_live 专用 smoke 注入：YAML/JSON 文件，根字段 "
+        help="真实 LLM judge 的 smoke 注入：YAML/JSON 文件，根字段 "
         "``responses`` 是 ``{eval_id: {passed, rationale, confidence, rubric}}`` "
         "或 ``raise_error`` 是 8 类 error taxonomy slug。给了此参数 → 用 "
-        "FakeJudgeTransport 替换 LiveAnthropicTransport，**绝不**触发真实 HTTP。",
+        "FakeJudgeTransport 替换真实 LLM transport，**绝不**触发真实 HTTP。",
     )
-    # v1.5 第一轮：多 advisory CLI 入口。复用 CompositeJudgeProvider 已有的
-    # ``advisory: list[...]`` 多模型 majority-vote 形态，让用户可以用一个或多个
+    # v3.0.0: --judge-advisory 多 advisory CLI 入口。复用 CompositeJudgeProvider
+    # 已有的 ``advisory: list[...]`` 多模型 majority-vote 形态，让用户可以用一个或多个
     # ``--judge-advisory NAME:PATH`` 把多份 dry-run advisory 同时挂到 deterministic
-    # baseline 之下。可重复出现：每条解析成一个 advisory provider，按顺序进入
-    # ``advisory_results[]`` / 投票 / 多数表决。
+    # baseline 之下。
     #
     # 设计边界（避免被误用为"真实 LLM"）：
     # - **不**新增任何会真实联网的 NAME；当前只支持三种本地 deterministic 形式：
-    #   ``recorded:PATH`` / ``anthropic_compatible_offline:PATH`` /
-    #   ``anthropic_compatible_fake:PATH``。需要真实 LLM 仍然走 v1.4 的
-    #   ``--judge-provider anthropic_compatible_live`` 单 advisory 路径。
+    #   ``recorded:PATH`` / ``fake:PATH``。
+    #   需要真实 LLM 走 ``--judge-provider llm`` 单 advisory 路径。
     # - 与 ``--judge-provider`` **互斥**：避免"既单 advisory 又多 advisory"歧义；
     #   同时给两者 → exit 2 + 提示。
     # - advisory 错误**不计入**投票（CompositeJudgeProvider 已实现 error 桶），
@@ -171,8 +166,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         dest="judge_advisory",
         metavar="NAME:PATH",
-        help="可重复。注册一条多 advisory：NAME 取 recorded / "
-        "anthropic_compatible_offline / anthropic_compatible_fake，PATH 为对应 "
+        help="可重复。注册一条多 advisory：NAME 取 recorded / fake，PATH 为对应 "
         "fixture 文件。多个 ``--judge-advisory`` 触发 CompositeJudgeProvider 的 "
         "多 advisory majority-vote 路径，结果写 judge_results.json::dry_run_provider "
         "的 advisory_results / vote_distribution / majority_passed。**绝不**联网："
@@ -187,10 +181,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         dest="core_flow",
-        help="experimental / opt-in Core Contract path：走 "
-        "ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation → "
-        "EvaluationResult → ReportSummary 链路。**不**调用真实 LLM、**不**自动生成 "
-        "ReviewDecision。默认关闭，保持旧 EvalRunner 路径兼容。",
+        help="Core Contract path：走 ScenarioSpec → ExecutionTrace → Evidence → "
+        "CoreEvaluation → EvaluationResult → ReportSummary 链路。"
+        "Core flow 本身为确定性路径，不调用真实 LLM；"
+        "仅当同时使用 --judge-provider llm + --live + --confirm-i-have-real-key "
+        "+ 显式 secret source 时才进入真实 LLM judge 分支。"
+        "**不**自动生成 ReviewDecision。默认关闭，保持旧 EvalRunner 路径兼容。",
     )
     # Phase 3：LLM provider config CLI flags
     run.add_argument(
@@ -206,8 +202,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         dest="llm_provider",
         metavar="NAME",
-        help="从 --llm-config 中选择的 provider 名称。当前仅用于 dry-run 校验；"
-        "真实 LLM transport 尚未实现。",
+        help="从 --llm-config 中选择的 provider 名称。dry-run 校验时打印配置摘要；"
+        "配合 --judge-provider llm 时作为真实 LLM judge 的 transport provider。",
     )
     run.add_argument(
         "--dry-run-provider",
@@ -329,22 +325,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="显式指定 .env.example 路径（覆盖 --repo-root 默认）。",
     )
-    # ``--live`` / ``--confirm-i-have-real-key`` 是 v1.3 第一轮新增的
-    # **双标志契约**：单独传 ``--live`` **不会**触发任何网络请求；必须同
-    # 时传 ``--confirm-i-have-real-key`` 才视为用户明确同意"未来"打开
-    # live 模式。**本轮即便两个 flag 都传，preflight 仍然不发任何网络
-    # 请求**——真正的 transport 留给 v1.4。设计目标：让用户跑了一条带
-    # ``--live`` 的命令但忘了 ``--confirm-i-have-real-key`` 时，artifact
-    # 里**显眼**地报错（``error_code=disabled_live_provider``），而不是默
-    # 默 fallback 到 fake；同时 contract test 钉住"双标志齐备时也仍然不
-    # 发网络"，避免未来真实 transport 实现时不小心提前触发。
+    # v3.0.0: preflight --live / --confirm-i-have-real-key 为双标志契约。
+    # preflight 本身**从不**发网络请求——它只做静态配置校验（provider config
+    # 可读性、env file 存在性等）。双标志的作用：preflight 报告中记录用户 opt-in
+    # 状态，供 run 命令复用时参考。单独传 --live 不视为完整 opt-in；
+    # 必须同时传 --confirm-i-have-real-key。
     preflight.add_argument(
         "--live",
         action="store_true",
         default=False,
         help=(
-            "声明用户**意图**未来打开 live 模式；本身**不**触发网络。"
-            "必须与 --confirm-i-have-real-key 同时使用才视为完全 opt-in。"
+            "声明用户意图使用真实 LLM judge；preflight 本身**不**触发网络。"
+            "必须与 --confirm-i-have-real-key 同时使用才视为完整 opt-in。"
         ),
     )
     preflight.add_argument(
@@ -353,10 +345,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         dest="confirm_i_have_real_key",
         help=(
-            "二次确认：用户明确知道自己在使用真实 API key。**本轮**即便"
-            "两个 flag 都传，preflight 也不会发任何网络请求；只把 opt-in"
-            "状态记录到 preflight 报告中，便于 v1.4 真实 transport 落地"
-            "时复用同一套契约。"
+            "二次确认：用户明确知道自己在使用真实 API key。preflight "
+            "**不**发网络请求；只把 opt-in 状态记录到 preflight 报告中。"
         ),
     )
 
@@ -1387,7 +1377,16 @@ def _run_core_flow(
         from agent_tool_harness.fake_judge import FakeJudgeProvider
         core_judge_provider = FakeJudgeProvider()
     elif judge_provider == "llm":
-        # 安全闸门：必须提供 secret source
+        # 安全闸门 1：live + confirm 双标志必须齐备（在读取 env file 之前检查）
+        if not (live and confirm_i_have_real_key):
+            print(
+                "error: 真实 LLM judge 需要 --live 和 --confirm-i-have-real-key"
+                " 双标志同时使用。缺少任一标志 → 拒绝创建。",
+                file=sys.stderr,
+            )
+            return 2
+
+        # 安全闸门 2：必须提供 secret source
         if not env_file and not allow_os_env:
             print(
                 "error: 真实 LLM judge 需要显式 secret source："
@@ -1396,7 +1395,7 @@ def _run_core_flow(
             )
             return 2
 
-        # 创建 secret source
+        # 安全闸门通过 → 创建 secret source（此时才读取 env file）
         from agent_tool_harness.secrets import (
             EnvFileSecretSource,
             OsEnvSecretSource,

@@ -18,7 +18,7 @@
 |------|------|------|
 | Demo（MockReplayAdapter） | ✅ 可跑 | `agents/mock_replay_adapter.py` |
 | Demo（TranscriptReplayAdapter） | ✅ 可跑 | `agents/transcript_replay_adapter.py` |
-| CLI（13 子命令） | ✅ 可跑 | `cli.py` + `assembly.py` |
+| CLI（14 子命令） | ✅ 可跑 | `cli.py` + `assembly.py` |
 | RuleJudge（deterministic） | ✅ 可跑 | `judges/rule_judge.py` |
 | EvalRunner（旧编排器） | ✅ 可跑 | `runner/eval_runner.py` |
 | MarkdownReport（旧 reporter） | ✅ 可跑 | `reports/markdown_report.py` |
@@ -160,7 +160,8 @@ ScenarioSpec (from EvalSpec 构造)
 
 3. **JudgeProvider Protocol** — FakeJudgeProvider + LLMJudgeProvider + factory + safety gates。
 
-4. **Dogfood** — Level 4A（real LLM judge on harness side）。
+4. **Dogfood** — Level 4A（real LLM judge on harness side）已于 2026-05-12 执行并经
+   2026-05-14 normalization layer 修复验证通过。
    Level 4B deferred（target agent 尚缺 dogfood contract）。
 
 ### 4.2 不做

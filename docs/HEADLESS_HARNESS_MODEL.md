@@ -123,7 +123,7 @@ type checks），失败即拒绝。
 
 | 组件 | 状态 | 说明 |
 |------|------|------|
-| CLI | ✅ implemented | 13 个子命令 |
+| CLI | ✅ implemented | 14 个子命令 |
 | Config Loader | ✅ implemented | YAML → Spec |
 | MockReplayAdapter | ✅ implemented | good/bad 分支 |
 | TranscriptReplayAdapter | ✅ implemented | 历史轨迹重放 |

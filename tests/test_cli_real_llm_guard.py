@@ -330,3 +330,57 @@ def test_dry_run_provider_does_not_require_env_file():
     assert args.dry_run_provider is True
     assert args.env_file is None
     assert args.allow_os_env is False
+
+
+# ---------------------------------------------------------------------------
+# 12. env file NOT read before live gate passes (P1-3)
+# ---------------------------------------------------------------------------
+
+
+def test_llm_with_env_file_but_without_live_does_not_read_env():
+    """--judge-provider llm --env-file 不带 --live → exit 2，且不读取 env 文件。
+
+    用不存在的 env 文件路径验证：如果 live gate 先于 env file 读取，则返回
+    live gate 错误 (exit 2) 而非 FileNotFoundError。
+    """
+    tools, evals = _load_knowledge_search_fixtures()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        exit_code = _run_core_flow(
+            tools=tools,
+            evals=evals[:1],
+            out=tmpdir,
+            mock_path="good",
+            judge_provider="llm",
+            live=False,
+            confirm_i_have_real_key=True,
+            llm_config="examples/llm_providers.example.yaml",
+            llm_provider="openai-native",
+            env_file="/nonexistent/deadbeef/.env",
+        )
+        assert exit_code == 2
+        # 关键：不能用不存在的 env 文件路径区分，因为 live=False 时
+        # gate 在 EnvFileSecretSource 构造之前就拦截了
+
+
+def test_llm_all_gates_passed_env_file_read():
+    """双标志齐备但 env 文件不存在 → FileNotFoundError（证明 gate 通过后 env 被读取）。
+
+    与 test_llm_with_env_file_but_without_live_does_not_read_env 互补：
+    前者证 gate 先于 env read，本测试证 gate 通过后 env 确实被读取。
+    """
+    tools, evals = _load_knowledge_search_fixtures()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        exit_code = _run_core_flow(
+            tools=tools,
+            evals=evals[:1],
+            out=tmpdir,
+            mock_path="good",
+            judge_provider="llm",
+            live=True,
+            confirm_i_have_real_key=True,
+            llm_config="examples/llm_providers.example.yaml",
+            llm_provider="openai-native",
+            env_file="/nonexistent/deadbeef/.env",
+        )
+        # live gate 通过 → 进入 EnvFileSecretSource 构造 → FileNotFoundError
+        assert exit_code == 2

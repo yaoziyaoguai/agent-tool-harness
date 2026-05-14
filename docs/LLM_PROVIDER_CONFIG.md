@@ -77,11 +77,11 @@ providers:
 
 1. 创建 `.env` 文件（不要 commit 到 git）：
    ```env
-   AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY=sk-xxxx
+   AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY=<your-api-key>
    AGENT_TOOL_HARNESS_OPENAI_COMPAT_BASE_URL=https://api.deepseek.com
    AGENT_TOOL_HARNESS_OPENAI_COMPAT_MODEL=deepseek-chat
 
-   AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_API_KEY=sk-ant-xxxx
+   AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_API_KEY=<your-api-key>
    AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_BASE_URL=https://example.com/anthropic-compatible
    AGENT_TOOL_HARNESS_ANTHROPIC_COMPAT_MODEL=claude-compatible-model
    ```
@@ -166,7 +166,7 @@ class ResolvedLLMProviderConfig:
 
 ### 禁止 inline api_key
 
-`api_key` 字段被显式拒绝——如果配置中出现 `api_key: sk-xxx`，parse 阶段报错。
+`api_key` 字段被显式拒绝——如果配置中出现 `api_key: <your-api-key>` 这样的 inline key，parse 阶段报错。
 原因：
 - inline key 会通过 git / artifact / log / screen share 泄漏
 - `api_key_env` 是环境变量名，不会出现在任何 artifact 里
@@ -226,8 +226,8 @@ ReviewDecision              — 仍然由人类显式创建
 - `LLMProviderRegistry` 不调网络 —— 纯内存查找
 - `JudgeProvider` 不能自动生成 ReviewDecision
 - `RuleJudge` 保持独立，不与 LLM judge 耦合
-- 已有 `AnthropicCompatibleConfig` / `LiveAnthropicTransport`（`judges/provider.py`）保持不变
-- 新 transport（`openai_transport.py` / `anthropic_transport.py`）独立于旧模块
+- Legacy `AnthropicCompatibleConfig` / `LiveAnthropicTransport`（`judges/provider.py`）已被 supersede，保留向后兼容
+- 当前 transport（`openai_transport.py` / `anthropic_transport.py`）已通过 real LLM smoke 验证
 
 ## 7. Implementation phases
 
@@ -288,7 +288,7 @@ providers:
 
 ```bash
 # ./.env（gitignored）
-AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY=sk-your-key
+AGENT_TOOL_HARNESS_OPENAI_COMPAT_API_KEY=<your-api-key>
 AGENT_TOOL_HARNESS_OPENAI_COMPAT_BASE_URL=https://your-proxy.com
 AGENT_TOOL_HARNESS_OPENAI_COMPAT_MODEL=your-model-name
 ```
