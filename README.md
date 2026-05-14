@@ -1,5 +1,7 @@
 # Agent Tool Harness
 
+[中文文档](README.zh-CN.md)
+
 A local harness for importing, inspecting, evaluating, and reporting Agent tool-use traces.
 
 **agent-tool-harness does not run your agent.**
