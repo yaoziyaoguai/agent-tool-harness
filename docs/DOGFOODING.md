@@ -27,8 +27,11 @@
 **状态**: ✅ 已完成（2026-05-13）。
 
 **含义**: 仅 agent-tool-harness 的 LLM JudgeProvider 调用真实 LLM/API
-（anthropic-compatible 或 openai-compatible）。Agent 侧（my-first-agent wrapper）
-仍使用 FakeProvider，不读 .env，不联网。
+（anthropic-compatible 或 openai-compatible）。
+
+> **历史注记（2026-05-14）：** Level 4A dogfood 原始设计中包含 my-first-agent wrapper
+> 作为 Agent 侧（使用 FakeProvider）。该 wrapper 路径（CLIAgentAdapter）已在 v3.0.0 中移除。
+> v3.0.0 唯一接入路径为 external runner → trace/log import，agent-tool-harness 不运行 Agent。
 
 **安全门控**: `--env-file` + `--live` + `--confirm-i-have-real-key` 缺一不可。
 
