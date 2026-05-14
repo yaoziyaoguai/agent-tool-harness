@@ -32,7 +32,7 @@
 | Core report bridge（EvaluationResult → report） | ✅ 已实现 | `core_report_bridge.py` |
 | **JudgeFinding + LLM provider config** | ✅ 已完成（2026-05-12） | `llm_config.py` + `fake_judge.py` |
 | Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
-| **Real LLM infrastructure & safety gate verified** | ⚠️ transport verified, semantic judge pending (2026-05-12) | `docs/DOGFOOD_REAL_LLM_001.md` |
+| **Real LLM infrastructure & safety gate verified** | ✅ transport + normalization layer verified (2026-05-14) — both openai-compatible + anthropic-compatible smoke tested | `docs/DOGFOOD_REAL_LLM_001.md` |
 | **TraceImportAdapter (native + simple mapping)** | ✅ 已实现（2026-05-12）— **唯一接入路径** | `agent_tool_harness/trace_import.py` |
 | **D1 Trace diagnostics** | ✅ 已实现（2026-05-13） | `trace_diagnostics.py` |
 | **D2 Tool-use correctness** | ✅ 9 rules done（2026-05-13） | `tool_inspection.py` |

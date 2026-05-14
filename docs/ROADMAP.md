@@ -52,8 +52,8 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 
 | ID | 事项 | 状态 |
 |----|------|------|
-| A1 | README 区分 demo / prototype / future | in progress |
-| A2 | Mock replay 不被描述为 real eval | in progress |
+| A1 | README 区分 demo / prototype / future | done (2026-05-14) |
+| A2 | Mock replay 不被描述为 real eval | done (2026-05-14) |
 | A3 | Bootstrap / scaffold UX 硬化 | not started |
 | A4 | Demo ↔ Core 依赖审计（CLI 硬编码解耦） | done (2026-05-11) |
 | A5 | examples/ 维护与 contract 同步 | not started |
@@ -74,9 +74,10 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 **Track B/C 最新进展（2026-05-13）：**
 
 **Real LLM infrastructure & safety gate** 已验证通过（`docs/DOGFOOD_REAL_LLM_001.md`）。
-openai-compatible transport + factory wiring + --env-file secret loading 均已跑通。
-Semantic JudgeFinding 因 provider response parsing bad_response 尚未成功产出，
-待后续调试。TraceImportAdapter 不受此影响。
+openai-compatible + anthropic-compatible transport + factory wiring + --env-file secret loading 均已跑通。
+Response parsing normalization layer 已修复（处理 7 种 compatible provider response shapes）。
+Semantic JudgeFinding verified via real LLM smoke (2026-05-14).
+TraceImportAdapter 不受此影响。
 
 **Real Agent Integration SDD** 进入实现阶段（`docs/REAL_AGENT_INTEGRATION_SDD.md`）。
 TraceImportAdapter spec 已完成。（CLIAgentAdapter 已移除，runner responsibility 移至外部。）
@@ -97,10 +98,10 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | C1 | Opt-in 安全模型 spec | done (LLM_PROVIDER_CONFIG.md 2026-05-12) |
 | C2 | Fake JudgeProvider 先行验证 | done (2026-05-12: fake_judge.py + 9 tests) |
 | C3 | RealAgentAdapter skeleton | redesigned → C8/C9 trace import + CLI agent adapter |
-| C4 | Real provider opt-in | done (2026-05-12: openai_transport.py + anthropic_transport.py + factory + CLI wiring landed) |
+| C4 | Real provider opt-in | done (2026-05-14: transport + factory + CLI wiring landed; normalization layer fixed; both openai-compatible + anthropic-compatible real LLM smoke verified) |
 | C5 | Cost / latency evidence capture | **deferred** (推迟到 Real Agent Integration 之后——先让 trace 跑通，再加成本预算) |
 | C6 | Deterministic + LLM judge 组合 | done (2026-05-12: CoreEvaluation judge_provider 接入; passed 仍由 RuleJudge 决定, JudgeFinding 为 advisory) |
-| C7 | LiveAnthropicTransport 验证或删除 | not started (legacy LiveAnthropicTransport 保持不动，新 transport 独立) |
+| C7 | LiveAnthropicTransport 验证或删除 | superseded — legacy transport replaced by `openai_transport.py` + `anthropic_transport.py` (both verified via real LLM smoke) |
 | C8 | **TraceImportAdapter（唯一接入路径）** | **native + simple mapping done** (2026-05-12: trace_import.py + 83 tests) |
 | C9 | **CLIAgentAdapter** | **removed** (2026-05-13: agent-tool-harness 不再运行 Agent) |
 | C10 | **Real agent dogfood** | **Level 4A done, Level 4B deferred** (2026-05-13) |

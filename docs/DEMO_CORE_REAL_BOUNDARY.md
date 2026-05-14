@@ -8,9 +8,9 @@ Agent 评测能力（Real）。如果不显式定义 Core——即 Demo 和 Real
 
 - **Demo 污染 Core**：为了 demo 方便修改 Core contract，导致未来真实接入时契约
   已变形。
-- **Real 污染 Demo**：未验证的 Real Integration 代码（LiveAnthropicTransport、
-  AnthropicCompatibleJudgeProvider）混在源码中，让 demo 用户误以为"接真实 LLM
-  很快就能跑通"。
+- **Real 污染 Demo**：Real Integration 代码（legacy `LiveAnthropicTransport` in `judges/provider.py`）
+  混在源码中可能误导 demo 用户。新 transport（`openai_transport.py` + `anthropic_transport.py`）
+  已独立于 demo 路径，通过显式 opt-in 接入。
 
 本文件的目的是：**把 Core 提取出来，让 Demo 和 Real 都成为 Core 的外部消费者，
 而不是让它们互相污染。**
@@ -140,7 +140,7 @@ Real Integration 未来负责接入真实世界：真实 Agent runtime、真实 
 | ProviderConfig | ❌ not supported | model / API key / base URL / budget |
 | JudgeProvider (live LLM) | ❌ not supported | 语义评分替代 deterministic rules |
 | EvidenceStore | ❌ not supported | 结构化证据存储与追溯 |
-| LiveTransport (verified) | ⚠️ code exists, unverified | LiveAnthropicTransport 从未对真实端点验证 |
+| LiveTransport (verified) | ✅ opt-in verified | OpenAITransport + AnthropicTransport (stdlib http.client), both openai-compatible + anthropic-compatible smoke tested |
 | ReviewWorkflow | ❌ not supported | 从人工 Review 到自动化决策 |
 
 ### 5.2 Real Integration 必须

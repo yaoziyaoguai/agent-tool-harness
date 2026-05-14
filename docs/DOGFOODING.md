@@ -33,7 +33,7 @@
 **安全门控**: `--env-file` + `--live` + `--confirm-i-have-real-key` 缺一不可。
 
 **已知结果**: RuleJudge passed，JudgeFinding 生成（advisory），
-LLM transport bad_response（响应解析已知问题，不影响 passed）。
+LLM transport normalization layer 已修复（2026-05-14），openai-compatible + anthropic-compatible 均已验证。
 
 **关键约束**: JudgeFinding 为 advisory only；RuleJudge 仍决定 EvaluationResult.passed；
 ReviewDecision 不自动生成。

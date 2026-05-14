@@ -2,8 +2,9 @@
 
 > **定位**: agent-tool-harness 的后续核心方向——围绕 Agent tool-use logs 做工具检查、评测和质量报告。
 > **对齐**: Anthropic [Writing effective tools for agents — with agents](https://www.anthropic.com/engineering/writing-tools-for-agents)。
-> **状态**: SDD defined (2026-05-13), implementation in progress — 9 trace-level invariant rules landed (2026-05-13),
-> CoreEvaluation integrated. Phase 1 trace import diagnostics + evidence quality report deferred.
+> **状态**: SDD defined (2026-05-13), Phase 1 + Phase 2 complete — D1 trace diagnostics (48 tests), D2 9 rules (24 tests),
+> D4 6 rules (28 tests), D5 6 rules (34 tests), D6 10 rules (39 tests) all landed.
+> CoreEvaluation integrated. Phase 2 LLM judge rubric framework landed. Phase 3 (D3/D7/D8) deferred.
 
 ---
 

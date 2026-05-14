@@ -5,8 +5,8 @@
 它的设计意图来源于 Anthropic Engineering 的工具设计方法论：
 **"Writing effective tools for AI agents—using AI agents"**。
 
-> 项目吸收 Anthropic 的工具设计思想，当前实现只是第一阶段 headless CLI prototype。
-> Anthropic 文章中的完整愿景（真实 LLM agentic loop、LLM judge）不能包装为当前已实现能力。
+> 项目吸收 Anthropic 的工具设计思想，当前 v3.0.0 实现 tool-use inspection platform。
+> Anthropic 文章中的完整愿景（真实 LLM agentic loop、LLM judge）部分通过 opt-in 实现。
 
 ---
 
@@ -16,7 +16,7 @@
 关注一个核心问题：**如何为 AI Agent 设计高质量的工具**。
 
 这篇文章是产品意图来源，不是当前能力承诺。当前项目实现了其中的**工具设计审计**
-部分，以 headless CLI prototype 的形态落地。
+部分，以 headless CLI tool-use inspection platform 的形态落地。
 
 ---
 
@@ -41,7 +41,7 @@
 
 ---
 
-## 3. What the current prototype implements
+## 3. What the current implementation covers
 
 - **工具设计审计** — 基于 5 类原则的 deterministic 启发式检查
 - **eval 质量审计** — eval 结构完整性检查
@@ -53,7 +53,7 @@
 
 ---
 
-## 4. What the current prototype does NOT implement
+## 4. What the current implementation does NOT cover
 
 - 真实 Agent runtime 集成（无 `RealAgentAdapter`）
 - 真实工具选择正确性评测
@@ -87,7 +87,7 @@ agentic loop 驱动**。当前 `MockReplayAdapter` 的 `signal_quality = tautolo
 - **过早接 LLM provider**：如果在工具设计审计未稳固前接入真实 LLM，项目会变成泛化 LLM wrapper
 - **巨石化 rule evaluator**：如果把 rule checks 逐步升级成 LLM judge 巨石，违反接口隔离原则
 - **mock 与 real 耦合**：如果把 mock replay 和 RealAgentAdapter 混在同一个类里，形成架构债
-- **LiveAnthropicTransport 腐烂**：v1.3 起存在的未验证代码，如果继续不验证也不删除，会误导新贡献者
+- **Legacy LiveAnthropicTransport**：legacy `judges/provider.py` 中的旧 transport 已被 `openai_transport.py` + `anthropic_transport.py`（stdlib http.client）取代，新 transport 均已 real LLM smoke 验证
 
 ---
 

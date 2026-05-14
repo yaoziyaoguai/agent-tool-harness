@@ -1,8 +1,11 @@
 # Dogfood Record: Real LLM Infrastructure & Safety Gate Verification #001
 
 > **Historical dogfood note (2026-05-14):** This is a historical dogfood record from 2026-05-12.
-> CLIAgentAdapter has since been removed. The v1 primary integration path is
+> CLIAgentAdapter has since been removed. The primary integration path is
 > external runner → trace/log import. Real LLM judge remains explicit opt-in / non-default.
+> **Update (2026-05-14):** The response parsing `bad_response` in Section 6.2 has been **fixed** —
+> a normalization layer now handles 7 compatible provider response shapes.
+> Both openai-compatible and anthropic-compatible providers verified via real LLM smoke test.
 
 ## 1. Basic Info
 
@@ -72,10 +75,10 @@ providers:
 | RuleFinding count | 8 (all passed) |
 | JudgeFinding generated | Yes (1 finding, `category: "judge"`, `severity: "info"`) |
 | JudgeFinding provider | `openai-compatible` |
-| **Semantic judge verdict** | **Not produced** — provider response parsing returned `bad_response` |
+| **Semantic judge verdict** | **FIXED (2026-05-14)** — normalization layer now handles 7 provider response shapes. See follow-up smoke tests. |
 | ReviewDecision auto-generated | **No** — confirmed by `REVIEW_DECISION_NOT_GENERATED.txt` |
 
-**Key takeaway:** The real LLM transport, opt-in safety gates (--live, --confirm-i-have-real-key, --env-file), and factory wiring were all verified successfully. However, the actual semantic JudgeFinding (passed/rationale/confidence from LLM) was NOT produced because the provider response format did not match the expected parser. This is a provider response parsing/debugging follow-up, not a transport or safety gate failure.
+**Key takeaway:** The real LLM transport, opt-in safety gates (--live, --confirm-i-have-real-key, --env-file), and factory wiring were all verified successfully. The semantic JudgeFinding was initially blocked by a response parsing mismatch (see Section 6.2), which was subsequently **fixed** — the normalization layer in `openai_transport.py` now handles 7 compatible provider response shapes. Follow-up smoke tests (2026-05-14) confirmed both openai-compatible and anthropic-compatible providers produce valid JudgeFinding output.
 
 ## 6. Issues Found
 
@@ -85,15 +88,15 @@ providers:
 
 **Fix:** Added `LLMJudgeProvider.model` property, changed CLI to use `result.provider.model`.
 
-### 6.2 Provider response parsing: bad_response (NOT FIXED)
+### 6.2 Provider response parsing: bad_response (FIXED 2026-05-14)
 
-**Status:** The real LLM judge transport successfully sent the request and received a response, but the response could not be parsed as a valid JudgeFinding. The finding recorded is `[openai-compatible] transport error: bad_response`.
+**Status:** The response parsing normalization layer (`_extract_content_text()` + `_extract_json_from_text()` + `_try_parse_judge_dict()` in `openai_transport.py`, plus `_extract_text_from_content_blocks()` in `anthropic_transport.py`) now handles 7 compatible provider response shapes. Both openai-compatible (glm-5) and anthropic-compatible (kimi-k2.5) verified via real LLM smoke test.
 
-**Impact:** The semantic JudgeFinding (passed/rationale/confidence from LLM) was NOT produced. RuleFindings (deterministic) were unaffected and passed normally. `EvaluationResult.passed` remained determined by RuleJudge, which is the correct behavior.
+**Resolution:** Added a normalization layer that handles 7 compatible provider response shapes: str content, dict content, list content parts, markdown fenced JSON, embedded JSON objects, thinking blocks + text blocks, non-JSON fallback heuristic.
 
-**Root cause:** To be investigated. Likely a mismatch between the provider's actual response format and the expected OpenAI chat completions response schema.
+**Original impact:** The semantic JudgeFinding (passed/rationale/confidence from LLM) was NOT produced. RuleFindings (deterministic) were unaffected and passed normally. `EvaluationResult.passed` remained determined by RuleJudge, which is the correct behavior.
 
-**Next follow-up:** Debug provider response parsing / response format compatibility. This does NOT block TraceImportAdapter implementation.
+**Root cause:** Compatible providers returned response shapes (dict content, markdown-fenced JSON, content parts arrays, thinking blocks) that the original parser did not handle. Fixed by adding a normalization layer. See commit `79d7f29 fix: align LLM transports with provider response shapes`.
 
 ## 7. What Was Verified
 
@@ -105,8 +108,9 @@ providers:
 - ReviewDecision NOT auto-generated
 - EvaluationResult.passed stays RuleJudge-determined
 
-**NOT yet verified:**
-- Semantic judge verdict (passed/rationale/confidence from LLM) — blocked by bad_response
+**Subsequently verified (2026-05-14):**
+- Semantic judge verdict (passed/rationale/confidence from LLM) — verified via normalization layer fix
+- Both openai-compatible (glm-5) and anthropic-compatible (kimi-k2.5) smoke tested and passing
 
 ## 8. Safety Gates Verified
 
@@ -120,13 +124,12 @@ providers:
 | ReviewDecision not auto-generated | Passed |
 | `EvaluationResult.passed` from RuleJudge only | Passed |
 
-## 9. Next Steps
+## 9. Next Steps (post-fix)
 
-1. **Provider response parsing debug** — 排查 bad_response 根因（API 响应格式与预期 schema 不匹配）
-2. **Prompt engineering** — 设计 JudgeFinding 的 system prompt + rubric
-3. **TraceImportAdapter implementation** — 不依赖 semantic judge 修复（CLIAgentAdapter 已移除）
-4. **Re-dogfood after response parsing fix** — 再次尝试验证完整 semantic judge 链路
-5. **Multi-provider comparison** — 用多个 provider 跑同一场景，分析分歧率（后续）
+1. ~~**Provider response parsing debug**~~ → **DONE** (2026-05-14): normalization layer in `openai_transport.py` + `anthropic_transport.py`
+2. ~~**Re-dogfood after response parsing fix**~~ → **DONE** (2026-05-14): both openai-compatible (glm-5) and anthropic-compatible (kimi-k2.5) verified
+3. **Native OpenAI / native Anthropic live smoke** — not yet run (deferred, not blocking v3.0.0)
+4. **Multi-provider comparison** — 用多个 provider 跑同一场景，分析分歧率（后续）
 
 ## 10. References
 

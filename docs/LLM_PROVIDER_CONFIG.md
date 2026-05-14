@@ -248,8 +248,8 @@ ReviewDecision              — 仍然由人类显式创建
 - 安全闸门：真实 LLM 调用必须指定 secret source
 - dry-run 不触碰 SecretSource
 
-### Phase 5（已验证 2026-05-12）：Real LLM infrastructure & safety gate verified
-真实 LLM transport 基础设施、安全门控（--live/--confirm-i-have-real-key/--env-file）和 factory wiring 已通过验证。Semantic JudgeFinding 因 provider response parsing bad_response 尚未成功产出，待后续调试（详见 `docs/DOGFOOD_REAL_LLM_001.md`）。
+### Phase 5（已验证 2026-05-14）：Real LLM infrastructure & safety gate verified
+真实 LLM transport 基础设施、安全门控（--live/--confirm-i-have-real-key/--env-file）和 factory wiring 已通过验证。Response parsing normalization layer 已修复（处理 7 种 compatible provider response shapes）。openai-compatible + anthropic-compatible 均已通过 real LLM smoke test（详见 `docs/DOGFOOD_REAL_LLM_001.md`）。
 
 **命令：**
 ```bash
@@ -270,7 +270,7 @@ python -m agent_tool_harness.cli run \
 - total_evals=1, passed=1, core_flow=true
 - RuleFinding（deterministic rule judge）正常工作
 - Transport + safety gates 验证通过（api_key / base_url / model 从 .env 正确解析）
-- JudgeFinding 生成但 semantic verdict 未成功（provider response parsing bad_response，待调试）
+- Semantic JudgeFinding 验证通过（normalization layer 修复后，2026-05-14）
 - ReviewDecision 未自动生成（符合预期）
 - `model_env` 从 .env 正确解析
 

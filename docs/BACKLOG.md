@@ -2,7 +2,7 @@
 
 ## Current stage
 
-**Headless CLI Agent Tool Harness Prototype — Tool-Use Inspection Focus**
+**Headless CLI Agent Tool Harness — Tool-Use Inspection Focus**
 
 当前不是：
 - Real LLM evaluation platform
@@ -28,13 +28,13 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 > Demo 可以复用 Core，但不能决定 Core 的设计。
 
 ### A1. README distinguishes demo, prototype, and future
-- **Status**: in progress
+- **Status**: done (2026-05-14)
 - **Why**: 用户可能看到 9 个 ✅ 而忽视 10 个 ❌，误以为支持真实 LLM eval
 - **Acceptance**: README 声明"当前不是真实 LLM Agent evaluation platform"
 - **Not doing**: 不在 README 加冗长的能力边界列表
 
 ### A2. Mock replay not described as real eval
-- **Status**: in progress
+- **Status**: done (2026-05-14)
 - **Why**: "mock replay — 预期 PASS/FAIL" 容易被理解为真实评测
 - **Acceptance**: 所有 docs 明确区分 tool design audit（已实现）和 tool use evaluation（未实现）
 - **Not doing**: 不修改 mock replay 行为
@@ -210,7 +210,7 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 - **Not doing**: 不实现单一大 RealAgentAdapter
 
 ### C4. Real provider opt-in
-- **Status**: done (2026-05-12: transport + factory + CLI wiring landed; infrastructure & safety gates verified; semantic judge parsing pending debug)
+- **Status**: done (2026-05-14: transport + factory + CLI wiring landed; infrastructure & safety gates verified; normalization layer fixed; both openai-compatible + anthropic-compatible real LLM smoke verified)
 - **Why**: 真实 LLM 评估需要安全模型和配置标准化
 - **Acceptance**: opt-in 真实 LLM dogfood 完成一次端到端闭环 (DOGFOOD_REAL_LLM_001.md)
 - **Not doing**: 不作为默认行为
@@ -232,10 +232,10 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 - **Not doing**: 不让 LLM judge 替代 rule checks
 
 ### C7. LiveAnthropicTransport verification or removal
-- **Status**: not started
+- **Status**: superseded (2026-05-14) — legacy `judges/provider.py` LiveAnthropicTransport replaced by `anthropic_transport.py` (stdlib http.client). New AnthropicTransport verified via anthropic-compatible real LLM smoke.
 - **Why**: v1.3 起存在的未验证代码，如果继续不验证也不删除，会误导新贡献者
-- **Acceptance**: 要么验证通过（对真实端点），要么删除并用 FakeTransport 替代
-- **Not doing**: 不保留"代码存在但未验证"的灰色状态
+- **Acceptance**: ✅ 新 transport 已验证，legacy 保留在 `judges/provider.py` 不动
+- **Not doing**: 不删除 legacy LiveAnthropicTransport（历史代码，不影响新路径）
 
 ### C8. TraceImportAdapter（主要接入路径）
 - **Status**: **native + simple mapping 已实现** (2026-05-12: `agent_tool_harness/trace_import.py`, 83 tests)
