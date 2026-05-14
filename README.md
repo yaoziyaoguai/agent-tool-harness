@@ -1,164 +1,228 @@
-# Headless CLI Agent Tool Harness Prototype
+# Agent Tool Harness
 
-一个 **CLI-first、无 UI、文件配置驱动** 的 Agent 工具评测 Harness 原型。
+A local harness for importing, inspecting, evaluating, and reporting Agent tool-use traces.
 
-它把工具配置、mock 执行、确定性规则检查、证据收集、报告生成、人工 Review 串成
-一条可复现的评测链路，用于探索 Agent 工具设计质量评测流程。当前不是成熟平台。
+**agent-tool-harness does not run your agent.**
+It evaluates tool-use traces produced by your own agent runner, script, CI, or logs.
 
-## Design lineage
+## What it does
 
-本项目对齐 Anthropic Engineering [Writing effective tools for agents — with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) 工具设计方法论。当前项目是 headless CLI prototype，核心定位为 **tool-use inspection**——围绕 Agent tool-use logs 做工具检查、评测和质量报告。实现了 tool design audit、deterministic rule checks、trace import。当前不是完整真实 LLM Agent evaluation platform。后续方向见 [docs/TOOL_USE_INSPECTION_SDD.md](docs/TOOL_USE_INSPECTION_SDD.md)。
+- **Import** native Agent2Harness trace JSON or custom JSON via simple field mapping
+- **Diagnose** trace quality — field coverage, type checks, confidence assessment, mapping dry-run
+- **Inspect** tool-use correctness — call_id uniqueness, call/result pairing, argument validity, orphan detection (9 rules)
+- **Inspect** tool spec quality — description completeness, input_schema presence, parameter docs, output contract (10 rules)
+- **Inspect** tool ergonomics — naming clarity, namespace overlap, wrapper detection, action-resource patterns (6 rules)
+- **Inspect** tool response quality — output presence, error actionability, signal strength, context sufficiency (6 rules)
+- **Evaluate** with deterministic RuleFinding that decides pass/fail — no LLM required
+- **Advise** with fake-testable LLM judge rubric — 6 advisory dimensions, never affects pass/fail
+- **Report** findings as structured JSON artifacts and Markdown summaries
+- **Audit** tool design (`audit-tools`), eval quality (`audit-evals`), and judge prompts (`audit-judge-prompts`) with deterministic heuristics
+- **Generate** candidate evals from tools and tests (`generate-evals`), then promote reviewed candidates to formal evals (`promote-evals`)
+- **Scaffold** draft tools.yaml, evals.yaml, and fixtures from Python source via AST scan (`bootstrap`, `scaffold-tools`, `scaffold-evals`)
 
-## Current status
+All features are local, offline, zero-network by default.
 
-**Headless CLI Demo Prototype — 本地 mock replay + deterministic rule checks。**
+## What it does not do
 
-- 所有功能纯本地、离线、不联网、不需要密钥。
-- Agent 行为由 `MockReplayAdapter` 按 good/bad 分支回放，不是真实 LLM 决策。
-- 判定由 `RuleJudge` 做确定性规则匹配，不是 LLM 语义评分。
+- **Does not run target agents** — you run your agent; harness imports and evaluates traces
+- **Does not manage your API keys** — no .env loading by default, no key storage, no secret management
+- **Does not call real LLMs by default** — real LLM judge requires explicit triple opt-in
+  (`--live --confirm-i-have-real-key --env-file`)
+- **Does not auto-fix tools** — no optimizer, no prompt repair, no automatic tool modification
+- **Does not auto-generate ReviewDecision** — human review is explicit and required
+- **Does not provide batch / multi-trace evaluation** — deferred to future release
+- **Does not provide review UI** — deferred
+- **Does not include CLIAgentAdapter** — built-in agent runner has been removed
 
-## What works today（v1 scope）
+## Quickstart
 
-**接入路径：**
-- [x] `TraceImportAdapter`（native + simple_mapping）— 从外部 trace/log 导入 ExecutionTrace（**唯一接入路径**）
-- [x] Trace diagnostics（field coverage / type diagnostics / confidence / dry-run）
-
-**Tool-use inspection（5 个模块，37+ deterministic rules）：**
-- [x] D1 Trace Import — field coverage report, type diagnostics, trace confidence, mapping dry-run
-- [x] D2 Tool-use Correctness — 9 rules（call_id / pairing / arguments / status / orphan / non-empty）
-- [x] D4 Tool Ergonomics — 6 deterministic rules（name / namespace / overlap / similarity / wrapper / action-resource）
-- [x] D5 Tool Response Quality — 6 rules（2 ERROR + 4 WARNING）（output presence / size / signal / error actionability / context）
-- [x] D6 Tool Spec Quality — 10 rules（description / input_schema / parameters / output_contract / docs）
-
-**LLM judge framework（Phase 2）：**
-- [x] Rubric definitions（6 dimensions: 4 D4 + 2 D5, all advisory only）
-- [x] ToolUseQualityJudge（fake, deterministic heuristics, no real LLM calls）
-- [x] JudgeFinding advisory only — 不影响 `EvaluationResult.passed`
-- [x] ReviewDecision human explicit only
-
-**Supporting capabilities：**
-- [x] `audit-tools` — 工具契约确定性启发式审计
-- [x] `run --mock-path good|bad` — mock replay 执行 + artifact 输出
-- [x] `replay-run` — 历史 run 的 deterministic 轨迹重放
-- [x] `analyze-artifacts` — 离线复盘 trace 信号
-- [x] `generate-evals` + `promote-evals` — 候选 eval 生成
-- [x] `bootstrap` — AST 扫描生成 draft tools.yaml
-- [x] `audit-judge-prompts` — judge prompt 安全/格式审计
-- [x] `judge-provider-preflight` — 本地侧 live readiness 自检（不联网）
-- [x] CoreEvaluation + ReportSummary + Evidence → Report 链路
-- [x] CoreJudgeProvider Protocol + JudgeProvider factory（real LLM opt-in）
-
-## What is deferred（明确不在 v1 scope）
-
-- [ ] D3 Tool Metrics（error rate / redundancy / response size / latency）
-- [ ] D7 Batch / multi-trace evaluation
-- [ ] D8 Human Review UX
-- [ ] D2 remaining rules（fallback / retry / grounding / order）
-- [ ] D6 deferred rules（examples / auth / response_format — ToolSpec schema 不支持）
-- [ ] JSONL importer / stdout parser
-- [ ] Real LLM live rubric execution（infrastructure exists, rubric execution deferred）
-- [ ] Optimizer / auto repair / LLM auto mapping
-- [ ] CLIAgentAdapter（已移除）
-- [ ] Web UI / Benchmark / Leaderboard 平台
-
-## Quick start
+### Install
 
 ```bash
 git clone https://github.com/yaoziyaoguai/agent-tool-harness.git
 cd agent-tool-harness
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-python -m pytest -q
+
+# verify installation
+python -m pytest tests/ -q
 ```
 
-## Minimal CLI demo
+### Import a trace
+
+The primary workflow: your external runner produces a trace → harness imports and evaluates.
 
 ```bash
-# 审计工具契约
-python -m agent_tool_harness.cli audit-tools \
-  --tools examples/runtime_debug/tools.yaml \
-  --out runs/audit-tools
-
-# mock replay — good 路径（预期 PASS）
-python -m agent_tool_harness.cli run \
-  --project examples/runtime_debug/project.yaml \
-  --tools examples/runtime_debug/tools.yaml \
-  --evals examples/runtime_debug/evals.yaml \
-  --out runs/demo-good --mock-path good
-
-# mock replay — bad 路径（预期 FAIL）
-python -m agent_tool_harness.cli run \
-  --project examples/runtime_debug/project.yaml \
-  --tools examples/runtime_debug/tools.yaml \
-  --evals examples/runtime_debug/evals.yaml \
-  --out runs/demo-bad --mock-path bad
-```
-
-## How to read the output
-
-1. `report.md` — 顶部 signal_quality + Failure attribution → 判断信号可信度
-2. `diagnosis.json` — findings[] 含 grounding / decoy / when_not_to_use 信号
-3. `judge_results.json` — 每条 eval 的 PASS/FAIL 理由
-4. `tool_calls.jsonl` + `tool_responses.jsonl` — 实际调用链路证据
-
-> MockReplayAdapter 的 PASS/FAIL 是结构性的（`signal_quality: tautological_replay`），
-> 不代表真实 Agent 能力。RuleJudge 是确定性匹配，不是 LLM 语义判定。
-
-## How to integrate your project
-
-**推荐工作流（trace/log import，主路径）：**
-
-1. 用自己的脚本/CI/外部 runner 运行 Agent
-2. 保存 tool-use trace/log（JSON/JSONL/stdout）
-3. 写 mapping config（如果格式非 native schema）
-4. 用 `TraceImportAdapter` 导入 trace
-5. 运行 `CoreEvaluation`
-6. 生成 `Report`
-7. Human Review
-
-```bash
-# 示例：导入 trace 并评测
 python -c "
-from agent_tool_harness.trace_import import TraceImportAdapter
-from agent_tool_harness.core_evaluation import CoreEvaluation
+from agent_tool_harness.trace_import import import_trace_as_evidence
 
-adapter = TraceImportAdapter(mode='native')
-trace = adapter.import_file('path/to/trace.json')
-evidence = adapter.to_evidence(trace)
-result = CoreEvaluation().evaluate(evidence)
-print(f'passed: {result.passed}')
+evidence = import_trace_as_evidence('examples/trace_import/native_trace.json')
+trace = evidence.trace
+print(f'scenario:    {trace.scenario_id}')
+print(f'tool_calls:  {len(trace.tool_calls)}')
+print(f'tool_results: {len(trace.tool_results)}')
+print(f'signal_quality: {evidence.signal_quality}')
 "
 ```
 
-agent-tool-harness **不运行 Agent**。所有 Agent 启动由外部 runner/CI/用户脚本负责。
+### Run a mock replay demo (CLI)
 
-→ 详细指南：[`docs/PROJECT_INTEGRATION.md`](docs/PROJECT_INTEGRATION.md)
-→ 外部 runner 工作流：[`docs/EXTERNAL_RUNNER_WORKFLOW.md`](docs/EXTERNAL_RUNNER_WORKFLOW.md)
+The CLI demo uses pre-scripted good/bad branches to show the audit → run → report loop.
+It does not evaluate real agent behavior (`signal_quality: tautological_replay`).
+
+```bash
+# audit tool contracts
+python -m agent_tool_harness.cli audit-tools \
+  --tools examples/runtime_debug/tools.yaml \
+  --out /tmp/harness-demo/audit
+
+# mock replay — good path (expected PASS)
+python -m agent_tool_harness.cli run \
+  --project examples/runtime_debug/project.yaml \
+  --tools examples/runtime_debug/tools.yaml \
+  --evals examples/runtime_debug/evals.yaml \
+  --out /tmp/harness-demo/good --mock-path good
+
+# mock replay — bad path (expected FAIL)
+python -m agent_tool_harness.cli run \
+  --project examples/runtime_debug/project.yaml \
+  --tools examples/runtime_debug/tools.yaml \
+  --evals examples/runtime_debug/evals.yaml \
+  --out /tmp/harness-demo/bad --mock-path bad
+
+# read the report
+cat /tmp/harness-demo/good/report.md
+```
+
+## Input model
+
+```
+Your agent runner / script / CI
+  → produces tool-use trace/log (JSON)
+    → TraceImportAdapter imports trace
+      → CoreEvaluation evaluates tool use
+        → Report (Markdown + JSON artifacts)
+          → Human Review
+```
+
+Two import modes:
+
+| Mode | When to use |
+|------|-------------|
+| `native` | Your trace already matches the [native Agent2Harness schema](docs/TRACE_IMPORT_ADAPTER_SPEC.md) |
+| `simple_mapping` | Your trace uses different field names — map them with `SimpleMappingConfig` |
+
+If your trace is JSONL, stdout, or CSV, write a small conversion script to produce native-schema JSON first.
+See [External Runner Workflow](docs/EXTERNAL_RUNNER_WORKFLOW.md) for guidance.
+
+## Example trace
+
+A minimal native-schema trace ([`examples/trace_import/native_trace.json`](examples/trace_import/native_trace.json)):
+
+```json
+{
+  "scenario_id": "knowledge_search_regression",
+  "tool_calls": [
+    {
+      "call_id": "call-1",
+      "tool_name": "kb.search.search_articles",
+      "arguments": {"query": "SSO session loss after password reset", "limit": 5}
+    }
+  ],
+  "tool_results": [
+    {
+      "call_id": "call-1",
+      "tool_name": "kb.search.search_articles",
+      "status": "success",
+      "output": {"articles": [{"id": "kb-0042", "title": "SSO Session Loss: Root Cause Analysis"}]},
+      "error": null
+    }
+  ],
+  "final_answer": "Root cause: race condition in SSO session storage layer...",
+  "messages": [],
+  "observations": []
+}
+```
+
+## Evaluation model
+
+agent-tool-harness separates findings into three layers with clear boundaries:
+
+| Layer | Decides `passed`? | Source | Description |
+|-------|-------------------|--------|-------------|
+| **RuleFinding** | **Yes** | Deterministic rules | call_id uniqueness, call/result pairing, argument presence, spec completeness — 37+ rules across 5 inspectors |
+| **JudgeFinding** | **No** (advisory only) | LLM judge rubric (opt-in) | tool choice reasonableness, ergonomics, response quality — 6 advisory dimensions |
+| **ReviewDecision** | **No** (human only) | Human reviewer | Final accept/reject after reviewing all evidence |
+
+Key properties:
+- `EvaluationResult.passed` comes from deterministic RuleFinding only.
+- JudgeFinding is always advisory (`severity: "info"`) and never changes the pass/fail outcome.
+- ReviewDecision is never auto-generated — a human must create it explicitly.
+
+See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full architecture.
+
+## v3.0.0 scope
+
+### Includes
+
+- [x] External runner → trace/log import as the primary integration path
+- [x] Native trace import + simple field mapping import
+- [x] Trace diagnostics — field coverage, type checks, confidence assessment, mapping dry-run
+- [x] Tool-use correctness checks — 9 deterministic rules
+- [x] Tool spec quality checks — 10 deterministic rules
+- [x] Tool ergonomics deterministic hints — 6 rules
+- [x] Tool response quality deterministic hints — 6 rules
+- [x] Fake-testable LLM judge rubric framework — 6 advisory dimensions
+- [x] Markdown report + structured JSON artifacts
+- [x] RuleFinding determines deterministic passed
+- [x] JudgeFinding advisory only, ReviewDecision human explicit only
+- [x] 13 CLI subcommands — audit, scaffold, replay, bootstrap, preflight, and more
+
+### Deferred
+
+- [ ] D3 Tool Metrics — error rate, redundancy, response size, latency
+- [ ] D7 Batch / multi-trace evaluation
+- [ ] D8 Human Review UX
+- [ ] D2 remaining rules — fallback, retry, grounding, order
+- [ ] JSONL importer, stdout parser
+- [ ] Real LLM live rubric execution — infrastructure exists; rubric execution deferred
+- [ ] Optimizer / auto repair / LLM auto mapping
+- [ ] CLIAgentAdapter — removed
+- [ ] Web UI / Benchmark / Leaderboard
+
+## Documentation
+
+| Category | Document | Covers |
+|----------|----------|--------|
+| **Getting started** | [`docs/START_HERE.md`](docs/START_HERE.md) | 30-second fit check |
+| | [`examples/trace_import/README.md`](examples/trace_import/README.md) | Trace import examples |
+| **User guides** | [`docs/EXTERNAL_RUNNER_WORKFLOW.md`](docs/EXTERNAL_RUNNER_WORKFLOW.md) | External runner → trace import workflow |
+| | [`docs/TRACE_IMPORT_ADAPTER_SPEC.md`](docs/TRACE_IMPORT_ADAPTER_SPEC.md) | Trace import spec (native + simple mapping) |
+| | [`docs/CLI_USAGE.md`](docs/CLI_USAGE.md) | Full CLI command reference |
+| | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | YAML config file formats |
+| | [`docs/PROJECT_INTEGRATION.md`](docs/PROJECT_INTEGRATION.md) | Integrating your project |
+| | [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) | Real LLM judge opt-in config |
+| **Architecture** | [`docs/AGENT2HARNESS_MAIN_FLOW.md`](docs/AGENT2HARNESS_MAIN_FLOW.md) | Core flow: Trace → Evidence → Evaluation → Report |
+| | [`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md) | Tool-use inspection design (D1–D8) |
+| | [`docs/CURRENT_IMPLEMENTATION.md`](docs/CURRENT_IMPLEMENTATION.md) | Honest capability matrix |
+| | [`docs/HEADLESS_HARNESS_MODEL.md`](docs/HEADLESS_HARNESS_MODEL.md) | Harness execution model |
+| | [`docs/DEMO_CORE_REAL_BOUNDARY.md`](docs/DEMO_CORE_REAL_BOUNDARY.md) | Demo / Core / Real layer boundaries |
+| **Planning** | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Full roadmap (Tracks A–D) |
+| | [`docs/BACKLOG.md`](docs/BACKLOG.md) | Detailed backlog |
+| **Historical** | [`docs/DOGFOOD_REAL_LLM_001.md`](docs/DOGFOOD_REAL_LLM_001.md) | Historical dogfood record (2026-05-12) |
+| | [`docs/DOGFOODING.md`](docs/DOGFOODING.md) | Dogfooding policy |
+| | [`docs/REAL_AGENT_INTEGRATION_SDD.md`](docs/REAL_AGENT_INTEGRATION_SDD.md) | Historical architecture note |
 
 ## Roadmap
 
-| 阶段 | 内容 |
-|------|------|
-| Current (v1) | TraceImportAdapter + D1/D2/D4/D5/D6 tool-use inspection + Phase 2 LLM judge rubric framework |
-| Next | Tool metrics (D3) + batch evaluation (D7) + human review UX (D8) |
-| Later | Real LLM rubric execution, D2 remaining rules, D6 deferred rules |
+| Phase | Content |
+|-------|---------|
+| **v3.0.0 (current)** | TraceImportAdapter + D1/D2/D4/D5/D6 tool-use inspection + Phase 2 LLM judge rubric framework |
+| **Next** | Tool metrics (D3) + batch evaluation (D7) + human review UX (D8) |
+| **Later** | Real LLM rubric execution, D2 remaining rules, D6 deferred rules |
 
-明确不做：Web UI / MCP executor / RAG / Benchmark / 把 Agent 启动逻辑塞进 Core /
-为每个 Agent 写 wrapper / 自动 optimizer / 运行真实 Agent / CLIAgentAdapter。
+For the full roadmap, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-→ 详细路线图：[`docs/ROADMAP.md`](docs/ROADMAP.md)
-→ Tool-use inspection SDD：[`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md)
+## Design lineage
 
-## Docs
-
-| 想了解 | 看这份 |
-|--------|--------|
-| 30 秒判断是否适合你 | [`docs/START_HERE.md`](docs/START_HERE.md) |
-| 当前实现诚实描述 | [`docs/CURRENT_IMPLEMENTATION.md`](docs/CURRENT_IMPLEMENTATION.md) |
-| Harness 执行模型 | [`docs/HEADLESS_HARNESS_MODEL.md`](docs/HEADLESS_HARNESS_MODEL.md) |
-| CLI 命令全集 | [`docs/CLI_USAGE.md`](docs/CLI_USAGE.md) |
-| 配置文件格式 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) |
-| 接入你的项目 | [`docs/PROJECT_INTEGRATION.md`](docs/PROJECT_INTEGRATION.md) |
-| Tool-use inspection SDD | [`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md) |
-| 路线图 | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
-| Review Checklist | [`docs/REVIEW_CHECKLIST.md`](docs/REVIEW_CHECKLIST.md) |
+This project aligns with Anthropic Engineering's [Writing effective tools for agents — with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) methodology. The core focus is **tool-use inspection** — checking, evaluating, and reporting on Agent tool-use logs and tool design quality.

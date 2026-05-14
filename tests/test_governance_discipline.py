@@ -74,21 +74,34 @@ def test_docs_preserve_core_invariants():
     assert "Track A" in roadmap or "Track B" in roadmap
 
     # README 必须声明能力边界
-    assert "What does not work yet" in readme or "不支持" in readme
+    assert any(phrase in readme for phrase in [
+        "What does not work yet",
+        "What it does not do",
+        "不支持",
+    ]), "README must declare limitations"
     assert "signal_quality" in readme.lower()
     assert "tautological_replay" in readme.lower()
 
 
 def test_readme_demonstrates_full_flow():
-    """README 必须演示 generate-evals + promote-evals + mock-path good/bad。"""
+    """README 必须演示 trace import + generate-evals/promote-evals + mock-path good/bad。"""
 
     readme = Path("README.md").read_text(encoding="utf-8")
 
+    # v3.0.0: trace import 为主路径，README 必须展示
+    assert "import_trace_as_evidence" in readme, (
+        "README 必须演示 import_trace_as_evidence 作为 primary quickstart。"
+    )
+    assert "TraceImportAdapter" in readme or "trace_import" in readme, (
+        "README 必须引用 trace import 机制。"
+    )
+
+    # eval lifecycle 仍须可见
     assert "generate-evals" in readme, (
-        "README 必须演示 generate-evals，否则新用户看不到候选 eval 流程。"
+        "README 必须提及 generate-evals，否则新用户看不到候选 eval 流程。"
     )
     assert "promote-evals" in readme, (
-        "README 必须演示 promote-evals，否则新用户不知道候选→正式怎么走。"
+        "README 必须提及 promote-evals，否则新用户不知道候选→正式怎么走。"
     )
     assert "--mock-path good" in readme, "README 至少演示一次 --mock-path good。"
     assert "--mock-path bad" in readme, (

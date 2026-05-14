@@ -1,7 +1,9 @@
-# Project Integration — prototype level
+# Project Integration
 
-当前支持 prototype-level 集成：用配置文件描述你的项目和工具，在本 Harness 中
-跑 mock replay + rule checks。**不支持真实 Agent runtime 接入。**
+推荐通过 trace import 接入 agent-tool-harness。用外部 runner 运行 Agent，保存 tool-use
+trace/log，然后导入评测。详见 [External Runner Workflow](EXTERNAL_RUNNER_WORKFLOW.md)。
+
+以下为通过 YAML 配置文件接入 mock replay 的方式（prototype-level，不使用真实 Agent runtime）。
 
 ## 最小集成步骤
 

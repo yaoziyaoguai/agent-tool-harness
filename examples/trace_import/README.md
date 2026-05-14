@@ -66,5 +66,6 @@ evidence = import_trace_as_evidence("examples/trace_import/native_trace.json")
 
 ## 相关文档
 
-- [TRACE_IMPORT_ADAPTER_SPEC.md](../../docs/TRACE_IMPORT_ADAPTER_SPEC.md)
-- [REAL_AGENT_INTEGRATION_SDD.md](../../docs/REAL_AGENT_INTEGRATION_SDD.md)
+- [TRACE_IMPORT_ADAPTER_SPEC.md](../../docs/TRACE_IMPORT_ADAPTER_SPEC.md) — trace import spec
+- [EXTERNAL_RUNNER_WORKFLOW.md](../../docs/EXTERNAL_RUNNER_WORKFLOW.md) — 推荐工作流
+- [REAL_AGENT_INTEGRATION_SDD.md](../../docs/REAL_AGENT_INTEGRATION_SDD.md) — historical architecture note
