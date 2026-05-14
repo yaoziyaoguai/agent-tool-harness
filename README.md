@@ -30,8 +30,8 @@ All features are local, offline, zero-network by default.
   (`--live --confirm-i-have-real-key --env-file`)
 - **Does not auto-fix tools** — no optimizer, no prompt repair, no automatic tool modification
 - **Does not auto-generate ReviewDecision** — human review is explicit and required
-- **Does not provide batch / multi-trace evaluation** — deferred to future release
-- **Does not provide review UI** — deferred
+- **Does not provide batch / multi-trace evaluation**
+- **Does not provide review UI**
 - **Does not include CLIAgentAdapter** — built-in agent runner has been removed
 
 ## Quickstart
@@ -207,17 +207,9 @@ See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full arch
 - [x] JudgeFinding advisory only, ReviewDecision human explicit only
 - [x] 14 CLI subcommands — audit, scaffold, replay, bootstrap, preflight, and more
 
-### Deferred
-
-- [ ] D3 Tool Metrics — error rate, redundancy, response size, latency
-- [ ] D7 Batch / multi-trace evaluation
-- [ ] D8 Human Review UX
-- [ ] D2 remaining rules — fallback, retry, grounding, order
-- [ ] JSONL importer, stdout parser
-- [ ] Real LLM live rubric execution — infrastructure exists; rubric execution deferred
-- [ ] Optimizer / auto repair / LLM auto mapping
-- [ ] CLIAgentAdapter — removed
-- [ ] Web UI / Benchmark / Leaderboard
+v3.0.0 focuses on single-trace inspection and evaluation. Additional capabilities (metrics,
+batch/multi-trace, richer review workflows, remaining D2 rules) may be considered in future
+releases. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for long-range planning.
 
 ## Documentation
 
@@ -234,7 +226,7 @@ See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full arch
 | | [`docs/LLM_PROVIDER_CONFIG.md`](docs/LLM_PROVIDER_CONFIG.md) | Real LLM judge opt-in config |
 | **Reference** | [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md) | Artifact schema reference & versioning policy |
 | **Architecture** | [`docs/AGENT2HARNESS_MAIN_FLOW.md`](docs/AGENT2HARNESS_MAIN_FLOW.md) | Core flow: Trace → Evidence → Evaluation → Report |
-| | [`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md) | Tool-use inspection design (D1–D8) |
+| | [`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md) | Tool-use inspection design |
 | | [`docs/CURRENT_IMPLEMENTATION.md`](docs/CURRENT_IMPLEMENTATION.md) | Honest capability matrix |
 | | [`docs/HEADLESS_HARNESS_MODEL.md`](docs/HEADLESS_HARNESS_MODEL.md) | Harness execution model |
 | | [`docs/DEMO_CORE_REAL_BOUNDARY.md`](docs/DEMO_CORE_REAL_BOUNDARY.md) | Demo / Core / Real layer boundaries |
@@ -249,8 +241,7 @@ See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full arch
 | Phase | Content |
 |-------|---------|
 | **v3.0.0 (current)** | TraceImportAdapter + D1/D2/D4/D5/D6 tool-use inspection + Phase 2 LLM judge rubric framework |
-| **Next** | Tool metrics (D3) + batch evaluation (D7) + human review UX (D8) |
-| **Later** | Real LLM rubric execution, D2 remaining rules, D6 deferred rules |
+| **Future** | Real LLM rubric execution, remaining D2 rules, and broader evaluation capabilities |
 
 For the full roadmap, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

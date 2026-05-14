@@ -41,7 +41,7 @@ CURRENT_IMPLEMENTATION.md          ← 诚实了解当前实现边界
    ↓
 AGENT2HARNESS_MAIN_FLOW.md         ← Core Flow 架构
    ↓
-TOOL_USE_INSPECTION_SDD.md         ← Tool-use inspection 设计（D1-D8）
+TOOL_USE_INSPECTION_SDD.md         ← Tool-use inspection 设计
    ↓
 HEADLESS_HARNESS_MODEL.md          ← Harness 执行模型
    ↓
@@ -69,6 +69,4 @@ REVIEW_CHECKLIST.md                ← Review 检查清单
 - LLM judge rubric framework 已实现（fake-testable），但 real LLM live execution 需 opt-in
 - deterministic rule checks 决定 pass/fail；JudgeFinding 为 advisory only
 - 不做自动 optimizer / auto repair
-- 不做 batch / multi-trace evaluation（deferred）
-- 不做 Human Review UX（deferred）
 - CLIAgentAdapter 已移除

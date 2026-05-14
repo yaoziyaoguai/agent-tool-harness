@@ -115,21 +115,21 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 |----|------|------|
 | D1 | **Trace import diagnostics** (Module 1) | 🟢 done (2026-05-13) — mapping field coverage + type diagnostics + trace confidence + dry-run (48 tests) |
 | D2 | **Tool-use correctness checks** (Module 2) | 🟢 9 trace-level invariant rules done (2026-05-13) — `tool_inspection.py`: call_id duplicate, orphan call/result, arguments present/type, tool_name non-empty, status valid。集成到 CoreEvaluation。其余 (fallback/retry/grounding/order) deferred。 |
-| D3 | **Tool metrics** (Module 3) | 🔜 future — error rate, redundancy, response size, latency, token estimates |
+| D3 | **Tool metrics** (Module 3) | post-v3 future — error rate, redundancy, response size, latency |
 | D4 | **Tool ergonomics evaluation** (Module 4) | 🟢 6 deterministic rules + LLM advisory rubric done (2026-05-14) — `tool_ergonomics.py`: 6 deterministic rules (all WARNING)。`tool_use_quality_rubric.py` + `tool_use_quality_judge.py`: 4 D4 LLM advisory rubric dimensions (tool_choice_reasonableness, tool_too_low_level, frequently_chained_tools, missing_domain_tool)。Fake judge with deterministic heuristics。 |
 | D5 | **Tool response quality** (Module 5) | 🟢 6 deterministic rules + LLM advisory rubric done (2026-05-14) — `tool_response_quality.py`: 6 rules (2 ERROR + 4 WARNING)。`tool_use_quality_rubric.py` + `tool_use_quality_judge.py`: 2 D5 LLM advisory rubric dimensions (missing_fields_for_next_call, final_answer_faithfulness)。Fake judge with deterministic heuristics。 |
 | D6 | **Tool spec quality** (Module 6) | 🟢 10 deterministic rules done (2026-05-13) — `tool_spec_inspection.py`: description.exists, description.useful_length, input_schema.exists, parameter.name.explicit, required_parameter.documented, output_contract.documented, side_effects.documented, when_to_use.documented, when_not_to_use.documented, token_policy.defined。CoreEvaluation 集成。examples/auth/response_format deferred（ToolSpec schema 不支持）。|
-| D7 | **Batch / multi-trace evaluation** | 🔜 future |
-| D8 | **Human review UX** | 🔜 future |
+| D7 | **Batch / multi-trace evaluation** | post-v3 future |
+| D8 | **Human review UX** | post-v3 future |
 
-**实现顺序：** Phase 1 (D1 foundation + D2 trace-level 部分完成) → Phase 2 (D4+D5+D6 deterministic hints) → Phase 3 (D3 metrics + D7 batch + D8 review UX)。LLM judge advisory 在各 module 中按需接入。D2 剩余规则 (fallback/retry/grounding/order/argument validity) 在后续轮次实现。
+**实现顺序：** Phase 1 (D1 foundation + D2 trace-level 部分完成) → Phase 2 (D4+D5+D6 deterministic hints + LLM judge advisory rubric)。D2 剩余规则 (fallback/retry/grounding/order/argument validity) 在后续轮次实现。
 
 **Track C 最新进展（2026-05-13）：** CLIAgentAdapter 已移除。TraceImportAdapter 为唯一接入路径。
 用户可通过 `trace_import.py` 以 native 或 simple_mapping 模式导入 trace JSON，进入 Core Flow。
 
 **Track D 最新进展（2026-05-14）：** D1/D2/D4/D5/D6 all landed — 37 deterministic rules across 5 inspectors。
 Phase 2 LLM judge rubric framework 已落地：`tool_use_quality_rubric.py`（6 rubric dimensions + build_rubric_prompt）+ `tool_use_quality_judge.py`（ToolUseQualityJudge fake implementation，6 heuristic checks producing rubric-aware JudgeFinding），57 tests。所有 JudgeFinding advisory only，不影响 passed。
-Phase 3 (D3 metrics + D7 batch + D8 review UX) deferred。
+Post-v3 future work (metrics, batch evaluation, review UX) documented in BACKLOG.
 
 详见 [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)、
 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)。

@@ -280,11 +280,10 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 - **Acceptance (remaining)**: fallback, retry, grounding, required order, argument semantic validity
 - **Not doing**: 不让 LLM 替代 deterministic rules
 
-### D3. Tool metrics (Module 3)
-- **Status**: 🔜 future（deferred to Tool Metrics Phase）
+### D3. Tool metrics (Module 3) — post-v3 future
+- **Status**: post-v3 future — not part of v3.0.0 release scope
 - **Why**: 从日志统计工具使用行为，反推设计问题
-- **Acceptance**: tool_call_count, error_rate, redundancy, response_size, latency, token estimates
-- **Not doing**: 当前不生成 metrics（cost/latency tracking 继续 deferred）
+- **Scope (future)**: tool_call_count, error_rate, redundancy, response_size, latency, token estimates
 
 ### D4. Tool ergonomics evaluation (Module 4)
 - **Status**: 🟢 6 deterministic rules + LLM advisory rubric done (2026-05-14)。
@@ -309,17 +308,15 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 - **Acceptance**: ✅ 10 deterministic rules landed, CoreEvaluation integrated
 - **Not doing**: 不做自动 spec generation（bootstrap 已存在，不扩展）；不复用 ToolDesignAuditor（D4 工效学互补不重叠）
 
-### D7. Batch / multi-trace evaluation
-- **Status**: 🔜 future
+### D7. Batch / multi-trace evaluation — post-v3 future
+- **Status**: post-v3 future — not part of v3.0.0 release scope
 - **Why**: 单 trace 评测无法统计工具质量的整体趋势
-- **Acceptance**: 批量导入 + 汇总报告 + 跨 trace 指标对比
-- **Not doing**: 不做 parallel evaluation infrastructure（先 serial batch）
+- **Scope (future)**: 批量导入 + 汇总报告 + 跨 trace 指标对比
 
-### D8. Human review UX
-- **Status**: 🔜 future
+### D8. Human review UX — post-v3 future
+- **Status**: post-v3 future — not part of v3.0.0 release scope
 - **Why**: 当前 ReviewDecision 是纯代码创建，缺乏 review UI
-- **Acceptance**: review checklist 展示 + finding navigation + decision recording
-- **Not doing**: 不做 Web UI；不做 collaborative review
+- **Scope (future)**: review checklist 展示 + finding navigation + decision recording
 
 ---
 
@@ -332,8 +329,8 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 - No automatic production benchmark
 - No default real API calls
 - No hidden .env reading
-- No cost tracking (deferred to Tool Metrics Phase)
-- No latency tracking (deferred to Tool Metrics Phase)
+- No cost tracking (post-v3 future)
+- No latency tracking (post-v3 future)
 - No multi-tenant / enterprise RBAC
 - No Python SDK
 - No automatic optimizer (不改 tool spec / Agent prompt / 不自动重跑)
