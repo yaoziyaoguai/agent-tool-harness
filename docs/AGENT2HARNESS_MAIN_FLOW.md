@@ -34,6 +34,12 @@
 | Real LLM JudgeProvider (transport + factory) | ✅ 已完成（2026-05-12） | `openai_transport.py` + `anthropic_transport.py` + `llm_judge.py` + `judge_provider_factory.py` |
 | **Real LLM infrastructure & safety gate verified** | ⚠️ transport verified, semantic judge pending (2026-05-12) | `docs/DOGFOOD_REAL_LLM_001.md` |
 | **TraceImportAdapter (native + simple mapping)** | ✅ 已实现（2026-05-12）— **唯一接入路径** | `agent_tool_harness/trace_import.py` |
+| **D1 Trace diagnostics** | ✅ 已实现（2026-05-13） | `trace_diagnostics.py` |
+| **D2 Tool-use correctness** | ✅ 9 rules done（2026-05-13） | `tool_inspection.py` |
+| **D6 Tool spec quality** | ✅ 10 rules done（2026-05-13） | `tool_spec_inspection.py` |
+| **D4 Tool ergonomics** | ✅ 6 rules done（2026-05-14） | `tool_ergonomics.py` |
+| **D5 Tool response quality** | ✅ 6 rules done（2026-05-14） | `tool_response_quality.py` |
+| **Phase 2 LLM judge rubric** | ✅ rubric + fake judge done（2026-05-14） | `tool_use_quality_rubric.py` + `tool_use_quality_judge.py` |
 | C10 Real agent dogfood | Level 4A done, 4B deferred | Track C |
 | External runner workflow | 📄 已文档化 | `docs/EXTERNAL_RUNNER_WORKFLOW.md` |
 

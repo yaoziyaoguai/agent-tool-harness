@@ -31,7 +31,7 @@ WARNING（rule_passed=True，severity="medium"）:
 8. tool_spec.when_to_use.documented        — when_to_use 非空
 9. tool_spec.when_not_to_use.documented    — when_not_to_use 非空
 
-INFO（rule_passed=True，severity="low"）:
+INFO（rule_passed=True，severity="info"）:
 10. tool_spec.token_policy.defined         — token_policy 有内容
 
 明确 deferred（因 ToolSpec schema 不支持）:

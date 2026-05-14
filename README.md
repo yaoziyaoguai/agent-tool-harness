@@ -17,27 +17,48 @@
 - Agent 行为由 `MockReplayAdapter` 按 good/bad 分支回放，不是真实 LLM 决策。
 - 判定由 `RuleJudge` 做确定性规则匹配，不是 LLM 语义评分。
 
-## What works today
+## What works today（v1 scope）
 
-- [x] `audit-tools` — 工具契约确定性启发式审计（字段齐全性、命名规范、边界关键词）
-- [x] `run --mock-path good|bad` — mock replay 执行 + 10 个 artifact 输出
+**接入路径：**
+- [x] `TraceImportAdapter`（native + simple_mapping）— 从外部 trace/log 导入 ExecutionTrace（**唯一接入路径**）
+- [x] Trace diagnostics（field coverage / type diagnostics / confidence / dry-run）
+
+**Tool-use inspection（5 个模块，37+ deterministic rules）：**
+- [x] D1 Trace Import — field coverage report, type diagnostics, trace confidence, mapping dry-run
+- [x] D2 Tool-use Correctness — 9 rules（call_id / pairing / arguments / status / orphan / non-empty）
+- [x] D4 Tool Ergonomics — 6 deterministic rules（name / namespace / overlap / similarity / wrapper / action-resource）
+- [x] D5 Tool Response Quality — 6 rules（2 ERROR + 4 WARNING）（output presence / size / signal / error actionability / context）
+- [x] D6 Tool Spec Quality — 10 rules（description / input_schema / parameters / output_contract / docs）
+
+**LLM judge framework（Phase 2）：**
+- [x] Rubric definitions（6 dimensions: 4 D4 + 2 D5, all advisory only）
+- [x] ToolUseQualityJudge（fake, deterministic heuristics, no real LLM calls）
+- [x] JudgeFinding advisory only — 不影响 `EvaluationResult.passed`
+- [x] ReviewDecision human explicit only
+
+**Supporting capabilities：**
+- [x] `audit-tools` — 工具契约确定性启发式审计
+- [x] `run --mock-path good|bad` — mock replay 执行 + artifact 输出
 - [x] `replay-run` — 历史 run 的 deterministic 轨迹重放
-- [x] `analyze-artifacts` — 离线复盘 trace 信号（5 类 deterministic 启发式）
-- [x] `generate-evals` + `promote-evals` — 候选 eval 生成 → 人工审核 → 转正
-- [x] `bootstrap` — 从 Python 工具源码 AST 扫描生成 draft tools.yaml
+- [x] `analyze-artifacts` — 离线复盘 trace 信号
+- [x] `generate-evals` + `promote-evals` — 候选 eval 生成
+- [x] `bootstrap` — AST 扫描生成 draft tools.yaml
 - [x] `audit-judge-prompts` — judge prompt 安全/格式审计
 - [x] `judge-provider-preflight` — 本地侧 live readiness 自检（不联网）
-- [x] `TraceImportAdapter` — 从外部 trace/log 导入 ExecutionTrace（**唯一接入路径**）
-- [x] `report.md` 生成 — 含 signal_quality 声明和方法论边界警告
+- [x] CoreEvaluation + ReportSummary + Evidence → Report 链路
+- [x] CoreJudgeProvider Protocol + JudgeProvider factory（real LLM opt-in）
 
-## What does not work yet
+## What is deferred（明确不在 v1 scope）
 
-- [ ] Tool-use correctness 完整规则集（argument validity / grounding / fallback / retry）
-- [ ] Tool metrics（error rate / redundancy / response size / latency）
-- [ ] Tool ergonomics evaluation（low-level / overlap / namespace / name ambiguity）
-- [ ] Tool response quality checks（context meaningfulness / error actionability）
-- [ ] Batch / multi-trace evaluation
-- [ ] Human review UX
+- [ ] D3 Tool Metrics（error rate / redundancy / response size / latency）
+- [ ] D7 Batch / multi-trace evaluation
+- [ ] D8 Human Review UX
+- [ ] D2 remaining rules（fallback / retry / grounding / order）
+- [ ] D6 deferred rules（examples / auth / response_format — ToolSpec schema 不支持）
+- [ ] JSONL importer / stdout parser
+- [ ] Real LLM live rubric execution（infrastructure exists, rubric execution deferred）
+- [ ] Optimizer / auto repair / LLM auto mapping
+- [ ] CLIAgentAdapter（已移除）
 - [ ] Web UI / Benchmark / Leaderboard 平台
 
 ## Quick start
@@ -118,13 +139,12 @@ agent-tool-harness **不运行 Agent**。所有 Agent 启动由外部 runner/CI/
 
 | 阶段 | 内容 |
 |------|------|
-| Current | Headless CLI Demo Prototype + TraceImportAdapter（唯一接入路径） |
-| Next | Tool-use inspection: trace diagnostics + correctness rules + spec quality checks |
-| Then | Tool ergonomics + response quality + LLM judge rubric |
-| Later | Tool metrics + batch evaluation + human review UX |
+| Current (v1) | TraceImportAdapter + D1/D2/D4/D5/D6 tool-use inspection + Phase 2 LLM judge rubric framework |
+| Next | Tool metrics (D3) + batch evaluation (D7) + human review UX (D8) |
+| Later | Real LLM rubric execution, D2 remaining rules, D6 deferred rules |
 
 明确不做：Web UI / MCP executor / RAG / Benchmark / 把 Agent 启动逻辑塞进 Core /
-为每个 Agent 写 wrapper / 自动 optimizer / 运行真实 Agent。
+为每个 Agent 写 wrapper / 自动 optimizer / 运行真实 Agent / CLIAgentAdapter。
 
 → 详细路线图：[`docs/ROADMAP.md`](docs/ROADMAP.md)
 → Tool-use inspection SDD：[`docs/TOOL_USE_INSPECTION_SDD.md`](docs/TOOL_USE_INSPECTION_SDD.md)
