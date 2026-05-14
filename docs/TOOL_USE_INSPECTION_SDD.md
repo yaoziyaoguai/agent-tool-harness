@@ -268,13 +268,15 @@ CoreEvaluation 通过可选 `spec_inspector` + `tool_specs` 参数接入。
 - `agent_tool_harness/tool_spec_inspection.py` — ToolSpecInspector class, 10 deterministic rules, 39 tests
 - `agent_tool_harness/tool_ergonomics.py` — ToolErgonomicsInspector class, 6 deterministic rules (all WARNING), 28 tests
 - `agent_tool_harness/tool_response_quality.py` — ToolResponseQualityInspector class, 6 deterministic rules (2 ERROR + 4 WARNING), 34 tests
-- 所有 1045 tests passing, zero regressions
+- `agent_tool_harness/tool_use_quality_rubric.py` — RubricDimension + RubricPrompt + build_rubric_prompt(), 6 rubric dimensions
+- `agent_tool_harness/tool_use_quality_judge.py` — ToolUseQualityJudge (fake), 6 heuristic checks producing rubric-aware JudgeFinding
+- 所有 1102 tests passing, zero regressions
 
 **Phase 2 — Inspection (近期 → 中期):**
 5. ~~Tool spec quality checks（Module 6）~~ ✅ 10 rules done (2026-05-13) — ToolSpecInspector
 6. ~~Tool ergonomics evaluation hints（Module 4 deterministic 部分）~~ ✅ 6 rules done (2026-05-14) — ToolErgonomicsInspector
 7. ~~Tool response quality hints（Module 5 deterministic 部分）~~ ✅ 6 rules done (2026-05-14) — ToolResponseQualityInspector
-8. LLM judge rubric for tool-use quality（Module 4+5 LLM advisory 部分）
+8. ~~LLM judge rubric for tool-use quality（Module 4+5 LLM advisory 部分）~~ ✅ done (2026-05-14) — rubric definitions + fake judge, 57 tests
 
 **Phase 3 — Metrics & Batch (中期 → 远期):**
 9. Tool metrics phase（Module 3）

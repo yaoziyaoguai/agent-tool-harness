@@ -287,15 +287,17 @@ CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 - **Not doing**: 当前不生成 metrics（cost/latency tracking 继续 deferred）
 
 ### D4. Tool ergonomics evaluation (Module 4)
-- **Status**: 🟢 6 deterministic rules done (2026-05-14)。LLM advisory (frequently chained tools, missing higher-level domain tool, wrong tool selected) deferred。
+- **Status**: 🟢 6 deterministic rules + LLM advisory rubric done (2026-05-14)。
 - **Landed**: `tool_ergonomics.py` (ToolErgonomicsInspector class, 6 rules, 28 tests): `tool_ergonomics.name.too_generic` (WARNING), `tool_ergonomics.name.namespace_present` (WARNING), `tool_ergonomics.names.overlap` (WARNING), `tool_ergonomics.too_many_similar_tools` (WARNING), `tool_ergonomics.description.shallow_wrapper` (WARNING), `tool_ergonomics.action_resource_clarity` (WARNING)。全部 deterministic, zero-network。全部 WARNING (severity="medium", rule_passed=True)，不影响 EvaluationResult.passed。CoreEvaluation 通过可选 `ergonomics_inspector` + `tool_specs` 参数接入。
+- **LLM advisory rubric**: `tool_use_quality_rubric.py` + `tool_use_quality_judge.py` — 4 D4 rubric dimensions (tool_choice_reasonableness, tool_too_low_level, frequently_chained_tools, missing_domain_tool)。ToolUseQualityJudge (fake) with deterministic heuristics producing rubric-aware JudgeFinding (severity="info", advisory only)。
 - **Why**: 工具应该适合 Agent 使用，不是低级 API wrapper
 - **Acceptance**: ✅ 6 deterministic rules landed, CoreEvaluation integrated
 - **Not doing**: 不做自动 tool consolidation；不复用 ToolDesignAuditor（互补共存：ToolDesignAuditor 独立 audit 路径，ToolErgonomicsInspector CoreEvaluation 集成路径）
 
 ### D5. Tool response quality (Module 5)
-- **Status**: 🟢 6 deterministic rules done (2026-05-14)。LLM advisory (missing fields for next call, final_answer faithfulness) deferred。
+- **Status**: 🟢 6 deterministic rules + LLM advisory rubric done (2026-05-14)。
 - **Landed**: `tool_response_quality.py` (ToolResponseQualityInspector class, 6 rules, 34 tests): `tool_response.success.output_present` (ERROR), `tool_response.failure.error_present` (ERROR), `tool_response.output.size_reasonable` (WARNING), `tool_response.output.low_signal` (WARNING), `tool_response.error.actionable` (WARNING), `tool_response.output.context_fields_present` (WARNING)。全部 deterministic, zero-network。ERROR (severity="high", rule_passed=False) 影响 EvaluationResult.passed, WARNING (severity="medium", rule_passed=True) 不影响。CoreEvaluation 通过可选 `response_quality_inspector` 参数接入，从 evidence.trace 消费 tool_results。
+- **LLM advisory rubric**: `tool_use_quality_rubric.py` + `tool_use_quality_judge.py` — 2 D5 rubric dimensions (missing_fields_for_next_call, final_answer_faithfulness)。ToolUseQualityJudge (fake) with deterministic heuristics producing rubric-aware JudgeFinding (severity="info", advisory only)。
 - **Why**: 工具返回内容需要帮助 Agent 做推理，不只是返回 raw data
 - **Acceptance**: ✅ 6 deterministic rules landed, CoreEvaluation integrated
 - **Not doing**: 不做 automatic response rewriting
