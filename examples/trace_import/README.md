@@ -60,7 +60,9 @@ evidence = import_trace_as_evidence("examples/trace_import/native_trace.json")
   **不支持**: JSONPath DSL / 嵌套路径（a.b.c）/ filter / expression / Python eval /
   LLM 自动解析。如果 trace 格式超出 simple mapping 能力，请先用脚本转成 native schema。
 
-- **CLIAgentAdapter**: 尚未实现。当前无法通过 CLI 命令运行真实 Agent 并自动导入 trace。
+- **CLIAgentAdapter**: 已移除。agent-tool-harness 不再内置运行目标 Agent。
+  primary integration path 是 external runner / 用户脚本 / CI / 手工命令
+  → trace/log import → inspect/evaluate/report。
 
 ## 相关文档
 

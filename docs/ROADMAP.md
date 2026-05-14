@@ -76,10 +76,10 @@ Backlog 详见 [BACKLOG.md](BACKLOG.md)。
 **Real LLM infrastructure & safety gate** 已验证通过（`docs/DOGFOOD_REAL_LLM_001.md`）。
 openai-compatible transport + factory wiring + --env-file secret loading 均已跑通。
 Semantic JudgeFinding 因 provider response parsing bad_response 尚未成功产出，
-待后续调试。TraceImportAdapter / CLIAgentAdapter 不受此影响。
+待后续调试。TraceImportAdapter 不受此影响。
 
 **Real Agent Integration SDD** 进入实现阶段（`docs/REAL_AGENT_INTEGRATION_SDD.md`）。
-TraceImportAdapter + CLIAgentAdapter spec 已完成。
+TraceImportAdapter spec 已完成。（CLIAgentAdapter 已移除，runner responsibility 移至外部。）
 
 **Track B 进展（2026-05-13）：** Agent2Harness main flow 端到端落地完成。
 新增 4 个模块（`agent2harness_adapter.py`, `core_evaluation.py`, `core_report_bridge.py`,

@@ -2,7 +2,8 @@
 
 ## 当前是什么
 
-agent-tool-harness v2.0.0 是一个 **Headless CLI Agent Tool Harness Prototype**。
+agent-tool-harness v3.0.0 是一个 **tool-use inspection platform**。
+Primary path: external runner → trace/log import → inspect/evaluate/report。
 所有功能纯本地、离线、不联网、不需要 API 密钥。
 
 ## CLI 命令（13 个）
@@ -139,9 +140,13 @@ agent-tool-harness v2.0.0 是一个 **Headless CLI Agent Tool Harness Prototype*
 | Failure attribution | ✅ 已实现 | `TranscriptAnalyzer` 四分类 | 基于 mock 数据未验证 | — |
 | 可观测性 artifact | ✅ 已实现 | 10 个结构化 artifact | `llm_cost.json` advisory-only | `EvidenceStore` |
 | Human review 支持 | ✅ 已实现 | Report + artifact 追溯链 | 不自动裁决 | — |
-| 工具选择正确性评测 | ❌ 未实现 | — | 需真实 Agent 选择工具 | `RealAgentAdapter` |
-| 真实 Agent runtime | ❌ 未实现 | — | 需 `AgentAdapter` 扩展 | `RealAgentAdapter` |
-| LLM judge 语义评分 | ❌ 未实现 | — | 需独立 `JudgeProvider` | `JudgeProvider` (LLM) |
+| Tool ergonomics evaluation | ✅ 6 deterministic rules + rubric | `ToolErgonomicsInspector` | — | — |
+| Tool response quality checks | ✅ 6 deterministic rules + rubric | `ToolResponseQualityInspector` | — | — |
+| Tool spec quality checks | ✅ 10 deterministic rules | `ToolSpecInspector` | — | — |
+| Tool-use correctness checks | ✅ 9 deterministic rules | `ToolUseInspector` | — | — |
+| Trace import diagnostics | ✅ 4 cap | `TraceDiagnostics` | — | — |
+| 工具选择正确性评测 | ✅ rubric advisory | `ToolUseQualityJudge` (fake) | 真实 LLM judge 需 opt-in | — |
+| LLM judge rubric framework | ✅ fake-testable 已实现 | `tool_use_quality_rubric.py` + `tool_use_quality_judge.py` | real LLM live execution 需 opt-in | `JudgeProvider` (LLM) |
 | Provider cost / latency evidence | ❌ 未实现 | — | 需真实 API 调用 | `ProviderConfig` |
 
 > 表格中的 ❌ 是 **knowingly not yet supported**，不是产品缺陷。当前项目处于

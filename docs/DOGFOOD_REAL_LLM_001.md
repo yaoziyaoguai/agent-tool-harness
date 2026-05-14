@@ -1,5 +1,9 @@
 # Dogfood Record: Real LLM Infrastructure & Safety Gate Verification #001
 
+> **Historical dogfood note (2026-05-14):** This is a historical dogfood record from 2026-05-12.
+> CLIAgentAdapter has since been removed. The v1 primary integration path is
+> external runner → trace/log import. Real LLM judge remains explicit opt-in / non-default.
+
 ## 1. Basic Info
 
 | Field | Value |
@@ -89,7 +93,7 @@ providers:
 
 **Root cause:** To be investigated. Likely a mismatch between the provider's actual response format and the expected OpenAI chat completions response schema.
 
-**Next follow-up:** Debug provider response parsing / response format compatibility. This does NOT block TraceImportAdapter or CLIAgentAdapter implementation.
+**Next follow-up:** Debug provider response parsing / response format compatibility. This does NOT block TraceImportAdapter implementation.
 
 ## 7. What Was Verified
 
@@ -120,7 +124,7 @@ providers:
 
 1. **Provider response parsing debug** — 排查 bad_response 根因（API 响应格式与预期 schema 不匹配）
 2. **Prompt engineering** — 设计 JudgeFinding 的 system prompt + rubric
-3. **TraceImportAdapter / CLIAgentAdapter implementation** — 不依赖 semantic judge 修复
+3. **TraceImportAdapter implementation** — 不依赖 semantic judge 修复（CLIAgentAdapter 已移除）
 4. **Re-dogfood after response parsing fix** — 再次尝试验证完整 semantic judge 链路
 5. **Multi-provider comparison** — 用多个 provider 跑同一场景，分析分歧率（后续）
 

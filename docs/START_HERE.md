@@ -9,15 +9,15 @@
 - 你在为未来真实 LLM Agent 评测做技术准备
 
 **不适合你如果：**
-- 你想现在就接真实 OpenAI / Anthropic / DeepSeek API Key 做 Agent 评测
-- 你想评估你的 AI Agent 在真实场景下的表现
-- 你需要 LLM Judge 做语义评分
+- 你想现在就接真实 OpenAI / Anthropic / DeepSeek API Key 做 Agent 评测（需 opt-in）
+- 你需要 LLM Judge 做自动语义评分（当前 fake-testable rubric only，真实 LLM judge 需 opt-in）
 - 你需要 Web UI / MCP / 多租户 / Benchmark 平台
 
 ## 当前成熟度
 
-**Headless CLI Demo Prototype。** 不是成熟平台。所有 Agent 行为是 mock replay，
-所有 judge 是 deterministic rule checks。能跑通、能看懂流程，但不能替代真实评测。
+**v1 tool-use inspection platform。** 核心能力是 deterministic tool-use inspection
+（D1/D2/D4/D5/D6 + Phase 2 LLM judge rubric framework）。接入路径是 external runner
+→ trace/log import → inspect/evaluate/report。agent-tool-harness 不运行 Agent。
 
 ## 最小上手路径
 
@@ -55,8 +55,8 @@ REVIEW_CHECKLIST.md           ← Review 检查清单
 
 ## 当前不能做什么
 
-- 不能接真实 LLM（OpenAI / Anthropic / DeepSeek）
-- 不能用 LLM judge 做语义评分
-- 不能接入真实 Agent runtime
+- LLM judge rubric framework 已实现（fake-testable），但真实 LLM live execution 不是默认路径，需显式 opt-in
 - 不能作为 benchmark 平台使用
-- deterministic rule checks 只能做 baseline，不能替代真实智能评测
+- deterministic rule checks 决定 pass/fail；JudgeFinding 为 advisory only
+- 不运行真实 Agent runtime（primary path 是 external runner → trace/log import）
+- 不做自动 optimizer / auto repair

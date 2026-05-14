@@ -41,7 +41,7 @@ Agent2Harness 当前已完成以下能力：
 - 不支持任意格式自动智能解析
 - 不做复杂 JSONPath DSL（第一版仅支持 simple mapping）
 - 不自动读取用户私密项目数据
-- 不自动调用真实 Agent（CLIAgentAdapter 需显式配置）
+- agent-tool-harness 不调用真实 Agent（primary path 是 external runner → trace/log import）
 - 不自动生成 ReviewDecision（保持人工裁决边界）
 - 不替代 human review
 - 不做生产 benchmark 平台
