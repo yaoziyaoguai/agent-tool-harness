@@ -74,6 +74,8 @@ class CoreEvaluation:
         judge_provider: CoreJudgeProvider | None = None,
         inspector: ToolUseInspector | None = _SENTINEL,
         spec_inspector: object | None = None,  # ToolSpecInspector | None
+        ergonomics_inspector: object | None = None,  # ToolErgonomicsInspector | None
+        response_quality_inspector: object | None = None,  # ToolResponseQualityInspector | None
     ):
         """初始化 CoreEvaluation。
 
@@ -82,11 +84,17 @@ class CoreEvaluation:
         后，evaluate() 会将 JudgeFinding 追加到 EvaluationResult.findings 中。
         spec_inspector 可选——传入 ToolSpecInspector 实例后，evaluate() 可通过
         tool_specs 参数接收 ToolSpec 列表并运行 spec quality inspection。
+        ergonomics_inspector 可选——传入 ToolErgonomicsInspector 实例后，
+        evaluate() 可通过 tool_specs 参数运行 D4 ergonomics inspection。
+        response_quality_inspector 可选——传入 ToolResponseQualityInspector 实例后，
+        evaluate() 会从 evidence.trace 提取 tool_results 运行 D5 response quality inspection。
         """
         self._judge = judge or RuleJudge()
         self._judge_provider = judge_provider
         self._inspector = ToolUseInspector() if inspector is _SENTINEL else inspector
         self._spec_inspector = spec_inspector
+        self._ergonomics_inspector = ergonomics_inspector
+        self._response_quality_inspector = response_quality_inspector
 
     def evaluate(
         self,
@@ -136,6 +144,20 @@ class CoreEvaluation:
             spec_findings = self._spec_inspector.inspect(tool_specs)
             evaluation_result.findings = (
                 list(evaluation_result.findings) + list(spec_findings)
+            )
+
+        # tool ergonomics inspection（D4 — 可选）
+        if self._ergonomics_inspector is not None and tool_specs:
+            ergo_findings = self._ergonomics_inspector.inspect(tool_specs)
+            evaluation_result.findings = (
+                list(evaluation_result.findings) + list(ergo_findings)
+            )
+
+        # tool response quality inspection（D5 — 可选，从 evidence.trace 消费）
+        if self._response_quality_inspector is not None:
+            rq_findings = self._response_quality_inspector.inspect(evidence.trace)
+            evaluation_result.findings = (
+                list(evaluation_result.findings) + list(rq_findings)
             )
 
         # 可选 LLM judge 辅助评估

@@ -424,7 +424,7 @@ class TestInfoRule:
 
         f = _find_by_rule_type(findings, "tool_spec.token_policy.defined")
         assert f.rule_passed is True  # INFO 不影响 passed
-        assert f.severity == "low"
+        assert f.severity == "info"
 
     def test_info_does_not_affect_passed(self):
         inspector = ToolSpecInspector()
@@ -475,7 +475,7 @@ class TestSeverityPassedBoundary:
         spec = _make_tool_spec(token_policy={})
         findings = inspector.inspect([spec])
 
-        info_findings = [f for f in findings if f.severity == "low"]
+        info_findings = [f for f in findings if f.severity == "info"]
         assert len(info_findings) >= 1
         for f in info_findings:
             assert f.rule_passed is True

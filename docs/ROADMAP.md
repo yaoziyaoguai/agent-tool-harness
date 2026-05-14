@@ -115,8 +115,8 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 | D1 | **Trace import diagnostics** (Module 1) | 🟢 done (2026-05-13) — mapping field coverage + type diagnostics + trace confidence + dry-run (48 tests) |
 | D2 | **Tool-use correctness checks** (Module 2) | 🟢 9 trace-level invariant rules done (2026-05-13) — `tool_inspection.py`: call_id duplicate, orphan call/result, arguments present/type, tool_name non-empty, status valid。集成到 CoreEvaluation。其余 (fallback/retry/grounding/order) deferred。 |
 | D3 | **Tool metrics** (Module 3) | 🔜 future — error rate, redundancy, response size, latency, token estimates |
-| D4 | **Tool ergonomics evaluation** (Module 4) | 🔜 future — low-level/overlap/namespace/name ambiguity/chain consolidation |
-| D5 | **Tool response quality** (Module 5) | 🔜 future — context meaningfulness, verbosity, error actionability, faithfulness |
+| D4 | **Tool ergonomics evaluation** (Module 4) | 🟢 6 deterministic rules done (2026-05-14) — `tool_ergonomics.py`: name.too_generic, name.namespace_present, names.overlap, too_many_similar_tools, description.shallow_wrapper, action_resource_clarity。全部 WARNING，不影响 passed。CoreEvaluation 集成。LLM advisory 部分 (frequently chained tools, missing higher-level domain tool, wrong tool selected) deferred。 |
+| D5 | **Tool response quality** (Module 5) | 🟢 6 deterministic rules done (2026-05-14) — `tool_response_quality.py`: success.output_present (ERROR), failure.error_present (ERROR), output.size_reasonable, output.low_signal, error.actionable, output.context_fields_present (WARNING)。CoreEvaluation 集成。LLM advisory 部分 (missing fields for next call, final_answer faithfulness) deferred。 |
 | D6 | **Tool spec quality** (Module 6) | 🟢 10 deterministic rules done (2026-05-13) — `tool_spec_inspection.py`: description.exists, description.useful_length, input_schema.exists, parameter.name.explicit, required_parameter.documented, output_contract.documented, side_effects.documented, when_to_use.documented, when_not_to_use.documented, token_policy.defined。CoreEvaluation 集成。examples/auth/response_format deferred（ToolSpec schema 不支持）。|
 | D7 | **Batch / multi-trace evaluation** | 🔜 future |
 | D8 | **Human review UX** | 🔜 future |
@@ -125,6 +125,10 @@ ReviewDecision 由人工显式创建。详见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT
 
 **Track C 最新进展（2026-05-13）：** CLIAgentAdapter 已移除。TraceImportAdapter 为唯一接入路径。
 用户可通过 `trace_import.py` 以 native 或 simple_mapping 模式导入 trace JSON，进入 Core Flow。
+
+**Track D 最新进展（2026-05-14）：** D1/D2/D4/D5/D6 all landed — 37 deterministic rules across 5 inspectors。
+D4 (ToolErgonomicsInspector) 和 D5 (ToolResponseQualityInspector) Phase 1 已落地，均通过 CoreEvaluation 集成。
+Phase 2 LLM judge advisory (D4/D5/D6) 待实现。Phase 3 (D3 metrics + D7 batch + D8 review UX) deferred。
 
 详见 [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)、
 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)。

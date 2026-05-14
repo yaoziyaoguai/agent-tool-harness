@@ -240,11 +240,14 @@ class ToolSpecInspector:
             severity="medium",
             category="rule",
             message=(
-                f"required field not declared, {list(properties.keys())}"
-                f" parameters have no required/optional distinction"
+                f"required field not declared;"
+                f" {list(properties.keys())} are implicitly optional"
+                f" by JSON Schema convention"
                 if not has_required
                 else (
-                    f"parameters without required/optional docs: {undocumented}"
+                    f"parameters not in required list"
+                    f" (implicitly optional by JSON Schema convention):"
+                    f" {undocumented}"
                     if undocumented
                     else "required parameters are documented"
                 )
@@ -354,7 +357,7 @@ class ToolSpecInspector:
         has_policy = isinstance(policy, dict) and len(policy) > 0
         return RuleFinding(
             finding_id=f"tool_spec.token_policy.defined::{spec.qualified_name}",
-            severity="low",
+            severity="info",
             category="rule",
             message=(
                 f"token_policy has {len(policy)} field(s)"
