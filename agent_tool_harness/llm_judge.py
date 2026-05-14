@@ -213,13 +213,19 @@ Evaluate whether:
 3. The final answer correctly used the tool outputs
 4. The agent avoided common failure modes (wrong tool, stale data, missing calls)
 
-Output your assessment as a JSON object:
-{"passed": true/false, "rationale": "...", "confidence": 0.0-1.0}
+You MUST output valid JSON only — no markdown fences, no explanatory text, \
+no code blocks. Output exactly one JSON object on a single line or \
+pretty-printed, with these fields:
+
+{"passed": true, "rationale": "brief explanation (2-4 sentences)", "confidence": 0.85}
 
 Where:
-- passed: true if the agent's tool usage was correct and appropriate
-- rationale: brief explanation of your judgment (2-4 sentences)
-- confidence: your confidence in this judgment (0.0 to 1.0)"""
+- passed: true if the agent's tool usage was correct and appropriate, false otherwise
+- rationale: brief explanation of your judgment
+- confidence: your confidence in this judgment, a number between 0.0 and 1.0
+
+IMPORTANT: Output ONLY the JSON object. Do NOT wrap it in ```json fences. \
+Do NOT add any text before or after the JSON."""
 
 _USER_MESSAGE_TEMPLATE = """\
 ## Scenario
@@ -236,7 +242,7 @@ _USER_MESSAGE_TEMPLATE = """\
 - cost_usd: {cost_usd}
 - latency_ms: {latency_ms}
 
-Evaluate the agent's tool usage quality. Output JSON only."""
+Evaluate the agent's tool usage quality. Output ONLY the JSON object, no other text."""
 
 
 # ---------------------------------------------------------------------------

@@ -23,9 +23,13 @@ from agent_tool_harness.openai_transport import (
     ERROR_RATE_LIMITED,
     ERROR_TIMEOUT,
     OpenAITransport,
+    _extract_content_text,
+    _extract_json_from_text,
     _parse_judge_content,
     _safe_message,
+    _sanitized_response_shape,
     _TransportError,
+    _try_parse_judge_dict,
 )
 
 # ---------------------------------------------------------------------------
@@ -413,3 +417,280 @@ def test_oserror_mapped():
     with pytest.raises(_TransportError) as exc:
         t.send({"messages": []})
     assert exc.value.error_code == ERROR_NETWORK
+
+
+# ===================================================================
+# 10. normalization layer — _extract_content_text
+# ===================================================================
+
+
+def test_extract_content_text_str():
+    """形态 A：content 是 str，直接返回。"""
+    assert _extract_content_text('{"passed": true}') == '{"passed": true}'
+    assert _extract_content_text("plain text") == "plain text"
+    assert _extract_content_text("") == ""
+
+
+def test_extract_content_text_dict():
+    """形态 B：content 是 dict，转为 JSON 字符串。"""
+    data = {"passed": True, "rationale": "good"}
+    result = _extract_content_text(data)
+    assert isinstance(result, str)
+    assert '"passed"' in result
+    assert '"rationale"' in result
+
+
+def test_extract_content_text_list():
+    """形态 C：content 是 content parts array，提取 text 字段拼接。"""
+    parts = [
+        {"type": "text", "text": '{"passed": true,'},
+        {"type": "text", "text": '"rationale": "ok"}'},
+    ]
+    result = _extract_content_text(parts)
+    assert "passed" in result
+    assert "rationale" in result
+
+
+def test_extract_content_text_list_filters_non_text():
+    """content parts 中非 text 类型被跳过。"""
+    parts = [
+        {"type": "image_url", "image_url": {"url": "..."}},
+        {"type": "text", "text": '{"passed": true}'},
+    ]
+    assert "passed" in _extract_content_text(parts)
+
+
+def test_extract_content_text_none():
+    """None / 空值返回空字符串，不抛异常。"""
+    assert _extract_content_text(None) == ""
+    assert _extract_content_text(42) == "42"
+
+
+# ===================================================================
+# 11. normalization layer — _extract_json_from_text
+# ===================================================================
+
+
+def test_extract_json_plain():
+    """标准 JSON string 解析。"""
+    result = _extract_json_from_text('{"passed": true, "rationale": "ok"}')
+    assert result == {"passed": True, "rationale": "ok"}
+
+
+def test_extract_json_fenced():
+    """fenced JSON block 解析。"""
+    text = """Here is my assessment:
+```json
+{"passed": false, "rationale": "bad tool choice"}
+```
+That's all."""
+    result = _extract_json_from_text(text)
+    assert result == {"passed": False, "rationale": "bad tool choice"}
+
+
+def test_extract_json_fenced_no_lang():
+    """fenced block 不带 json 标识。"""
+    text = '```\n{"passed": true, "rationale": "ok"}\n```'
+    result = _extract_json_from_text(text)
+    assert result == {"passed": True, "rationale": "ok"}
+
+
+def test_extract_json_embedded():
+    """JSON 嵌在前导/尾随文本中。"""
+    text = 'Some text {"passed": true, "rationale": "embedded"} more text'
+    result = _extract_json_from_text(text)
+    assert result == {"passed": True, "rationale": "embedded"}
+
+
+def test_extract_json_no_json():
+    """纯文本无 JSON → None。"""
+    assert _extract_json_from_text("This is just plain text.") is None
+
+
+def test_extract_json_empty():
+    """空字符串 → None。"""
+    assert _extract_json_from_text("") is None
+    assert _extract_json_from_text("   ") is None
+
+
+def test_extract_json_invalid_json():
+    """无效 JSON 文本 → None。"""
+    assert _extract_json_from_text("{not valid json}") is None
+
+
+# ===================================================================
+# 12. normalization layer — _try_parse_judge_dict
+# ===================================================================
+
+
+def test_try_parse_judge_dict_standard():
+    """标准 passed/rationale/confidence 字段。"""
+    result = _try_parse_judge_dict({
+        "passed": True, "rationale": "ok", "confidence": 0.9
+    })
+    assert result["passed"] is True
+    assert result["rationale"] == "ok"
+    assert result["confidence"] == 0.9
+
+
+def test_try_parse_judge_dict_findings_array():
+    """findings 数组格式。"""
+    result = _try_parse_judge_dict({
+        "findings": [{"passed": False, "rationale": "bad", "confidence": 0.95}]
+    })
+    assert result["passed"] is False
+    assert result["rationale"] == "bad"
+
+
+def test_try_parse_judge_dict_empty():
+    """空 dict → 空 dict。"""
+    assert _try_parse_judge_dict({}) == {}
+
+
+def test_try_parse_judge_dict_no_judge_fields():
+    """无关 dict → 空 dict。"""
+    assert _try_parse_judge_dict({"other": "data"}) == {}
+
+
+# ===================================================================
+# 13. _send_once with compatible provider shapes
+# ===================================================================
+
+
+def test_send_content_dict_shape():
+    """形态 B：content 是 dict → 成功解析。"""
+    response = {
+        "choices": [{
+            "message": {
+                "content": {"passed": True, "rationale": "dict content ok", "confidence": 0.88}
+            }
+        }]
+    }
+    t = _make_transport(http_factory=_fake_conn_factory(response))
+    result = t.send({"messages": []})
+    assert result["passed"] is True
+    assert result["rationale"] == "dict content ok"
+
+
+def test_send_content_parts_array_shape():
+    """形态 C：content 是 content parts array → 成功解析。"""
+    response = {
+        "choices": [{
+            "message": {
+                "content": [
+                    {"type": "text", "text": '{"passed": false,'},
+                    {"type": "text", "text": '"rationale": "parts array"}'},
+                ]
+            }
+        }]
+    }
+    t = _make_transport(http_factory=_fake_conn_factory(response))
+    result = t.send({"messages": []})
+    assert result["passed"] is False
+    assert result["rationale"] == "parts array"
+
+
+def test_send_content_fenced_json_shape():
+    """形态 D：content 包含 fenced JSON → 成功解析。"""
+    response = {
+        "choices": [{
+            "message": {
+                "content": (
+                    'Sure, here is the assessment:\n'
+                    '```json\n'
+                    '{"passed": true, "rationale": "fenced works"}\n'
+                    '```\n'
+                    'Done.'
+                )
+            }
+        }]
+    }
+    t = _make_transport(http_factory=_fake_conn_factory(response))
+    result = t.send({"messages": []})
+    assert result["passed"] is True
+    assert result["rationale"] == "fenced works"
+
+
+def test_send_content_non_json_fallback():
+    """形态 E：content 非 JSON 文本 → 回退关键词启发式，不抛 bad_response。"""
+    response = {
+        "choices": [{
+            "message": {"content": "The agent passed all checks successfully."}
+        }]
+    }
+    t = _make_transport(http_factory=_fake_conn_factory(response))
+    result = t.send({"messages": []})
+    # 回退启发式识别到 "passed" → True
+    assert result["passed"] is True
+    assert result["rationale"] is not None
+
+
+# ===================================================================
+# 14. _sanitized_response_shape — 脱敏诊断
+# ===================================================================
+
+
+def test_sanitized_shape_no_secrets():
+    """_sanitized_response_shape 不泄露 content 全文，只返回类型和长度。"""
+    shape = _sanitized_response_shape({
+        "choices": [{
+            "message": {
+                "content": "a" * 5000
+            }
+        }],
+        "usage": {"prompt_tokens": 10}
+    })
+    assert shape["content_type"] == "str"
+    assert shape["content_len"] == 5000
+    assert len(shape["content_preview"]) <= 200
+    # 不包含完整 content
+    assert "a" * 5000 not in str(shape)
+
+
+def test_sanitized_shape_dict_content():
+    """dict content → 返回 keys，不返回 values。"""
+    shape = _sanitized_response_shape({
+        "choices": [{
+            "message": {
+                "content": {"passed": True, "rationale": "secret info"}
+            }
+        }]
+    })
+    assert shape["content_type"] == "dict"
+    assert "content_keys" in shape
+    # 不包含 content 的 values
+    assert "secret info" not in str(shape)
+
+
+def test_sanitized_shape_empty():
+    """空响应不 crash。"""
+    shape = _sanitized_response_shape({})
+    assert shape["top_level_keys"] == []
+
+
+# ---------------------------------------------------------------------------
+# 15. User-Agent header
+# ---------------------------------------------------------------------------
+
+
+def test_user_agent_header_sent():
+    """验证 transport 发送 User-Agent header。"""
+    captured = {}
+
+    def factory(host, port, timeout):
+        conn = MagicMock()
+        def _capture(method, path, body, headers):
+            captured["headers"] = headers
+        conn.request = _capture
+        resp = MagicMock()
+        resp.status = 200
+        import json
+        resp.read.return_value = json.dumps({
+            "choices": [{"message": {"content": '{"passed":true,"rationale":"ok"}'}}]
+        }).encode()
+        conn.getresponse.return_value = resp
+        return conn
+
+    t = _make_transport(http_factory=factory)
+    t.send({"messages": []})
+    assert captured["headers"].get("User-Agent") == "agent-tool-harness/3.0"

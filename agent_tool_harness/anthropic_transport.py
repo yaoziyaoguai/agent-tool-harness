@@ -223,6 +223,7 @@ class AnthropicTransport:
             "x-api-key": self._api_key,
             "anthropic-version": self._anthropic_version,
             "Accept": "application/json",
+            "User-Agent": "agent-tool-harness/3.0",
         }
 
         try:
@@ -265,16 +266,13 @@ class AnthropicTransport:
         # 提取 usage
         usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else None
 
-        # 从 content[0].text 提取 judge 判定
+        # 遍历 content blocks，提取所有 type=text 的文本块（跳过 thinking 等）
         content_list = payload.get("content", [])
         if not isinstance(content_list, list) or not content_list:
             raise _TransportError(ERROR_BAD_RESPONSE)
-        first_block = content_list[0]
-        if not isinstance(first_block, dict):
+        text = _extract_text_from_content_blocks(content_list)
+        if text is None:
             raise _TransportError(ERROR_BAD_RESPONSE)
-        text = first_block.get("text", "")
-        if not isinstance(text, str):
-            text = ""
 
         # 解析 text 中的 judge 字段
         parsed = _parse_judge_content(text)
@@ -285,6 +283,23 @@ class AnthropicTransport:
 # ---------------------------------------------------------------------------
 # 响应解析
 # ---------------------------------------------------------------------------
+
+
+def _extract_text_from_content_blocks(blocks: list) -> str | None:
+    """从 Anthropic 响应 content blocks 中提取所有 ``type=="text"`` 的文本。
+
+    跳过 ``type=="thinking"`` 等非文本块。多个 text block 拼接。
+    如果没有任何非空 text 块，返回 None。
+    """
+    parts: list[str] = []
+    for blk in blocks:
+        if isinstance(blk, dict) and blk.get("type") == "text":
+            t = blk.get("text")
+            if isinstance(t, str) and t:
+                parts.append(t)
+    if not parts:
+        return None
+    return "".join(parts)
 
 
 def _parse_judge_content(content: str) -> dict:

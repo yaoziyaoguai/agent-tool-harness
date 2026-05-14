@@ -235,6 +235,7 @@ class OpenAITransport:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self._api_key}",
             "Accept": "application/json",
+            "User-Agent": "agent-tool-harness/3.0",
         }
 
         try:
@@ -278,6 +279,16 @@ class OpenAITransport:
         usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else None
 
         # 从 choices[0].message.content 提取 judge 判定
+        #
+        # 兼容多种 compatible provider 响应格式：
+        #   A. content 是 JSON 字符串 (标准 OpenAI)
+        #   B. content 是 dict（某些 SDK 预解析）
+        #   C. content 是 content parts array
+        #   D. content 是 markdown fenced JSON
+        #   E. content 是非 JSON 文本 → 回退关键词启发式
+        #   F. 以上皆不可解析 → bad_response
+        #
+        # 所有分支都只返回结构化 dict，不泄露 raw response。
         choices = payload.get("choices", [])
         if not isinstance(choices, list) or not choices:
             raise _TransportError(ERROR_BAD_RESPONSE)
@@ -288,39 +299,177 @@ class OpenAITransport:
         if not isinstance(message, dict):
             raise _TransportError(ERROR_BAD_RESPONSE)
         content = message.get("content", "")
-        if not isinstance(content, str):
-            content = ""
 
-        # 解析 content 中的 judge 字段
-        parsed = _parse_judge_content(content)
+        # ---- normalization layer ----
+        # 把 str / dict / list 三种 content 归一化为纯文本，再尝试 JSON 解析
+        content_text = _extract_content_text(content)
+        parsed = _parse_judge_content(content_text)
         parsed["usage"] = usage
+
+        # 如果解析后缺少关键字段且 content 本身是 dict，尝试从 dict 直接提取
+        if not parsed.get("rationale") and isinstance(content, dict):
+            direct = _try_parse_judge_dict(content)
+            if direct.get("rationale"):
+                parsed = direct
+                parsed["usage"] = usage
+
         return parsed
 
 
 # ---------------------------------------------------------------------------
-# 响应解析
+# 响应解析 —— normalization layer
 # ---------------------------------------------------------------------------
+# 设计原则：
+# 1. 归一化层独立于业务层——不引用 JudgeFinding / Evidence 等对象
+# 2. 每种 content 形态有专门处理路径，不互相污染
+# 3. 所有分支最终返回 {passed, rationale, confidence, rubric} dict
+# 4. 失败时返回空 dict 或 fallback 结果，绝不抛异常（调用方决定如何处理）
+# 5. bad_response 只记录 sanitized shape，不含 raw body / key / secret
+
+
+def _extract_content_text(content: object) -> str:
+    """把 content（可能是 str / dict / list）归一化为纯文本。
+
+    支持三种形态：
+    - **str**: 直接返回（标准 OpenAI chat completions）
+    - **dict**: 尝试 json.dumps 转为字符串（某些 SDK 预解析了 JSON）
+    - **list**: 当作 content parts array，提取 ``text`` 字段并拼接
+
+    任何不可处理的类型返回空字符串，不抛异常。
+    """
+    # 形态 A / D / E：content 是字符串
+    if isinstance(content, str):
+        return content
+
+    # 形态 B：content 是 dict（SDK 预解析的 JSON object）
+    if isinstance(content, dict):
+        try:
+            return _json.dumps(content, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return str(content)
+
+    # 形态 C：content 是 list → content parts array
+    # 例如 [{"type":"text","text":"..."}, {"type":"text","text":"..."}]
+    if isinstance(content, list):
+        texts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                t = item.get("text", "")
+                if isinstance(t, str) and t:
+                    texts.append(t)
+        return "\n".join(texts)
+
+    # 未知形态：尽力转字符串
+    return str(content) if content else ""
+
+
+def _extract_json_from_text(text: str) -> dict | None:
+    """从文本中提取第一个有效 JSON object。
+
+    支持形态：
+    - **plain JSON**: ``{"passed": ...}``
+    - **fenced JSON**: `` ```json\\n{...}\\n``` ``
+    - **前导/尾随文本**: ``Some text {"passed": true} more text``
+
+    返回解析出的 dict，失败返回 None。
+    """
+    if not text or not text.strip():
+        return None
+
+    # 尝试 1：整段文本直接解析
+    try:
+        data = _json.loads(text)
+        if isinstance(data, dict):
+            return data
+    except (_json.JSONDecodeError, TypeError, ValueError):
+        pass
+
+    # 尝试 2：markdown fenced JSON block —— ```json ... ```
+    # 兼容某些 compatible provider 在 content 中包裹 markdown fence
+    import re as _re
+    fence_pattern = r'```(?:json)?\s*\n(.*?)\n```'
+    matches = _re.findall(fence_pattern, text, _re.DOTALL)
+    for m in matches:
+        try:
+            data = _json.loads(m.strip())
+            if isinstance(data, dict):
+                return data
+        except (_json.JSONDecodeError, TypeError, ValueError):
+            continue
+
+    # 尝试 3：在文本中搜索 JSON object 边界 {...}
+    # 找第一个 { 和匹配的 }，提取并解析
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        end = start
+        for i, ch in enumerate(text[start:], start=start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end > start:
+            candidate = text[start:end]
+            try:
+                data = _json.loads(candidate)
+                if isinstance(data, dict):
+                    return data
+            except (_json.JSONDecodeError, TypeError, ValueError):
+                pass
+        start = text.find("{", end)
+
+    return None
+
+
+def _try_parse_judge_dict(data: dict) -> dict:
+    """从 dict 中尝试提取 judge 判定字段。
+
+    这是对 content=dict 场景（形态 B）的直接提取路径。
+    不走 _parse_judge_content 的文本→JSON 路径，避免双重序列化。
+    """
+    if not isinstance(data, dict):
+        return {}
+
+    # 标准字段
+    if "passed" in data:
+        return {
+            "passed": bool(data.get("passed")),
+            "rationale": data.get("rationale"),
+            "confidence": data.get("confidence"),
+            "rubric": data.get("rubric"),
+        }
+
+    # 带 findings 数组的格式
+    findings = data.get("findings")
+    if isinstance(findings, list) and findings:
+        first = findings[0] if isinstance(findings[0], dict) else {}
+        return {
+            "passed": bool(first.get("passed", True)),
+            "rationale": first.get("rationale") or first.get("message"),
+            "confidence": first.get("confidence"),
+            "rubric": first.get("rubric"),
+        }
+
+    return {}
 
 
 def _parse_judge_content(content: str) -> dict:
     """从 LLM 响应文本中提取 {passed, rationale, confidence, rubric}。
 
-    尝试 JSON 解析；失败则回退到关键词启发式。
+    解析顺序：
+    1. 尝试从文本中提取 JSON object（支持 plain / fenced / 嵌入式 JSON）
+    2. JSON 解析成功 → 标准化返回
+    3. JSON 解析失败 → 回退到关键词启发式（保持向后兼容）
     """
-    # 尝试 JSON 解析
-    try:
-        data = _json.loads(content)
-        if isinstance(data, dict) and "passed" in data:
-            return {
-                "passed": bool(data.get("passed")),
-                "rationale": data.get("rationale"),
-                "confidence": data.get("confidence"),
-                "rubric": data.get("rubric"),
-            }
-    except (_json.JSONDecodeError, TypeError, ValueError):
-        pass
+    # 尝试从文本中提取 JSON
+    data = _extract_json_from_text(content)
+    if data is not None:
+        return _try_parse_judge_dict(data)
 
-    # 回退：关键词启发式
+    # 回退：关键词启发式（与旧实现完全兼容）
     # 负向短语优先匹配——防止 "not pass" / "didn't pass" 被误判为 pass
     content_lower = content.lower()
     negative_patterns = [
@@ -347,3 +496,38 @@ def _parse_judge_content(content: str) -> dict:
         "confidence": None,
         "rubric": None,
     }
+
+
+def _sanitized_response_shape(payload: dict) -> dict:
+    """生成脱敏的响应 shape 摘要，仅用于 bad_response 诊断日志。
+
+    **绝不**包含：
+    - raw response body
+    - api_key / Authorization header
+    - 完整 content 文本（只保留类型和长度）
+    """
+    shape: dict[str, object] = {
+        "top_level_keys": sorted(payload.keys()),
+    }
+
+    choices = payload.get("choices")
+    if isinstance(choices, list) and choices:
+        choice0 = choices[0] if isinstance(choices[0], dict) else {}
+        if isinstance(choice0, dict):
+            shape["choice0_keys"] = sorted(choice0.keys())
+            msg = choice0.get("message", {})
+            if isinstance(msg, dict):
+                shape["message_keys"] = sorted(msg.keys())
+                content = msg.get("content", "")
+                shape["content_type"] = type(content).__name__
+                if isinstance(content, str):
+                    shape["content_len"] = len(content)
+                    shape["content_preview"] = content[:200]
+                elif isinstance(content, list):
+                    shape["content_parts_count"] = len(content)
+                elif isinstance(content, dict):
+                    shape["content_keys"] = sorted(content.keys())
+            else:
+                shape["message_type"] = type(msg).__name__
+
+    return shape

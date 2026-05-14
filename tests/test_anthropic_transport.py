@@ -23,6 +23,7 @@ from agent_tool_harness.anthropic_transport import (
     ERROR_RATE_LIMITED,
     ERROR_TIMEOUT,
     AnthropicTransport,
+    _extract_text_from_content_blocks,
     _parse_judge_content,
     _safe_message,
     _TransportError,
@@ -90,9 +91,10 @@ def test_single_flag_blocks_send():
 def test_successful_send():
     """Anthropic Messages 格式正常响应。"""
     response = {
-        "content": [
-            {"text": '{"passed": true, "rationale": "correct tool use", "confidence": 0.92}'}
-        ],
+        "content": [{
+            "type": "text",
+            "text": '{"passed": true, "rationale": "correct tool use", "confidence": 0.92}',
+        }],
         "usage": {"input_tokens": 50, "output_tokens": 30},
     }
     t = _make_transport(http_factory=_fake_conn_factory(response))
@@ -105,7 +107,10 @@ def test_successful_send():
 
 def test_failed_judge_response():
     response = {
-        "content": [{"text": '{"passed": false, "rationale": "wrong tool", "confidence": 0.88}'}],
+        "content": [{
+            "type": "text",
+            "text": '{"passed": false, "rationale": "wrong tool", "confidence": 0.88}',
+        }],
     }
     t = _make_transport(http_factory=_fake_conn_factory(response))
     result = t.send({"messages": []})
@@ -114,7 +119,10 @@ def test_failed_judge_response():
 
 def test_rubric_in_response():
     response = {
-        "content": [{"text": '{"passed": true, "rationale": "ok", "rubric": "safety rubric"}'}],
+        "content": [{
+            "type": "text",
+            "text": '{"passed": true, "rationale": "ok", "rubric": "safety rubric"}',
+        }],
     }
     t = _make_transport(http_factory=_fake_conn_factory(response))
     result = t.send({"messages": []})
@@ -134,7 +142,7 @@ def test_model_and_max_tokens_injection():
         resp.status = 200
         import json
         resp.read.return_value = json.dumps({
-            "content": [{"text": '{"passed": true, "rationale": "ok"}'}]
+            "content": [{"type": "text", "text": '{"passed": true, "rationale": "ok"}'}]
         }).encode()
         conn.getresponse.return_value = resp
         return conn
@@ -250,7 +258,7 @@ def test_timeout_retryable():
             raise TimeoutError("timed out")
         call_count[0] += 1
         return _fake_conn_factory({
-            "content": [{"text": '{"passed": true, "rationale": "ok"}'}]
+            "content": [{"type": "text", "text": '{"passed": true, "rationale": "ok"}'}]
         })(host, port, timeout)
 
     sleep_log = []
@@ -274,3 +282,124 @@ def test_non_retryable_auth_error():
         t.send({"messages": []})
     assert exc.value.error_code == ERROR_AUTH
     assert len(t.last_attempts_summary) == 1
+
+
+# ---------------------------------------------------------------------------
+# 7. content blocks parsing — thinking + text, only thinking, multi-text
+# ---------------------------------------------------------------------------
+
+
+class TestExtractTextFromContentBlocks:
+    """_extract_text_from_content_blocks 单元测试。"""
+
+    def test_extracts_text_from_text_block(self):
+        """标准 text block 提取。"""
+        blocks = [{"type": "text", "text": "hello world"}]
+        assert _extract_text_from_content_blocks(blocks) == "hello world"
+
+    def test_skips_thinking_extracts_text(self):
+        """跳过 thinking block，提取后面的 text block（kimi-k2.5 典型响应）。"""
+        blocks = [
+            {"type": "thinking", "thinking": "", "signature": ""},
+            {"type": "text", "text": '{"passed": true, "rationale": "ok"}'},
+        ]
+        assert _extract_text_from_content_blocks(blocks) == '{"passed": true, "rationale": "ok"}'
+
+    def test_only_thinking_returns_none(self):
+        """只有 thinking 没有 text → None。"""
+        blocks = [
+            {"type": "thinking", "thinking": "some reasoning", "signature": ""},
+        ]
+        assert _extract_text_from_content_blocks(blocks) is None
+
+    def test_multiple_text_blocks_concatenated(self):
+        """多个 text block → 拼接。"""
+        blocks = [
+            {"type": "text", "text": "part1 "},
+            {"type": "text", "text": "part2"},
+        ]
+        assert _extract_text_from_content_blocks(blocks) == "part1 part2"
+
+    def test_empty_text_skipped(self):
+        """空 text 跳过，只拼接非空文本。"""
+        blocks = [
+            {"type": "text", "text": ""},
+            {"type": "text", "text": "actual content"},
+        ]
+        assert _extract_text_from_content_blocks(blocks) == "actual content"
+
+    def test_all_empty_text_returns_none(self):
+        """所有 text 块都为空 → None。"""
+        blocks = [
+            {"type": "text", "text": ""},
+            {"type": "text", "text": ""},
+        ]
+        assert _extract_text_from_content_blocks(blocks) is None
+
+    def test_non_dict_blocks_skipped(self):
+        """非 dict block 跳过。"""
+        blocks = [
+            "not a dict",
+            {"type": "text", "text": "found"},
+        ]
+        assert _extract_text_from_content_blocks(blocks) == "found"
+
+
+# ---------------------------------------------------------------------------
+# 8. integration: thinking + text via transport.send
+# ---------------------------------------------------------------------------
+
+
+def test_send_with_thinking_then_text_block():
+    """HTTP 200 返回 thinking + text blocks → 正确提取 text block。"""
+    response = {
+        "content": [
+            {"type": "thinking", "thinking": "", "signature": ""},
+            {"type": "text", "text": '{"passed": false, "rationale": "wrong tool choice"}'},
+        ],
+    }
+    t = _make_transport(http_factory=_fake_conn_factory(response))
+    result = t.send({"messages": []})
+    assert result["passed"] is False
+    assert result["rationale"] == "wrong tool choice"
+
+
+def test_send_with_only_thinking_errors():
+    """只有 thinking 没有 text → bad_response。"""
+    response = {
+        "content": [
+            {"type": "thinking", "thinking": "reasoning...", "signature": ""},
+        ],
+    }
+    t = _make_transport(http_factory=_fake_conn_factory(response))
+    with pytest.raises(_TransportError) as exc:
+        t.send({"messages": []})
+    assert exc.value.error_code == ERROR_BAD_RESPONSE
+
+
+# ---------------------------------------------------------------------------
+# 9. User-Agent header
+# ---------------------------------------------------------------------------
+
+
+def test_user_agent_header_sent():
+    """验证 transport 发送 User-Agent header。"""
+    captured = {}
+
+    def factory(host, port, timeout):
+        conn = MagicMock()
+        def _capture(method, path, body, headers):
+            captured["headers"] = headers
+        conn.request = _capture
+        resp = MagicMock()
+        resp.status = 200
+        import json
+        resp.read.return_value = json.dumps({
+            "content": [{"type": "text", "text": '{"passed": true, "rationale": "ok"}'}]
+        }).encode()
+        conn.getresponse.return_value = resp
+        return conn
+
+    t = _make_transport(http_factory=factory)
+    t.send({"messages": []})
+    assert captured["headers"].get("User-Agent") == "agent-tool-harness/3.0"
