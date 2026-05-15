@@ -109,7 +109,7 @@ for f in result.findings:
 这个最小示例运行了 9 条确定性 tool-use 正确性检查（D2：call_id 唯一性、调用/结果配对、参数有效性、孤儿检测）加上 RuleJudge — **零网络、零 API key、零 .env**。
 
 `passed` 可能为 `False`，如果 eval_spec 没有 `judge.rules` 配置——对裸导入这是正常现象。
-完整 v3.0.0 评测还支持 D4（tool ergonomics）、D5（response quality）、D6（tool spec quality）inspector，
+完整 v3.1.0 评测还支持 D4（tool ergonomics）、D5（response quality）、D6（tool spec quality）inspector，
 可通过向 `CoreEvaluation` 构造函数传入对应实例来启用。
 
 ## 最小 trace 示例
@@ -211,9 +211,46 @@ python -m agent_tool_harness.cli run-core-flow \
 | | [`docs/BACKLOG.md`](docs/BACKLOG.md) | 详细 backlog |
 | **历史** | [`docs/DOGFOOD_REAL_LLM_001.md`](docs/DOGFOOD_REAL_LLM_001.md) | 真实 LLM dogfood 记录（2026-05-12） |
 
-## v3.0.0 范围
+## v3.1 报告洞察
 
-当前 v3.0.0 聚焦于单 trace 检查与评测。已实现：
+v3.1 在 v3.0 的确定性检查之上，新增了**报告级洞察层**。不再是一份扁平的 finding 列表，而是结构化的、可快速浏览的评测报告：
+
+| 组件 | 它告诉你什么 |
+|------|-------------|
+| **Scorecard** | 一眼看懂通过/不通过，以及 error/warning/advisory 分桶计数 |
+| **Metrics** | 工具调用次数、成功率/错误率、响应大小、孤儿调用检测 |
+| **Grouped Findings** | 按严重度、类别、受影响工具分组的 findings — 快速发现模式 |
+| **Recommendations** | 去重、排序、可行动的修复建议，包含"什么问题 / 为什么 / 怎么修" |
+
+所有组件均为**确定性计算、零网络依赖、不需要 LLM**。它们自动丰富 Markdown 报告（`report.md`）和 JSON artifact 输出 — 无需额外参数。
+
+### 报告示例
+
+```
+## Scorecard
+| 字段 | 值 |
+|------|-----|
+| 通过 | 不通过 |
+| 错误 | 2 |
+| 警告 | 4 |
+
+## Metrics
+工具调用: 5 | 成功率: 60% | 错误率: 40%
+
+## Top Issues
+1. [critical] 缺少 arguments — 工具: search (2 次)
+2. [high] 输出信号过低 — 工具: read (1 次)
+
+## Recommendations
+1. search: 确保每次调用都传入必需的 arguments 参数
+2. read: 检查工具返回的 output 是否包含足够上下文
+```
+
+详见 [`docs/sdd/SDD_EVALUATION_REPORT_INSIGHT_V3_1.md`](docs/sdd/SDD_EVALUATION_REPORT_INSIGHT_V3_1.md)。
+
+## v3.1.0 范围
+
+当前 v3.1.0 聚焦于单 trace 检查与评测，并提供结构化洞察报告。已实现：
 
 - [x] 外部 runner → trace/log 导入作为主要接入路径
 - [x] Native trace 导入 + simple field mapping 导入
@@ -227,6 +264,10 @@ python -m agent_tool_harness.cli run-core-flow \
 - [x] RuleFinding 决定确定性 passed
 - [x] JudgeFinding 仅为 advisory，ReviewDecision 仅人工
 - [x] 14 个 CLI 子命令 — audit、scaffold、replay、bootstrap、preflight 等
+- [x] **Report Insight** — Scorecard、Metrics、Grouped Findings、Recommendations（Markdown + JSON）
+- [x] **MetricsCollector** — 从 ExecutionTrace + EvaluationResult 计算 15 项聚合指标
+- [x] **FindingGrouper** — 按严重度、类别、工具、规则前缀分桶
+- [x] **RecommendationCatalog** — 去重、排序、可行动的修复建议
 
 后续版本可能继续增强 metrics、批量评测和 review 工作流。
 详见 [`docs/ROADMAP.md`](docs/ROADMAP.md)。

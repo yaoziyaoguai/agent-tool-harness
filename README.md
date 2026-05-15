@@ -92,7 +92,7 @@ zero API key, zero .env**. `passed` is determined by deterministic RuleFinding o
 JudgeFinding and ReviewDecision are advisory/human only.
 
 `passed` may be `False` when the eval_spec has no ``judge.rules`` configured, which is
-expected for a bare import without custom rules. Full v3.0.0 evaluation also supports
+expected for a bare import without custom rules. Full v3.1.0 evaluation also supports
 D4 (tool ergonomics), D5 (response quality), and D6 (tool spec quality) inspectors,
 which can be enabled by passing their instances to the ``CoreEvaluation`` constructor.
 
@@ -192,7 +192,45 @@ Key properties:
 
 See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full architecture.
 
-## v3.0.0 scope
+## Report Insight in v3.1
+
+v3.1 adds a **report-level insight layer** on top of v3.0's deterministic inspection. Instead of a flat list of findings, you get a structured, skimmable evaluation report:
+
+| Component | What it tells you |
+|-----------|-------------------|
+| **Scorecard** | Pass/fail at a glance, plus error/warning/advisory breakdown |
+| **Metrics** | Tool call counts, success/error rates, response sizes, orphan detection |
+| **Grouped Findings** | Findings bucketed by severity, category, and affected tool — spot patterns instantly |
+| **Recommendations** | Deduplicated, ranked, actionable fix suggestions with "what / why / how to fix" |
+
+All components are **deterministic, zero-network, no LLM required**. They enrich both the
+Markdown report (`report.md`) and the JSON artifact output automatically — no extra flags needed.
+
+### Example: what the report looks like
+
+```
+## Scorecard
+| Field | Value |
+|-------|-------|
+| Passed | FAIL |
+| Errors | 2 |
+| Warnings | 4 |
+
+## Metrics
+Tool calls: 5 | Success rate: 60% | Error rate: 40%
+
+## Top Issues
+1. [critical] 缺少 arguments — tool: search (2 occurrences)
+2. [high] 输出信号过低 — tool: read (1 occurrence)
+
+## Recommendations
+1. search: 确保每次调用都传入必需的 arguments 参数
+2. read: 检查工具返回的 output 是否包含足够上下文
+```
+
+See [`docs/sdd/SDD_EVALUATION_REPORT_INSIGHT_V3_1.md`](docs/sdd/SDD_EVALUATION_REPORT_INSIGHT_V3_1.md) for the full design.
+
+## v3.1.0 scope
 
 ### Includes
 
@@ -208,10 +246,14 @@ See [Agent2Harness Main Flow](docs/AGENT2HARNESS_MAIN_FLOW.md) for the full arch
 - [x] RuleFinding determines deterministic passed
 - [x] JudgeFinding advisory only, ReviewDecision human explicit only
 - [x] 14 CLI subcommands — audit, scaffold, replay, bootstrap, preflight, and more
+- [x] **Report Insight** — Scorecard, Metrics, Grouped Findings, Recommendations (Markdown + JSON)
+- [x] **MetricsCollector** — 15 aggregate metrics from ExecutionTrace + EvaluationResult
+- [x] **FindingGrouper** — findings bucketed by severity, category, tool, rule prefix
+- [x] **RecommendationCatalog** — deduplicated, ranked, actionable fix suggestions
 
-v3.0.0 focuses on single-trace inspection and evaluation. Additional capabilities (metrics,
-batch/multi-trace, richer review workflows, remaining D2 rules) may be considered in future
-releases. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for long-range planning.
+v3.1.0 focuses on single-trace inspection and evaluation with structured insight reporting.
+Additional capabilities (batch/multi-trace, richer review workflows, remaining D2 rules) may be
+considered in future releases. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for long-range planning.
 
 ## Documentation
 
@@ -242,8 +284,9 @@ releases. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for long-range planning.
 
 | Phase | Content |
 |-------|---------|
-| **v3.0.0 (current)** | TraceImportAdapter + D1/D2/D4/D5/D6 tool-use inspection + Phase 2 LLM judge rubric framework |
-| **Future** | Real LLM rubric execution, remaining D2 rules, and broader evaluation capabilities |
+| **v3.1.0 (current)** | Report Insight — Scorecard, Metrics, Grouped Findings, Recommendations in Markdown + JSON |
+| **v3.0.0** | TraceImportAdapter + D1/D2/D4/D5/D6 tool-use inspection + Phase 2 LLM judge rubric framework |
+| **Future** | Real LLM rubric execution, remaining D2 rules, batch/multi-trace, review workflows |
 
 For the full roadmap, see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

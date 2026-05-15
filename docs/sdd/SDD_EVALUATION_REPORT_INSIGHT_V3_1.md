@@ -1,5 +1,7 @@
 # SDD: Evaluation Report Insight V3.1
 
+> **Implementation Status: Completed in v3.1.0 (2026-05-15)** — 所有 6 个组件按 SDD 实现，42 个集成测试通过，1329 tests 零 regression。
+
 ## TLDR
 
 在 v3.0 的 ExecutionTrace + EvaluationResult 之上，新增 **6 个组件**：ReportMetrics、MetricsCollector、FindingGrouper、ReportScorecard、RecommendationCatalog、ReportInsight。所有组件为 deterministic、零网络依赖。Markdown 和 JSON report 共享同一 ReportInsight 数据模型。不修改任何 v3.0 Core Contract 对象。

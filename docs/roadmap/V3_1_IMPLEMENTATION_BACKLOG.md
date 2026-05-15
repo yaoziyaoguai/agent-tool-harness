@@ -1,5 +1,7 @@
 # V3.1 Implementation Backlog
 
+> **Status: All phases completed (2026-05-15)** — P1-P5 全部落地，42 个集成测试通过，1329 tests 零 regression。
+
 ## TLDR
 
 5 个 Phase，顺序实现，每个 Phase 独立可测、独立可合。全部实现完成后，Markdown report 和 JSON report 自动获得 insight 能力。
@@ -66,11 +68,11 @@ P2 和 P4 可并行（P4 只依赖 P1，不依赖 P2/P3）。P3 和 P4 可并行
 
 ### 完成定义
 
-- [ ] `ReportMetrics` dataclass defined（frozen=True）
-- [ ] `MetricsCollector.collect()` 返回正确的 ReportMetrics
-- [ ] 15+ 个单测通过
-- [ ] 现有 1100+ tests 无 regression
-- [ ] `ReportMetrics` 所有字段有 type annotation
+- [x] `ReportMetrics` dataclass defined（frozen=True）
+- [x] `MetricsCollector.collect()` 返回正确的 ReportMetrics
+- [x] 15+ 个单测通过
+- [x] 现有 1100+ tests 无 regression
+- [x] `ReportMetrics` 所有字段有 type annotation
 
 ### 停止条件
 
@@ -123,11 +125,11 @@ P2 和 P4 可并行（P4 只依赖 P1，不依赖 P2/P3）。P3 和 P4 可并行
 
 ### 完成定义
 
-- [ ] `GroupedFindings` dataclass defined（frozen=True）
-- [ ] `FindingGrouper.group()` 返回正确的 GroupedFindings
-- [ ] 14+ 个单测通过
-- [ ] 所有不变量的 assertion 通过
-- [ ] 现有 1100+ tests 无 regression
+- [x] `GroupedFindings` dataclass defined（frozen=True）
+- [x] `FindingGrouper.group()` 返回正确的 GroupedFindings
+- [x] 14+ 个单测通过
+- [x] 所有不变量的 assertion 通过
+- [x] 现有 1100+ tests 无 regression
 
 ### 停止条件
 
@@ -178,10 +180,10 @@ P2 和 P4 可并行（P4 只依赖 P1，不依赖 P2/P3）。P3 和 P4 可并行
 
 ### 完成定义
 
-- [ ] `ReportScorecard` dataclass defined（frozen=True）
-- [ ] `make_scorecard()` 返回正确 scorecard
-- [ ] 10+ 个单测通过
-- [ ] 现有 1100+ tests 无 regression
+- [x] `ReportScorecard` dataclass defined（frozen=True）
+- [x] `make_scorecard()` 返回正确 scorecard
+- [x] 10+ 个单测通过
+- [x] 现有 1100+ tests 无 regression
 
 ### 停止条件
 
@@ -236,12 +238,12 @@ P2 和 P4 可并行（P4 只依赖 P1，不依赖 P2/P3）。P3 和 P4 可并行
 
 ### 完成定义
 
-- [ ] `Recommendation` dataclass defined（frozen=True）
-- [ ] `RecommendationCatalog` 覆盖当前 31 条 deterministic rule_id（initial coverage），其余走 fallback
-- [ ] 5 种 severity fallback 完备
-- [ ] 去重逻辑正确
-- [ ] ~20-25 个单测通过（参数化）
-- [ ] 现有 1100+ tests 无 regression
+- [x] `Recommendation` dataclass defined（frozen=True）
+- [x] `RecommendationCatalog` 覆盖当前 31 条 deterministic rule_id（initial coverage），其余走 fallback
+- [x] 5 种 severity fallback 完备
+- [x] 去重逻辑正确
+- [x] ~20-25 个单测通过（参数化）
+- [x] 现有 1100+ tests 无 regression
 
 ### 停止条件
 
@@ -323,13 +325,13 @@ P2 和 P4 可并行（P4 只依赖 P1，不依赖 P2/P3）。P3 和 P4 可并行
 
 ### 完成定义
 
-- [ ] `ReportInsight` + `ReportInsightMetadata` dataclass defined（frozen=True）
-- [ ] `from_eval()` 一站式构造方法可用
-- [ ] `render_insight_section()` 产出正确 Markdown 段
-- [ ] `report_insight_to_json_dict()` 产出正确 JSON dict
-- [ ] 6 个集成测试 + 8 个 Markdown 测试 + 10 个 JSON 测试通过
-- [ ] 现有 1100+ tests 无 regression
-- [ ] 可选：更新 `README.md` 或 `docs/` 中的报告示例
+- [x] `ReportInsight` + `ReportInsightMetadata` dataclass defined（frozen=True）
+- [x] `from_eval()` 一站式构造方法可用
+- [x] `render_insight_section()` 产出正确 Markdown 段
+- [x] `report_insight_to_json_dict()` 产出正确 JSON dict
+- [x] 6 个集成测试 + 8 个 Markdown 测试 + 10 个 JSON 测试通过
+- [x] 现有 1100+ tests 无 regression
+- [x] 可选：更新 `README.md` 或 `docs/` 中的报告示例
 
 ### 停止条件
 

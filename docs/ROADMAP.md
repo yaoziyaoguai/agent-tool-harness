@@ -33,11 +33,17 @@
 - [x] Agent2Harness Main Flow 集成测试（18 个）
 - [x] 58+ 个测试文件
 - [x] 6 个可运行 example
+- [x] **v3.1.0 Report Insight** — MetricsCollector (P1), FindingGrouper (P2), ReportScorecard (P3), RecommendationCatalog (P4), ReportInsight Integration (P5) — 全部落地（2026-05-15）
 
 **当前 signal_quality 上限：** `tautological_replay`（mock replay）和
 `recorded_trajectory`（transcript replay）。这些不是真实 Agent 能力信号。
 
-**当前阶段：TraceImportAdapter（唯一接入路径）**（2026-05-12）
+**当前阶段：v3.1.0 Report Insight（2026-05-15）**
+v3.1.0 在 v3.0.0 的 deterministic inspection 之上新增 report-level insight 层。
+Scorecard、Metrics、Grouped Findings、Recommendations 自动注入 Markdown + JSON report。
+所有组件 deterministic、零网络依赖、不修改 v3.0 Core Contract 对象。
+
+**历史阶段：TraceImportAdapter（唯一接入路径）**（2026-05-12）
 用户可通过 `trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report` 导入已有 trace。
 native 和 simple mapping 两种模式均已可用。agent-tool-harness 不运行 Agent。
 推荐工作流：外部 runner → trace/log → TraceImportAdapter → CoreEvaluation → Report → Human Review。

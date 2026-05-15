@@ -1,5 +1,7 @@
 # V3.1 Milestone: Evaluation Report Insight
 
+> **Status: Completed in v3.1.0 (2026-05-15)** — P1-P5 全部落地，42 个集成测试通过，1329 tests 零 regression。
+
 ## TLDR
 
 v3.0 能发现很多问题，但报告还不够"洞察化"。v3.1 在 v3.0 的 deterministic inspection + LLM advisory rubric 之上，新增 **report-level insight layer**：Scorecard、Metrics、Grouped Findings、Actionable Recommendations。用户打开报告 30 秒内就能看懂整体评价结论和下一步优先改什么。
@@ -158,12 +160,12 @@ quality reviewer 打开 report.md：
 
 用户打开报告 **30 秒内**能看懂：
 
-- [ ] **passed 状态** — 一眼可见
-- [ ] **error / warning / advisory 数量** — 分 severity 计数
-- [ ] **tool calls / tool errors** — 本次 trace 基础统计
-- [ ] **top issue categories** — 排名前 3-5 的问题类别
-- [ ] **top affected tools** — 排名前 3-5 的问题工具
-- [ ] **recommended next actions** — 优先级排序的修复建议
+- [x] **passed 状态** — 一眼可见
+- [x] **error / warning / advisory 数量** — 分 severity 计数
+- [x] **tool calls / tool errors** — 本次 trace 基础统计
+- [x] **top issue categories** — 排名前 3-5 的问题类别
+- [x] **top affected tools** — 排名前 3-5 的问题工具
+- [x] **recommended next actions** — 优先级排序的修复建议
 
 ### 可验证标准
 

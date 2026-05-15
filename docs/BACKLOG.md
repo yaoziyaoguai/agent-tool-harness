@@ -14,6 +14,10 @@
 合约层已落地。Real Integration Track 中 TraceImportAdapter 已实现（native + simple mapping），
 CLIAgentAdapter 已移除（agent-tool-harness 不运行 Agent）。
 
+**v3.1.0 Report Insight 已落地（2026-05-15）：** MetricsCollector (P1) + FindingGrouper (P2) +
+ReportScorecard (P3) + RecommendationCatalog (P4) + ReportInsight Integration (P5)。
+Scorecard、Metrics、Grouped Findings、Recommendations 自动注入 Markdown + JSON report。
+
 **后续核心方向：Tool-Use Inspection（Track D）**——围绕 tool-use logs 做工具检查、
 评测和质量报告，对齐 Anthropic《Writing effective tools for agents — with agents》。
 详见 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)。
