@@ -23,7 +23,9 @@
 - FindingGrouper（P2）：findings → GroupedFindings
 - Recommendation（P4）：一条确定性修复建议
 - RecommendationCatalog（P4）：rule_id → recommendation 映射表
-- （后续 Phase 追加）ReportScorecard（P3）、ReportInsight（P5）
+- ReportScorecard（P3）：报告「一页纸」结论
+- make_scorecard()（P3）：独立 builder 函数
+- （后续 Phase 追加）ReportInsight（P5）
 """
 
 from __future__ import annotations
@@ -992,3 +994,124 @@ class RecommendationCatalog:
             recs_by_rule.values(),
             key=lambda r: _SEVERITY_ORDER.get(r.severity, 99),
         )
+
+
+# ---------------------------------------------------------------------------
+# P3: ReportScorecard
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReportScorecard:
+    """报告「一页纸」结论。
+
+    设计原则：
+    - 纯数据对象（value object），不包含复杂 factory method
+    - 构造逻辑放在独立 builder 函数 make_scorecard() 中
+    - Scorecard 只帮助人快速理解报告，不改变 pass/fail
+    - 所有字段从 P1 ReportMetrics + P2 GroupedFindings 派生
+
+    为什么 make_scorecard 是独立函数而非 dataclass method：
+    - Scorecard 是聚合视图，不依赖自身状态
+    - 独立函数可以独立测试、独立替换
+    - 避免让 dataclass 耦合构造逻辑
+    """
+
+    passed: bool
+    """评测是否通过。直接从 EvaluationResult.passed 透传。"""
+
+    total_findings: int
+    """finding 总数。"""
+
+    errors: int
+    """error 级 finding 数。severity=="critical" + severity=="high"。"""
+
+    warnings: int
+    """warning 级 finding 数。severity=="medium" + severity=="low"。"""
+
+    info: int
+    """info 级 finding 数。severity=="info"。"""
+
+    advisory_count: int
+    """LLM judge 产生的 advisory finding 数。"""
+
+    tools_called: int
+    """本次 trace 调用的不重复工具数。从 metrics.unique_tool_count 取值。"""
+
+    tool_errors: int
+    """工具调用返回 error 的次数。从 metrics.tool_error_count 取值。"""
+
+    top_issue_categories: list[str] = field(default_factory=list)
+    """问题最多的前 5 个类别（按 finding count 降序）。从 groups.by_category 派生。
+    tie 时按类别名字母序稳定排列。"""
+
+    top_affected_tools: list[str] = field(default_factory=list)
+    """问题最多的前 5 个工具（按 finding count 降序）。从 metrics.finding_count_by_tool
+    派生，排除 "(unknown)"。tie 时按工具名字母序稳定排列。"""
+
+
+def make_scorecard(
+    metrics: ReportMetrics,
+    groups: GroupedFindings,
+    passed: bool,
+) -> ReportScorecard:
+    """从 metrics + groups 构建 ReportScorecard。
+
+    这是独立 builder 函数（非 dataclass method），原因是：
+    - Scorecard 是聚合视图，不依赖自身状态
+    - 独立函数可以独立测试、独立替换
+    - 避免让纯数据对象耦合构造逻辑
+
+    计算规则：
+    - errors = critical + high
+    - warnings = medium + low
+    - info = info
+    - top_issue_categories: groups.by_category 的 keys 按 count 降序取前 5
+    - top_affected_tools: finding_count_by_tool 的 keys（排除了 "(unknown)"）按 count 降序取前 5
+
+    Args:
+        metrics: P1 ReportMetrics，提供 finding 分桶计数和工具统计。
+        groups: P2 GroupedFindings，提供 by_category 分组视图。
+        passed: bool from EvaluationResult.passed。
+
+    Returns:
+        ReportScorecard：「一页纸」评分结论。
+    """
+    sev = metrics.finding_count_by_severity
+
+    total_findings = sum(sev.values())
+    errors = sev.get("critical", 0) + sev.get("high", 0)
+    warnings = sev.get("medium", 0) + sev.get("low", 0)
+    info = sev.get("info", 0)
+
+    # top_issue_categories: 前 5 个按 finding count 降序
+    # 排序规则：先按 count 降序，tie 时按 category 名字母序（稳定排序）
+    categories_by_count = sorted(
+        groups.by_category.items(),
+        key=lambda item: (-len(item[1]), item[0]),
+    )
+    top_issue_categories = [cat for cat, _ in categories_by_count[:5]]
+
+    # top_affected_tools: 前 5 个按 count 降序，排除 "(unknown)"
+    # 排序规则：先按 count 降序，tie 时按工具名字母序（稳定排序）
+    tools_sorted = sorted(
+        metrics.finding_count_by_tool.items(),
+        key=lambda item: (-item[1], item[0]),
+    )
+    top_affected_tools = [
+        tool for tool, _ in tools_sorted
+        if tool != "(unknown)"
+    ][:5]
+
+    return ReportScorecard(
+        passed=passed,
+        total_findings=total_findings,
+        errors=errors,
+        warnings=warnings,
+        info=info,
+        advisory_count=metrics.judge_finding_count,
+        tools_called=metrics.unique_tool_count,
+        tool_errors=metrics.tool_error_count,
+        top_issue_categories=top_issue_categories,
+        top_affected_tools=top_affected_tools,
+    )
