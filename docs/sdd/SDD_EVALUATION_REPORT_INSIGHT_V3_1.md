@@ -51,18 +51,20 @@ class ReportMetrics:
 | `tool_call_count` | `len(trace.tool_calls)` |
 | `tool_result_count` | `len(trace.tool_results)` |
 | `unique_tool_count` | `len(set(c.tool_name for c in trace.tool_calls))` |
-| `tool_success_count` | `sum(1 for r in trace.tool_results if r.status == "success" and r.output)` |
+| `tool_success_count` | `sum(1 for r in trace.tool_results if r.status == "success")` |
 | `tool_error_count` | `sum(1 for r in trace.tool_results if r.status == "error")` |
+
+> **说明**：`tool_success_count` 是状态指标，只看 `status=="success"`。output 是否有意义（如 low_signal、context_fields）由 D5 response quality findings 和 recommendations 表达，不在此处与 success status 混在一起。
 | `tool_error_rate` | `tool_error_count / max(tool_call_count, 1)` |
 | `orphan_call_count` | `tool_call.call_id` 不在 `tool_results` 的 `call_id` 集合中的数量 |
 | `orphan_result_count` | `tool_result.call_id` 不在 `tool_calls` 的 `call_id` 集合中的数量 |
-| `repeated_tool_call_count` | `(tool_name, frozenset(arguments))` 重复出现 ≥2 次的调用次数 |
+| `repeated_tool_call_count` | 同一 `(tool_name, json.dumps(arguments, sort_keys=True, default=str))` 重复出现 ≥2 次的调用次数 |
 | `response_size_chars_total` | `sum(len(json.dumps(r.output)))` for all tool_results |
 | `response_size_chars_by_tool` | 同上按 `tool_name` 分组 |
 | `estimated_response_tokens_total` | `response_size_chars_total // 4` |
 | `finding_count_by_severity` | `Counter(f.severity for f in eval_result.findings)` |
 | `finding_count_by_category` | `Counter(f.category for f in eval_result.findings)` 或按 rule_id prefix（见 FindingGrouper） |
-| `finding_count_by_tool` | 从 finding 的 evidence_ref / message / rule_type 提取 tool_name → Counter |
+| `finding_count_by_tool` | 从 finding 的 finding_id / evidence_ref / message 提取 tool_name → Counter |
 | `judge_finding_count` | `sum(1 for f in eval_result.findings if f.category == "judge")` |
 
 ### 1.3 边界条件
@@ -73,7 +75,7 @@ class ReportMetrics:
 | `trace.tool_results` 为空 | success/error 为 0，orphan_call_count = tool_call_count |
 | `eval_result.findings` 为空 | 所有 finding_count_* 为空 dict |
 | `tool_name` 为空字符串 | 计入 `"(unknown)"` bucket |
-| `response_size_chars_total` 极大（>10M chars） | 不截断，标注为 estimate |
+| `response_size_chars_total` 极大（>10M chars） | 不截断，标注为 estimate；`estimated_response_tokens_total = chars // 4` 是粗估算（适用于英文为主 trace，中文等 CJK 文本偏差可能较大，v3.1 不作为精确 token accounting） |
 
 ---
 
@@ -125,8 +127,9 @@ for result in trace.tool_results:
 ```python
 from collections import Counter
 # 只计重复的（count >= 2）
+# 使用 json.dumps 以保留完整参数等价性，支持 nested dict/list
 call_counts = Counter(
-    (c.tool_name, json.dumps(c.arguments, sort_keys=True))
+    (c.tool_name, json.dumps(c.arguments, sort_keys=True, default=str))
     for c in trace.tool_calls
 )
 repeated = sum(cnt for _, cnt in call_counts.items() if cnt >= 2)
@@ -146,6 +149,8 @@ repeated = sum(cnt for _, cnt in call_counts.items() if cnt >= 2)
 | `tool_ergonomics.*` | `tool_ergonomics` |
 
 这样 `finding_count_by_category` 的粒度足够区分"工具响应问题"和"工具规格问题"。
+
+> **说明**：`audit` 和 `signal` buckets 是 defensive / future-compatible buckets。v3.1 P1 不要求新增 audit / signal finding producer。当前主要 category 来源仍是 `rule` / `judge`，以及 rule_id prefix 推导出的子类别。如果没有 audit / signal findings，bucket 可以为空或省略，具体按 JSON schema 设计决定。
 
 ---
 
@@ -190,7 +195,7 @@ class FindingGrouper:
 #### by_tool
 
 - 从 finding 中提取关联的 tool_name：
-  1. 从 `rule_type` 字段中解析（如 `tool_ergonomics.name.too_generic::my_tool` 中的 `my_tool`）
+  1. 从 `finding_id` 字段中解析（格式：`rule_id_prefix::tool_name`，如 `tool_ergonomics.name.too_generic::my_tool` → `my_tool`；`tool_pair.orphan_call::call_id` → 仅得到 call_id，v3.1 可先归入 `"(unknown)"`，后续再通过 trace call_id→tool_name 映射增强）
   2. 从 `evidence_ref` 字段中解析（如 `tool_calls::call_id=c1` → 查 trace.tool_calls 获取 tool_name）
   3. 从 `message` 中解析（如 "Tool 'search' has ..."）
   4. 无法提取 → `"(unknown)"` bucket
@@ -238,15 +243,16 @@ class ReportScorecard:
 
 ### 4.2 生成方式
 
+`ReportScorecard` 是纯 dataclass（value object），不包含复杂 factory method。构造逻辑放在独立 builder 函数中：
+
 ```python
-class ReportScorecard:
-    @staticmethod
-    def from_metrics_and_groups(
-        metrics: ReportMetrics,
-        groups: GroupedFindings,
-        passed: bool,
-    ) -> "ReportScorecard":
-        ...
+def make_scorecard(
+    metrics: ReportMetrics,
+    groups: GroupedFindings,
+    passed: bool,
+) -> ReportScorecard:
+    """从 metrics + groups 构建 ReportScorecard。"""
+    ...
 ```
 
 ### 4.3 计算规则
@@ -308,7 +314,9 @@ class RecommendationCatalog:
         ...
 ```
 
-### 5.2 映射表（至少覆盖以下 rule_id）
+### 5.2 映射表（initial coverage follows current v3.0 rule IDs）
+
+> **说明**：以下映射覆盖当前 v3.0 代码中已落地的 31 条 deterministic rule_id。对未匹配的 rule_id 走 §5.4 fallback。未来新增 inspector 规则时应同步扩展此表。
 
 #### tool_response 类
 
@@ -425,7 +433,7 @@ class ReportInsight:
         grouper = FindingGrouper()
         groups = grouper.group(eval_result.findings)
 
-        scorecard = ReportScorecard.from_metrics_and_groups(
+        scorecard = make_scorecard(
             metrics, groups, eval_result.passed
         )
 
@@ -646,7 +654,7 @@ def report_insight_to_json_dict(insight: ReportInsight) -> dict[str, Any]:
 |----------|-------------------------------|
 | 测试场景 | 每条已知 rule_id 有对应的 recommendation；未知 rule_id 走 fallback；同一 rule_id 去重 |
 | 断言 | recommendation 的 what/why/how_to_fix 非空；不同 severity 的 fallback 正确 |
-| 测试数 | 约 20-25 个（37 rule_id + fallback 场景） |
+| 测试数 | 约 20-25 个（使用参数化测试覆盖 31 条 rule_id + fallback 场景） |
 
 ### 9.4 ReportScorecard 单测
 

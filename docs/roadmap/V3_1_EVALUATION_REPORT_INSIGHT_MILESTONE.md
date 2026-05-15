@@ -22,7 +22,7 @@ v3.0 完成了 single-trace tool-use inspection and evaluation 主线：
 | Core Flow | ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → Report | EvaluationResult + ReportSummary |
 | Markdown Report | render_from_core() | report.md |
 
-**37 deterministic rules** across 5 inspectors, plus **6 LLM advisory rubric dimensions**.
+**31 deterministic rule_ids** across 5 inspectors, plus **6 LLM advisory rubric dimensions** (advisory only, not deterministic rules).
 
 ### 1.2 v3.1 为什么继续做 report insight
 
@@ -187,7 +187,7 @@ quality reviewer 打开 report.md：
 | P1 | MetricsCollector | ReportMetrics + MetricsCollector | 无 |
 | P2 | FindingGrouper | 4 种分组视图 | P1 |
 | P3 | ReportScorecard | scorecard 生成 + top-N 排名 | P1, P2 |
-| P4 | RecommendationCatalog | deterministic 建议映射 | P2 |
+| P4 | RecommendationCatalog | deterministic 建议映射 | P1（不依赖 P2/P3，可与 P2/P3 并行） |
 | P5 | ReportInsight Integration | 聚合对象 + Markdown/JSON 接入 | P1-P4 |
 
 详见 [V3_1_IMPLEMENTATION_BACKLOG.md](V3_1_IMPLEMENTATION_BACKLOG.md)。

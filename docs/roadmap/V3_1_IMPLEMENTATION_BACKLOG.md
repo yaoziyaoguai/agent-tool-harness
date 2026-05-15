@@ -10,14 +10,14 @@
 
 ```
 P1: MetricsCollector
-    └── P2: FindingGrouper
-            ├── P3: ReportScorecard
-            │       └── P5: ReportInsight Integration
-            └── P4: RecommendationCatalog
-                    └── P5: ReportInsight Integration
+    ├── P2: FindingGrouper
+    │       └── P3: ReportScorecard
+    │               └── P5: ReportInsight Integration
+    └── P4: RecommendationCatalog
+            └── P5: ReportInsight Integration
 ```
 
-P3 和 P4 可并行。
+P2 和 P4 可并行（P4 只依赖 P1，不依赖 P2/P3）。P3 和 P4 可并行。
 
 ---
 
@@ -59,7 +59,7 @@ P3 和 P4 可并行。
 | 9 | estimated_response_tokens_total = chars/4 | 整数除法 |
 | 10 | finding_count_by_severity 统计正确 | 手动 Counter 对比 |
 | 11 | finding_count_by_category 统计正确（含 rule_id prefix 子类别） | tool_response=3, tool_spec=2 等 |
-| 12 | finding_count_by_tool 统计正确 | 从 rule_type/evidence_ref 提取 tool_name |
+| 12 | finding_count_by_tool 统计正确 | 从 finding_id/evidence_ref 提取 tool_name |
 | 13 | judge_finding_count 统计正确 | category=="judge" |
 | 14 | tool_error_rate 除零保护 | tool_call_count=0 → rate=0.0 |
 | 15 | tool_name 为空字符串时归入 "(unknown)" bucket | 空字符串 key |
@@ -133,7 +133,7 @@ P3 和 P4 可并行。
 
 - 不要在这个 Phase 实现 scorecard / recommendations
 - 不要修改 Finding 数据结构
-- 不要引入新的 tool_name 提取方式（只用 rule_type / evidence_ref / message 三种）
+- 不要引入新的 tool_name 提取方式（只用 finding_id / evidence_ref / message 三种）
 
 ---
 
@@ -152,7 +152,7 @@ P3 和 P4 可并行。
 ### 输出
 
 - `ReportScorecard` dataclass（frozen=True）
-- `ReportScorecard.from_metrics_and_groups()` 工厂方法
+- `make_scorecard(metrics, groups, passed)` 独立 builder 函数
 
 ### 允许修改文件
 
@@ -179,7 +179,7 @@ P3 和 P4 可并行。
 ### 完成定义
 
 - [ ] `ReportScorecard` dataclass defined（frozen=True）
-- [ ] `from_metrics_and_groups()` 返回正确 scorecard
+- [ ] `make_scorecard()` 返回正确 scorecard
 - [ ] 10+ 个单测通过
 - [ ] 现有 1100+ tests 无 regression
 
@@ -198,6 +198,7 @@ P3 和 P4 可并行。
 ### 输入
 
 - `list[Finding]`（来自 EvaluationResult.findings）
+- 不依赖 GroupedFindings 或 FindingGrouper（P4 可在 P1 后独立实现，与 P2/P3 并行）
 
 ### 输出
 
@@ -216,30 +217,30 @@ P3 和 P4 可并行。
 
 | # | 测试场景 | 断言 |
 |---|---------|------|
-| 1-37 | 每条已知 rule_id 有对应 recommendation | what/why/how_to_fix 均为非空字符串 |
-| 38 | tool_response.output.low_signal | what 包含 "信号过低" 关键词 |
-| 39 | tool_response.error.actionable | how_to_fix 包含 "suggested_action" |
-| 40 | tool_spec.description.useful_length | how_to_fix 包含 "扩展" |
-| 41 | tool_ergonomics.name.too_generic | how_to_fix 包含 "前缀" |
-| 42 | tool_ergonomics.description.shallow_wrapper | how_to_fix 包含 "抽象层级" |
-| 43 | tool_call.arguments.present | what 包含 "缺少" |
-| 44 | tool_pair.orphan_call | how_to_fix 包含 "工具执行链路" |
-| 45 | tool_pair.orphan_result | how_to_fix 包含 "trace 记录完整性" |
-| 46 | 未知 rule_id — critical fallback | what 包含 "严重问题" |
-| 47 | 未知 rule_id — high fallback | what 包含 "高优先级" |
-| 48 | 未知 rule_id — medium fallback | what 包含 "中优先级" |
-| 49 | 未知 rule_id — low fallback | what 包含 "低优先级" |
-| 50 | 未知 rule_id — info fallback | what 包含 "仅供参考" |
-| 51 | 同一 rule_id 前缀去重 | 只输出 1 条，affected_count > 1 |
-| 52 | recommend_all 覆盖所有输入 finding | len(output) <= len(input)，每条 input finding 至少被一条 recommendation 覆盖 |
+| 1-31 | 每条已知 rule_id 有对应 recommendation（参数化测试） | what/why/how_to_fix 均为非空字符串 |
+| 32 | tool_response.output.low_signal | what 包含 "信号过低" 关键词 |
+| 33 | tool_response.error.actionable | how_to_fix 包含 "suggested_action" |
+| 34 | tool_spec.description.useful_length | how_to_fix 包含 "扩展" |
+| 35 | tool_ergonomics.name.too_generic | how_to_fix 包含 "前缀" |
+| 36 | tool_ergonomics.description.shallow_wrapper | how_to_fix 包含 "抽象层级" |
+| 37 | tool_call.arguments.present | what 包含 "缺少" |
+| 38 | tool_pair.orphan_call | how_to_fix 包含 "工具执行链路" |
+| 39 | tool_pair.orphan_result | how_to_fix 包含 "trace 记录完整性" |
+| 40 | 未知 rule_id — critical fallback | what 包含 "严重问题" |
+| 41 | 未知 rule_id — high fallback | what 包含 "高优先级" |
+| 42 | 未知 rule_id — medium fallback | what 包含 "中优先级" |
+| 43 | 未知 rule_id — low fallback | what 包含 "低优先级" |
+| 44 | 未知 rule_id — info fallback | what 包含 "仅供参考" |
+| 45 | 同一 rule_id 前缀去重 | 只输出 1 条，affected_count > 1 |
+| 46 | recommend_all 覆盖所有输入 finding | len(output) <= len(input)，每条 input finding 至少被一条 recommendation 覆盖 |
 
 ### 完成定义
 
 - [ ] `Recommendation` dataclass defined（frozen=True）
-- [ ] `RecommendationCatalog` 覆盖全部 37 条 rule_id
+- [ ] `RecommendationCatalog` 覆盖当前 31 条 deterministic rule_id（initial coverage），其余走 fallback
 - [ ] 5 种 severity fallback 完备
 - [ ] 去重逻辑正确
-- [ ] 52+ 个单测通过
+- [ ] ~20-25 个单测通过（参数化）
 - [ ] 现有 1100+ tests 无 regression
 
 ### 停止条件
@@ -346,6 +347,6 @@ P3 和 P4 可并行。
 | P1 | `reports/report_insight.py` (ReportMetrics + MetricsCollector), `tests/test_report_metrics.py` | — | ~15 |
 | P2 | — | `reports/report_insight.py` (追加), `tests/test_finding_grouper.py` | ~14 |
 | P3 | — | `reports/report_insight.py` (追加), `tests/test_report_scorecard.py` | ~10 |
-| P4 | — | `reports/report_insight.py` (追加), `tests/test_recommendation_catalog.py` | ~52 |
+| P4 | — | `reports/report_insight.py` (追加), `tests/test_recommendation_catalog.py` | ~20-25 |
 | P5 | `tests/test_report_insight.py`, `tests/test_report_insight_markdown.py`, `tests/test_report_insight_json.py` | `reports/report_insight.py` (追加), `reports/markdown_report.py` (追加), `core_report_bridge.py` (追加) | ~24 |
-| **合计** | **4 个新文件** | **3 个已有文件修改** | **~115 tests** |
+| **合计** | **4 个新文件** | **3 个已有文件修改** | **~85 tests** |
