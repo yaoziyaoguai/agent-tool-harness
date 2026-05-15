@@ -2,7 +2,7 @@
 
 ## 当前是什么
 
-agent-tool-harness v3.1.0 是一个 **tool-use inspection platform**，包含结构化报告洞察层。
+agent-tool-harness v3.1.1 是一个 **tool-use inspection platform**，包含结构化报告洞察层。
 Primary path: external runner → trace/log import → inspect/evaluate/report。
 所有功能纯本地、离线、不联网、不需要 API 密钥。
 

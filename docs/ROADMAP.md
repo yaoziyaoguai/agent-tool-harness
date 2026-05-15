@@ -38,8 +38,8 @@
 **当前 signal_quality 上限：** `tautological_replay`（mock replay）和
 `recorded_trajectory`（transcript replay）。这些不是真实 Agent 能力信号。
 
-**当前阶段：v3.1.0 Report Insight（2026-05-15）**
-v3.1.0 在 v3.0.0 的 deterministic inspection 之上新增 report-level insight 层。
+**当前阶段：v3.1.1 文档产品化（2026-05-15）**
+v3.1.0 在 v3.0.0 的 deterministic inspection 之上新增 report-level insight 层；v3.1.1 在此基础上完成文档产品化重构（中文 README 主入口、用户文档分层、历史文档归档）。
 Scorecard、Metrics、Grouped Findings、Recommendations 自动注入 Markdown + JSON report。
 所有组件 deterministic、零网络依赖、不修改 v3.0 Core Contract 对象。
 

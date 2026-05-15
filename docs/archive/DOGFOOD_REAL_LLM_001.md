@@ -133,6 +133,6 @@ providers:
 
 ## 10. References
 
-- [LLM_PROVIDER_CONFIG.md](./LLM_PROVIDER_CONFIG.md) — Provider 配置完整文档
-- [AGENT2HARNESS_MAIN_FLOW.md](./AGENT2HARNESS_MAIN_FLOW.md) — Core Flow 架构
-- [examples/llm_providers.example.yaml](../examples/llm_providers.example.yaml) — 配置模板
+- [LLM_PROVIDER_CONFIG.md](../LLM_PROVIDER_CONFIG.md) — Provider 配置完整文档
+- [AGENT2HARNESS_MAIN_FLOW.md](../architecture/AGENT2HARNESS_MAIN_FLOW.md) — Core Flow 架构
+- [examples/llm_providers.example.yaml](../../examples/llm_providers.example.yaml) — 配置模板

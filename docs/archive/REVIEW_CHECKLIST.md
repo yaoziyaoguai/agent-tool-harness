@@ -46,7 +46,7 @@ PR review 和代码变更前的自检清单。
 
 ## LLM Provider Config / Fake Judge
 
-> 设计文档见 [LLM_PROVIDER_CONFIG.md](LLM_PROVIDER_CONFIG.md)。
+> 设计文档见 [LLM_PROVIDER_CONFIG.md](../LLM_PROVIDER_CONFIG.md)。
 
 - [ ] 配置中没有 inline `api_key` 字段（只允许 `api_key_env`）
 - [ ] `LLMProviderConfig` 不存储 API key 本体（只存环境变量名）
