@@ -25,7 +25,9 @@
 - RecommendationCatalog（P4）：rule_id → recommendation 映射表
 - ReportScorecard（P3）：报告「一页纸」结论
 - make_scorecard()（P3）：独立 builder 函数
-- （后续 Phase 追加）ReportInsight（P5）
+- ReportInsight（P5）：聚合对象，Markdown + JSON report 单一数据源
+- ReportInsightMetadata（P5）：元数据（schema_version, generated_at, signal_quality）
+- from_eval()（P5）：一站式工厂方法，trace + eval_result → ReportInsight
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from agent_tool_harness.core_contract import EvaluationResult, ExecutionTrace
 
@@ -1115,3 +1118,147 @@ def make_scorecard(
         top_issue_categories=top_issue_categories,
         top_affected_tools=top_affected_tools,
     )
+
+
+# ---------------------------------------------------------------------------
+# P5: ReportInsight — 聚合对象，Markdown + JSON report 单一数据源
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReportInsightMetadata:
+    """报告元数据。
+
+    设计原则：
+    - 纯数据对象，不含业务逻辑
+    - schema_version 标记数据格式版本，供 JSON consumer 判断兼容性
+    - generated_at 为 UTC ISO8601 时间戳（带 Z 后缀）
+    - signal_quality 来自 adapter 的 SIGNAL_QUALITY 声明，UNKNOWN 兜底
+    """
+
+    schema_version: str = "3.1.0"
+    """报告 insight schema 版本。"""
+
+    generated_at: str = ""
+    """报告生成时间（UTC ISO8601）。"""
+
+    signal_quality: str = "unknown"
+    """本次 run 的信号质量等级（来自 adapter 声明）。"""
+
+
+@dataclass(frozen=True)
+class ReportInsight:
+    """Report-level 聚合对象——Markdown 和 JSON report 的单一数据源。
+
+    架构边界（关键）
+    --------------
+    - **负责**：把 P1 ReportMetrics + P2 GroupedFindings + P3 ReportScorecard
+      + P4 Recommendations 聚合为一个可消费对象，供 Markdown / JSON renderer
+      直接读取。
+    - **不负责**：不修改 EvaluationResult / Finding、不重新计算 pass/fail、
+      不调 LLM、不访问文件系统。
+
+    为什么 ReportInsight 不是新的 evaluation result
+    ------------------------------------------------
+    ReportInsight 是 **report 层聚合视图**，不是 evaluation 层的判定。
+    它不改变 EvaluationResult.passed、不生成 ReviewDecision。
+    所有字段从已有的 P1-P4 组件派生，只是"换个角度展示同一份数据"。
+
+    用法::
+
+        insight = ReportInsight.from_eval(trace, eval_result)
+        # Markdown
+        md = MarkdownReport().render_insight_section(insight)
+        # JSON
+        json_dict = report_insight_to_json_dict(insight)
+    """
+
+    metrics: ReportMetrics
+    """P1 聚合指标。"""
+
+    scorecard: ReportScorecard
+    """P3 一页纸评分卡。"""
+
+    grouped_findings: GroupedFindings
+    """P2 四种 finding 分组视图。"""
+
+    recommendations: list[Recommendation] = field(default_factory=list)
+    """P4 去重后的可行动建议列表。"""
+
+    findings: list = field(default_factory=list)
+    """原始 findings 透传（RuleFinding / JudgeFinding 混合）。
+    为什么不分类存放：保持与 EvaluationResult.findings 的 multiset 等价，
+    避免下游需要自行合并两个列表。judge-only 视图见 judge_findings 字段。"""
+
+    judge_findings: list = field(default_factory=list)
+    """仅 category=="judge" 的 finding。
+    为什么单独列出：让 reviewer 一眼看到 LLM judge 的 advisory 信号，
+    便于评估"确定性规则 vs LLM 判断"的一致性。"""
+
+    metadata: ReportInsightMetadata = field(
+        default_factory=ReportInsightMetadata
+    )
+    """报告元数据（schema_version, generated_at, signal_quality）。"""
+
+    @staticmethod
+    def from_eval(
+        trace: ExecutionTrace,
+        eval_result: EvaluationResult,
+        signal_quality: str = "unknown",
+    ) -> ReportInsight:
+        """一站式构造 ReportInsight——从 trace + eval_result 到完整 insight。
+
+        聚合流程：
+        1. MetricsCollector.collect(trace, eval_result) → ReportMetrics
+        2. FindingGrouper.group(findings) → GroupedFindings
+        3. make_scorecard(metrics, groups, eval_result.passed) → ReportScorecard
+        4. RecommendationCatalog.recommend_all(findings) → list[Recommendation]
+        5. 分离 judge_findings（category=="judge"）
+        6. 组装 ReportInsight
+
+        为什么 from_eval 是 static method 而非独立函数：
+        - SDD §6.2 定义的 API 形态
+        - 与 ReportInsight 紧密内聚，语义上"从评测结果构造 insight"
+        - 但保持纯函数特性：不修改输入，不依赖实例状态
+
+        为什么 build_report_insight 不改变 pass/fail：
+        - passed 从 eval_result.passed 透传到 scorecard
+        - 所有组件只读不写，不生成 ReviewDecision
+        - ReportInsight 是 report 层聚合视图，不是 evaluation 判定
+
+        Args:
+            trace: ExecutionTrace，来自 adapter.run() 或 TraceImportAdapter。
+            eval_result: EvaluationResult，来自 CoreEvaluation.evaluate()。
+            signal_quality: adapter 声明的信号质量等级，透传到 metadata。
+
+        Returns:
+            ReportInsight：完整聚合对象。
+        """
+        collector = MetricsCollector()
+        metrics = collector.collect(trace, eval_result)
+
+        grouper = FindingGrouper()
+        groups = grouper.group(eval_result.findings)
+
+        scorecard = make_scorecard(metrics, groups, eval_result.passed)
+
+        catalog = RecommendationCatalog()
+        recommendations = catalog.recommend_all(eval_result.findings)
+
+        judge_findings = [
+            f for f in eval_result.findings
+            if getattr(f, "category", "") == "judge"
+        ]
+
+        return ReportInsight(
+            metrics=metrics,
+            scorecard=scorecard,
+            grouped_findings=groups,
+            recommendations=recommendations,
+            findings=list(eval_result.findings),
+            judge_findings=judge_findings,
+            metadata=ReportInsightMetadata(
+                generated_at=datetime.now(UTC).isoformat(),
+                signal_quality=signal_quality,
+            ),
+        )

@@ -259,6 +259,7 @@ class MarkdownReport:
         report_summary: dict[str, Any],
         signal_quality: str,
         judge_provider_kind: str = "none",
+        insight: Any = None,
     ) -> str:
         """从 Core Contract 对象渲染 Markdown 报告。
 
@@ -354,6 +355,16 @@ class MarkdownReport:
                 "通过/不通过最终裁决。所有 PASS/FAIL 均为机器评分，不等同于人工审核结论。"
             ),
             "",
+        ]
+
+        # v3.1 P5: 如果传了 ReportInsight，在 detailed findings 前插入 insight 段
+        if insight is not None:
+            from agent_tool_harness.reports.report_insight import ReportInsight
+
+            if isinstance(insight, ReportInsight):
+                lines.extend(self.render_insight_section(insight))
+
+        lines.extend([
             "## Agent Tool-Use Eval (Core Flow)",
             "",
             f"- Total scenarios: {report_summary.get('total_scenarios', 0)}",
@@ -363,7 +374,7 @@ class MarkdownReport:
             f"- Signal quality: `{signal_quality}`",
             f"- Generated at: {report_summary.get('generated_at', '')}",
             "",
-        ]
+        ])
 
         # Per-Eval Details
         lines.extend(["## Per-Eval Details", ""])
@@ -463,6 +474,157 @@ class MarkdownReport:
             "",
         ])
         return "\n".join(lines) + "\n"
+
+    # ------------------------------------------------------------------
+    # v3.1 P5: render_insight_section — 新增 insight 段
+    # ------------------------------------------------------------------
+
+    def render_insight_section(self, insight: Any) -> list[str]:
+        """从 ReportInsight 渲染 Markdown insight 段。
+
+        负责渲染 6 个 section（按 SDD §7.2 顺序）：
+        - Scorecard（一页纸评分卡表格）
+        - Metrics（指标表格）
+        - Top Issues（问题排名）
+        - Findings by Severity（按 severity 分组展示）
+        - Findings by Tool（按 tool 分组展示）
+        - Recommendations（可行动建议）
+
+        为什么保留 detailed findings 在 insight 之后：
+        - insight 段是"聚合概览"——reviewer 先看总分、Top N、建议
+        - detailed findings（Per-Eval Details）是"逐条验证"——reviewer 再
+          深入每个 eval 的原始 finding
+        - 两者不互相取代——概览帮助快速判断"要不要修"，详情帮助定位"在哪修"
+
+        为什么 recommendations 只是人工 review 辅助：
+        - 所有建议来自 deterministic 映射表，不调 LLM
+        - 建议内容基于 rule_id 的通用最佳实践，不一定 100% 适用于具体场景
+        - Reviewer 应结合 evidence 和业务上下文判断是否采纳
+
+        Args:
+            insight: ReportInsight 聚合对象。
+
+        Returns:
+            Markdown 行列表，可直接 extend 到现有报告。
+        """
+        from agent_tool_harness.reports.report_insight import ReportInsight
+
+        if not isinstance(insight, ReportInsight):
+            return []
+
+        sc = insight.scorecard
+        m = insight.metrics
+        g = insight.grouped_findings
+        recs = insight.recommendations
+
+        lines: list[str] = []
+
+        # -- Scorecard --
+        passed_mark = "PASS" if sc.passed else "FAIL"
+        lines.extend([
+            "## Scorecard",
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
+            f"| Passed | {passed_mark} |",
+            f"| Total Findings | {sc.total_findings} |",
+            f"| Errors | {sc.errors} |",
+            f"| Warnings | {sc.warnings} |",
+            f"| Info | {sc.info} |",
+            f"| Advisory | {sc.advisory_count} |",
+            f"| Tools Called | {sc.tools_called} |",
+            f"| Tool Errors | {sc.tool_errors} |",
+        ])
+        if sc.top_issue_categories:
+            cats = ", ".join(sc.top_issue_categories)
+            lines.append(f"| Top Issue Categories | {cats} |")
+        if sc.top_affected_tools:
+            tools = ", ".join(sc.top_affected_tools)
+            lines.append(f"| Top Affected Tools | {tools} |")
+        lines.append("")
+
+        # -- Metrics --
+        lines.extend([
+            "## Metrics",
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
+            f"| Tool Calls | {m.tool_call_count} |",
+            f"| Tool Results | {m.tool_result_count} |",
+            f"| Unique Tools | {m.unique_tool_count} |",
+            f"| Success | {m.tool_success_count} |",
+            f"| Errors | {m.tool_error_count} |",
+            f"| Error Rate | {m.tool_error_rate:.2%} |",
+            f"| Orphan Calls | {m.orphan_call_count} |",
+            f"| Orphan Results | {m.orphan_result_count} |",
+            f"| Repeated Calls | {m.repeated_tool_call_count} |",
+            f"| Response Chars | {m.response_size_chars_total} |",
+            f"| Est. Tokens | {m.estimated_response_tokens_total} |",
+            "",
+        ])
+
+        # -- Top Issues --
+        if sc.top_issue_categories:
+            lines.append("## Top Issues")
+            lines.append("")
+            for i, cat in enumerate(sc.top_issue_categories, 1):
+                count = len(g.by_category.get(cat, []))
+                lines.append(f"{i}. **{cat}** ({count} findings)")
+            lines.append("")
+
+        # -- Findings by Severity --
+        sev_order = ["critical", "high", "medium", "low", "info"]
+        lines.extend(["## Findings by Severity", ""])
+        for sev in sev_order:
+            items = g.by_severity.get(sev, [])
+            if not items:
+                continue
+            lines.append(f"### {sev} ({len(items)})")
+            lines.append("")
+            for f_item in items:
+                fid = getattr(f_item, "finding_id", "?")
+                msg = getattr(f_item, "message", "")
+                rule_type = getattr(f_item, "rule_type", "")
+                rule_str = f" `{rule_type}`" if rule_type else ""
+                lines.append(f"- [{sev}] {fid}{rule_str} — {msg}")
+            lines.append("")
+
+        # -- Findings by Tool --
+        if g.by_tool:
+            lines.extend(["## Findings by Tool", ""])
+            tools_sorted = sorted(
+                g.by_tool.items(),
+                key=lambda item: (-len(item[1]), item[0]),
+            )
+            for tool, items in tools_sorted:
+                lines.append(f"### {tool} ({len(items)})")
+                lines.append("")
+                for f_item in items:
+                    fid = getattr(f_item, "finding_id", "?")
+                    sev = getattr(f_item, "severity", "?")
+                    msg = getattr(f_item, "message", "")
+                    rule_type = getattr(f_item, "rule_type", "")
+                    rule_str = f" `{rule_type}`" if rule_type else ""
+                    lines.append(f"- [{sev}] {fid}{rule_str} — {msg}")
+                lines.append("")
+
+        # -- Recommendations --
+        if recs:
+            lines.extend(["## Recommendations", ""])
+            for i, rec in enumerate(recs, 1):
+                affected = (
+                    f" (affected: {rec.affected_count} findings)"
+                    if rec.affected_count > 1
+                    else ""
+                )
+                lines.append(
+                    f"{i}. **`{rec.rule_id}`**{affected} — {rec.what}"
+                )
+                lines.append(f"   - Why: {rec.why}")
+                lines.append(f"   - How to fix: {rec.how_to_fix}")
+            lines.append("")
+
+        return lines
 
     # ------------------------------------------------------------------
     # 旧 render() 辅助方法
