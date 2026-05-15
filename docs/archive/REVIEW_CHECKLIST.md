@@ -4,7 +4,7 @@ PR review 和代码变更前的自检清单。
 
 ## Demo / Core / Real 边界
 
-> 边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
+> 边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](../architecture/DEMO_CORE_REAL_BOUNDARY.md)。
 
 - [ ] Core 没有新增对 `examples/` 的 import
 - [ ] Core 没有新增对 `mock_replay_adapter` 的 import
@@ -17,7 +17,7 @@ PR review 和代码变更前的自检清单。
 
 ## Agent2Harness Main Flow
 
-> 主流程定义见 [AGENT2HARNESS_MAIN_FLOW.md](AGENT2HARNESS_MAIN_FLOW.md)。
+> 主流程定义见 [AGENT2HARNESS_MAIN_FLOW.md](../architecture/AGENT2HARNESS_MAIN_FLOW.md)。
 
 - [ ] Agent2HarnessAdapter wrapper 不改旧 inner adapter 行为
 - [ ] CoreEvaluation 不自动生成 ReviewDecision
@@ -75,7 +75,7 @@ PR review 和代码变更前的自检清单。
 - [ ] 配置文件格式示例与实际解析逻辑一致
 - [ ] docs/ 中的文件路径引用指向真实存在的文件
 - [ ] 没有引用已删除文档的死链
-- [ ] `DEMO_CORE_REAL_BOUNDARY.md` 的模块分类与实际源码一致
+- [ ] `../architecture/DEMO_CORE_REAL_BOUNDARY.md` 的模块分类与实际源码一致
 
 ## 测试
 
@@ -89,7 +89,7 @@ PR review 和代码变更前的自检清单。
 
 ## 实现状态矩阵
 
-- [ ] `HEADLESS_HARNESS_MODEL.md` 中的实现状态矩阵反映了本次变更
+- [ ] `../architecture/HEADLESS_HARNESS_MODEL.md` 中的实现状态矩阵反映了本次变更
 - [ ] `CURRENT_IMPLEMENTATION.md` 的模块分类反映了本次变更
 - [ ] 代码存在但未验证的功能标注为 `⚠️ code exists, unverified`
 - [ ] 不支持的能力标注为 `❌ not supported`

@@ -1,13 +1,14 @@
 # archive/
 
-此目录为空。
+历史文档归档。这些文档有历史参考价值，但不适合放在用户主路径。
 
-已删除的文档（历史层、内部试用、push preflight 等）可通过 git history 找回：
+## 当前归档内容
 
-```bash
-git log --diff-filter=D --summary -- 'docs/*.md' | head -50
-git show <commit>^:docs/<path>
-```
+- **DOGFOOD_REAL_LLM_001.md** — 真实 LLM dogfood 记录（2026-05-12）
+- **DOGFOODING.md** — Dogfooding 分层和安全边界定义
+- **DEMO_TO_CORE_MIGRATION.md** — Demo → Core Contract 迁移记录
+- **REVIEW_CHECKLIST.md** — PR review 自检清单
 
-删除原因：项目定位从"多文档体系"精简为"Headless CLI Agent Tool Harness Prototype"，
-删除了 46+ 份与当前实现状态不匹配的历史文档。详见 ROADMAP.md 的"文档瘦身"阶段。
+## 归档原因
+
+v3.1.1 文档产品化重构中，将 dogfood 记录、历史迁移文档、内部开发清单从 `docs/` 主目录移至此处，保持用户文档路径干净。

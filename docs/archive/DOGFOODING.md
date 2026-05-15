@@ -6,7 +6,7 @@
 > **重要定位（2026-05-13 架构收口）：** agent-tool-harness 不运行 Agent。
 > 唯一接入路径是 TraceImportAdapter——用户用自己的 runner/CI 运行 Agent，
 > 产出 trace/log，通过 TraceImportAdapter 导入。后续核心方向是 tool-use inspection
-> （详见 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)），不是跑更多 Agent。
+> （详见 [TOOL_USE_INSPECTION_SDD.md](../architecture/TOOL_USE_INSPECTION_SDD.md)），不是跑更多 Agent。
 
 ---
 

@@ -1,7 +1,7 @@
 # Real Agent Integration SDD (Software Design Document)
 
 > **状态**: Implementation complete — Phase A (native schema) + Phase B (simple mapping) complete (2026-05-13).
-> Phase E Level 4A (harness-side LLM judge) complete, Level 4B (target agent self real provider) deferred——前置条件未满足，详见 [DOGFOODING.md](DOGFOODING.md)。
+> Phase E Level 4A (harness-side LLM judge) complete, Level 4B (target agent self real provider) deferred——前置条件未满足，详见 [DOGFOODING.md](../archive/DOGFOODING.md)。
 > **依赖**: Agent2Harness Core Flow (landed), CoreJudgeProvider (landed), LLMJudgeProvider (landed), explicit --env-file secret loading (landed).
 
 ---
@@ -195,7 +195,7 @@ evaluation → report。真实 Agent 的启动、provider、key、联网、业�
 - Level 4A (real LLM judge, harness 侧) ✅ — LLMJudgeProvider opt-in dogfood
 - Level 4B (target agent self real provider) ❌ deferred — target agent 尚缺 dogfood contract
 
-详见 [DOGFOODING.md](DOGFOODING.md)。
+详见 [DOGFOODING.md](../archive/DOGFOODING.md)。
 
 ---
 

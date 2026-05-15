@@ -20,9 +20,9 @@ Scorecard、Metrics、Grouped Findings、Recommendations 自动注入 Markdown +
 
 **后续核心方向：Tool-Use Inspection（Track D）**——围绕 tool-use logs 做工具检查、
 评测和质量报告，对齐 Anthropic《Writing effective tools for agents — with agents》。
-详见 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)。
+详见 [TOOL_USE_INSPECTION_SDD.md](architecture/TOOL_USE_INSPECTION_SDD.md)。
 
-三条 track 的边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](DEMO_CORE_REAL_BOUNDARY.md)。
+三条 track 的边界定义见 [DEMO_CORE_REAL_BOUNDARY.md](architecture/DEMO_CORE_REAL_BOUNDARY.md)。
 
 ---
 
@@ -83,7 +83,7 @@ Scorecard、Metrics、Grouped Findings、Recommendations 自动注入 Markdown +
   - [x] `core_evaluation.py` — CoreEvaluation（Evidence → EvaluationResult）
   - [x] `core_report_bridge.py` — EvaluationResult / ReportSummary → dict bridge
   - [x] `assembly.py` — build_demo_core_flow() + DemoCoreFlowResult
-  - [x] `AGENT2HARNESS_MAIN_FLOW.md` — 主流程架构文档
+  - [x] `architecture/AGENT2HARNESS_MAIN_FLOW.md` — 主流程架构文档
   - [x] `test_agent2harness_main_flow.py` — 18 个集成测试
   - [ ] EvalRunner 消费 Core Contract（后续轮次）
   - [ ] RuleJudge 原生消费 Core Contract（后续轮次，删除反向桥接）
@@ -184,7 +184,7 @@ Scorecard、Metrics、Grouped Findings、Recommendations 自动注入 Markdown +
 > 必须显式 opt-in。
 > **当前状态**: TraceImportAdapter 已完成（唯一接入路径），CLIAgentAdapter 已移除。
 > C10 dogfood Level 4A done, Level 4B deferred。
-> 详见 [REAL_AGENT_INTEGRATION_SDD.md](REAL_AGENT_INTEGRATION_SDD.md)。
+> 详见 [REAL_AGENT_INTEGRATION_SDD.md](architecture/REAL_AGENT_INTEGRATION_SDD.md)。
 
 ### C1. Opt-in safety model spec
 - **Status**: done (2026-05-12: safety model documented in LLM_PROVIDER_CONFIG.md)
@@ -216,7 +216,7 @@ Scorecard、Metrics、Grouped Findings、Recommendations 自动注入 Markdown +
 ### C4. Real provider opt-in
 - **Status**: done (2026-05-14: transport + factory + CLI wiring landed; infrastructure & safety gates verified; normalization layer fixed; both openai-compatible + anthropic-compatible real LLM smoke verified)
 - **Why**: 真实 LLM 评估需要安全模型和配置标准化
-- **Acceptance**: opt-in 真实 LLM dogfood 完成一次端到端闭环 (DOGFOOD_REAL_LLM_001.md)
+- **Acceptance**: opt-in 真实 LLM dogfood 完成一次端到端闭环 (archive/DOGFOOD_REAL_LLM_001.md)
 - **Not doing**: 不作为默认行为
 - [x] openai_transport.py + anthropic_transport.py
 - [x] llm_judge.py + judge_provider_factory.py
@@ -267,7 +267,7 @@ Scorecard、Metrics、Grouped Findings、Recommendations 自动注入 Markdown +
 
 > 对齐 Anthropic《Writing effective tools for agents — with agents》。
 > 核心价值在 tool-use logs 检查与工具质量评测，不在运行 Agent。
-> SDD 详见 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)。
+> SDD 详见 [TOOL_USE_INSPECTION_SDD.md](architecture/TOOL_USE_INSPECTION_SDD.md)。
 > **RuleFinding deterministic → passed; JudgeFinding advisory only; ReviewDecision human explicit.**
 
 ### D1. Trace import diagnostics (Module 1)

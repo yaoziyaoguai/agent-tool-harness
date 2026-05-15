@@ -180,7 +180,7 @@ harness 只负责 trace → evidence → evaluation → report。
 - TraceImportAdapter diagnostics 增强（mapping error report、missing field 提示）
 - 更多 mapping examples（JSONL、CSV、stdout parse）
 - mapping config validation 硬化
-- tool-use inspection（工具正确性、工效学、响应质量、spec 质量）——详见 [TOOL_USE_INSPECTION_SDD.md](TOOL_USE_INSPECTION_SDD.md)
+- tool-use inspection（工具正确性、工效学、响应质量、spec 质量）——详见 [TOOL_USE_INSPECTION_SDD.md](architecture/TOOL_USE_INSPECTION_SDD.md)
 - evidence quality report
 - report review UX
 - external-runner cookbook（更多语言和框架的转换示例）

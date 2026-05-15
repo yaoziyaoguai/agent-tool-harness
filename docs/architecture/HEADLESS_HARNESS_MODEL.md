@@ -78,7 +78,7 @@ type checks），失败即拒绝。
 - `build_report_summary()` — `metrics dict` → `ReportSummary`
 
 桥接层不改旧组件行为，所有函数为纯数据转换。详见
-[DEMO_TO_CORE_MIGRATION.md](DEMO_TO_CORE_MIGRATION.md)。
+[DEMO_TO_CORE_MIGRATION.md](../archive/DEMO_TO_CORE_MIGRATION.md)。
 
 ### Deterministic Checks
 

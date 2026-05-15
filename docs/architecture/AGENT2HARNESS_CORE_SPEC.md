@@ -157,7 +157,7 @@ Core Contract **不**包含以下任何内容：
 | `TranscriptReplayAdapter` | `AgentAdapter` Protocol (旧) | 同 MockReplayAdapter |
 | `demo_core_bridge` | — | **已实现**：`AgentRunResult` → `ExecutionTrace`，`JudgeResult` → `EvaluationResult` 等 5 个映射函数 |
 
-详见 [DEMO_TO_CORE_MIGRATION.md](DEMO_TO_CORE_MIGRATION.md)。
+详见 [DEMO_TO_CORE_MIGRATION.md](../archive/DEMO_TO_CORE_MIGRATION.md)。
 
 ---
 

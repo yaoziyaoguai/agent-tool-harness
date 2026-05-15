@@ -44,10 +44,10 @@ def test_docs_preserve_core_invariants():
     """核心文档必须保留关键边界声明，防止重写时悄悄删掉。"""
 
     readme = Path("README.md").read_text(encoding="utf-8")
-    harness_model = Path("docs/HEADLESS_HARNESS_MODEL.md").read_text(encoding="utf-8")
+    harness_model = Path("docs/architecture/HEADLESS_HARNESS_MODEL.md").read_text(encoding="utf-8")
     current_impl = Path("docs/CURRENT_IMPLEMENTATION.md").read_text(encoding="utf-8")
     roadmap = Path("docs/ROADMAP.md").read_text(encoding="utf-8")
-    boundary = Path("docs/DEMO_CORE_REAL_BOUNDARY.md").read_text(encoding="utf-8")
+    boundary = Path("docs/architecture/DEMO_CORE_REAL_BOUNDARY.md").read_text(encoding="utf-8")
 
     # DEMO_CORE_REAL_BOUNDARY 必须定义核心边界
     assert "One Core Flow" in boundary

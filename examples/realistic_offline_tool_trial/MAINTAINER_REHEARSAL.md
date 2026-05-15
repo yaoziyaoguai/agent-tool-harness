@@ -19,7 +19,7 @@
 - **是否依赖 secret/network/database**：否（全部 fake / 硬编码）
 - **bootstrap 是否成功**：✅ `bootstrap --source examples/realistic_offline_tool_trial --out /tmp/ath-realistic --force` 一次过，生成
   `tools.generated.yaml` / `evals.generated.yaml` / `fixtures/` /
-  `REVIEW_CHECKLIST.md` / `validation_summary.json` 5 件套
+  `../../docs/archive/REVIEW_CHECKLIST.md` / `validation_summary.json` 5 件套
 - **review TODO 花了多久**：N/A（reviewed 配置作为 fixture 一次写好；
   真实第一次内部同事预计 30–60 分钟填完一个工具的 TODO）
 - **strict-reviewed 是否通过**：✅ `validate-generated --strict-reviewed`

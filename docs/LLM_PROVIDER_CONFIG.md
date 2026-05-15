@@ -249,7 +249,7 @@ ReviewDecision              — 仍然由人类显式创建
 - dry-run 不触碰 SecretSource
 
 ### Phase 5（已验证 2026-05-14）：Real LLM infrastructure & safety gate verified
-真实 LLM transport 基础设施、安全门控（--live/--confirm-i-have-real-key/--env-file）和 factory wiring 已通过验证。Response parsing normalization layer 已修复（处理 7 种 compatible provider response shapes）。openai-compatible + anthropic-compatible 均已通过 real LLM smoke test（详见 `docs/DOGFOOD_REAL_LLM_001.md`）。
+真实 LLM transport 基础设施、安全门控（--live/--confirm-i-have-real-key/--env-file）和 factory wiring 已通过验证。Response parsing normalization layer 已修复（处理 7 种 compatible provider response shapes）。openai-compatible + anthropic-compatible 均已通过 real LLM smoke test（详见 `docs/archive/DOGFOOD_REAL_LLM_001.md`）。
 
 **命令：**
 ```bash
