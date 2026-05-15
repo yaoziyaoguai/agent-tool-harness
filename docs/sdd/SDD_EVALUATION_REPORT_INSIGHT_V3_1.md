@@ -53,8 +53,6 @@ class ReportMetrics:
 | `unique_tool_count` | `len(set(c.tool_name for c in trace.tool_calls))` |
 | `tool_success_count` | `sum(1 for r in trace.tool_results if r.status == "success")` |
 | `tool_error_count` | `sum(1 for r in trace.tool_results if r.status == "error")` |
-
-> **说明**：`tool_success_count` 是状态指标，只看 `status=="success"`。output 是否有意义（如 low_signal、context_fields）由 D5 response quality findings 和 recommendations 表达，不在此处与 success status 混在一起。
 | `tool_error_rate` | `tool_error_count / max(tool_call_count, 1)` |
 | `orphan_call_count` | `tool_call.call_id` 不在 `tool_results` 的 `call_id` 集合中的数量 |
 | `orphan_result_count` | `tool_result.call_id` 不在 `tool_calls` 的 `call_id` 集合中的数量 |
@@ -66,6 +64,8 @@ class ReportMetrics:
 | `finding_count_by_category` | `Counter(f.category for f in eval_result.findings)` 或按 rule_id prefix（见 FindingGrouper） |
 | `finding_count_by_tool` | 从 finding 的 finding_id / evidence_ref / message 提取 tool_name → Counter |
 | `judge_finding_count` | `sum(1 for f in eval_result.findings if f.category == "judge")` |
+
+> **说明**：`tool_success_count` 是状态指标，只看 `status=="success"`。output 是否有意义（如 low_signal、context_fields）由 D5 response quality findings 和 recommendations 表达，不在此处与 success status 混在一起。
 
 ### 1.3 边界条件
 
@@ -137,7 +137,9 @@ repeated = sum(cnt for _, cnt in call_counts.items() if cnt >= 2)
 
 ### 2.7 `finding_count_by_category` 策略
 
-`Finding.category` 在 v3.0 中的值为 `"rule" | "judge" | "audit" | "signal"`。对于 `category="rule"` 的 finding，进一步按 `rule_type`（即 rule_id）的 **top-level prefix** 分子类别：
+`Finding.category` 在 v3.0 中的值为 `"rule" | "judge" | "audit" | "signal"`。对于 `category="rule"` 的 finding，进一步按 `rule_type` 的 **top-level prefix** 分子类别。
+
+> **术语**：代码中 `RuleFinding` 的字段名为 `rule_type`（如 `tool_response.output.low_signal`）。文档中 `rule_id` 在 recommendation catalog 上下文中指同一概念——`Recommendation.rule_id` 的值取自 `Finding.rule_type`。`rule_id_prefix` 表示 top-level namespace（`tool_pair` / `tool_spec` / `tool_response` 等），由 `rule_type` 按 `.` 分割的第一段得到。实现时应读取 `getattr(finding, "rule_type", None)`，兼容 `JudgeFinding`（无此字段）。
 
 | rule_id 前缀 | 子类别 |
 |-------------|--------|
@@ -201,7 +203,11 @@ class FindingGrouper:
   4. 无法提取 → `"(unknown)"` bucket
 - group 内**按 severity 降序**排列
 
+> **best-effort extraction**：上述 tool_name 提取是 best-effort 策略。rule_type / rule_id 字段不编码具体 tool_name（如 `tool_pair.orphan_call` 不含 tool 信息），`finding_id` 也不保证一定包含 tool_name。预期覆盖率 60%-80%（基于当前 v3.0 finding 样本估计）。P2 实现时应用真实 finding 样本验证覆盖率。`FindingGrouper` 不得假设 `rule_type` 携带 tool_name。
+
 #### by_rule_id_prefix
+
+- key = rule_id 的 top-level prefix（用 `.` 分割取第一段）。**注意**：代码中 `Finding` 的字段名为 `rule_type`，此处的 `rule_id` / `rule_id_prefix` 语义上等同于 `rule_type` 值。`FindingGrouper` 应使用 `getattr(finding, "rule_type", None)` 读取，以兼容 `JudgeFinding`（可能无此字段）。
 
 - key = rule_id 的 top-level prefix（用 `.` 分割取第一段）
 - group 内**按 finding count 降序**排列（命中最多的规则排在前面）
@@ -270,6 +276,16 @@ def make_scorecard(
 | `top_issue_categories` | `groups.by_category` 前 5 个 category（按 finding count 降序） |
 | `top_affected_tools` | `metrics.finding_count_by_tool` 前 5 个 tool（按 count 降序，排除 "(unknown)"） |
 
+> **severity_breakdown 映射**：JSON `scorecard.severity_breakdown` 使用三档聚合展示，与 `finding_count_by_severity`（五级原始 severity）的关系如下：
+>
+> | `severity_breakdown` | 来源（五级 → 三档） |
+> |:---:|------|
+> | `error` | `critical` + `high` |
+> | `warning` | `medium` + `low` |
+> | `info` | `info` |
+>
+> `finding_count_by_severity` 保留五级原始数据（`critical` / `high` / `medium` / `low` / `info`），供需要细分查看的 consumer 使用。`scorecard.severity_breakdown` 提供简化的三档视图。两者不冲突——JSON consumer 不应将两者理解为矛盾。
+
 ### 4.4 Markdown 渲染
 
 ```markdown
@@ -305,6 +321,7 @@ class Recommendation:
     why: str        # 为什么重要
     how_to_fix: str # 具体修复方向
 
+> **术语**：`Recommendation.rule_id` 是 recommendation catalog 的 key，其值取自 `Finding.rule_type`（如 `tool_response.output.low_signal`）。`RecommendationCatalog` 内部按 `rule_id` 查找映射表，未匹配的走 §5.4 fallback。
 
 class RecommendationCatalog:
     def recommend(self, finding: Finding) -> Recommendation:
@@ -534,17 +551,13 @@ def render_insight_section(self, insight: ReportInsight) -> str:
 
 ### 7.3 与现有 render_from_core() 的关系
 
-两种集成方式（实现时选择一种）：
+**选定方式 A**：`render_from_core()` 内部调用 `ReportInsight.from_eval()`，自动插入 insight 段。
 
-**方式 A（推荐）**：`render_from_core()` 内部调用 `ReportInsight.from_eval()`，自动插入 insight 段。
-
-**方式 B**：保持 `render_from_core()` 不变，调用方自行拼装：
-```python
-insight = ReportInsight.from_eval(trace, eval_result)
-report_md = report.render_insight_section(insight) + report.render_from_core(...)
-```
-
-无论哪种方式，**`render()` 旧方法不变**。Insight 只影响 Core Flow 路径。
+- 新 insight section（Scorecard → Metrics → Top Issues → Findings by Severity → Findings by Tool → Recommendations）排在现有 `## Agent Tool-Use Eval (Core Flow)` detailed findings 之前。
+- `render()` 旧方法保持不变，不受影响。
+- Insight 只影响 Core Flow 路径（`render_from_core()`），不影响单 eval render 路径。
+- 不修改 `core_contract.py`。
+- 测试需覆盖：旧 `render()` 路径不回归；新 `render_from_core()` 包含 Scorecard / Metrics / Top Issues / Recommendations 段。
 
 ---
 

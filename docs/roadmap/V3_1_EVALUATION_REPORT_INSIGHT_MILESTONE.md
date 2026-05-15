@@ -22,7 +22,7 @@ v3.0 完成了 single-trace tool-use inspection and evaluation 主线：
 | Core Flow | ScenarioSpec → ExecutionTrace → Evidence → CoreEvaluation → EvaluationResult → Report | EvaluationResult + ReportSummary |
 | Markdown Report | render_from_core() | report.md |
 
-**31 deterministic rule_ids** across 5 inspectors, plus **6 LLM advisory rubric dimensions** (advisory only, not deterministic rules).
+**31 deterministic rules** across **4 inspectors** (D2/D6/D4/D5), plus **6 LLM advisory rubric dimensions** across 2 inspectors (D4/D5). LLM advisory dimensions are advisory only, not deterministic rules.
 
 ### 1.2 v3.1 为什么继续做 report insight
 

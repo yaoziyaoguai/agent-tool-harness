@@ -111,7 +111,7 @@ P2 和 P4 可并行（P4 只依赖 P1，不依赖 P2/P3）。P3 和 P4 可并行
 | 3 | 混合 severity | by_severity 的 keys 正确，每个 key 下 finding 数正确 |
 | 4 | 混合 category（rule + judge + audit + signal） | by_category 的 keys 正确 |
 | 5 | rule finding 按 rule_id prefix 分子类别 | tool_response 和 tool_spec 分开 |
-| 6 | by_tool — 从 rule_type 提取 tool_name | tool_name 正确解析 |
+| 6 | by_tool — 从 finding_id 提取 tool_name（primary strategy） | tool_name 正确解析，无法提取时走 evidence_ref / message fallback |
 | 7 | by_tool — 从 evidence_ref 提取 tool_name | fallback 提取正确 |
 | 8 | by_tool — 无法提取 → "(unknown)" | 兜底逻辑 |
 | 9 | by_rule_id_prefix — 按 prefix 分组 | tool_call, tool_result, tool_pair 分开 |
