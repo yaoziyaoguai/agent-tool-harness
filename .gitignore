@@ -9,3 +9,4 @@ runs/
 agent_log.jsonl
 sessions/
 cache/
+*.egg-info/
