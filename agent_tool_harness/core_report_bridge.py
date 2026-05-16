@@ -369,3 +369,23 @@ def analysis_findings_to_json_dict(findings: list) -> dict[str, Any]:
     from agent_tool_harness.analysis.render import render_analysis_json
 
     return render_analysis_json(findings)
+
+
+def portfolio_analysis_to_json_dict(
+    portfolio_findings: list,
+    improvement_briefs: list,
+) -> dict[str, Any]:
+    """将 v3.6 Portfolio Review + Improvement Brief 序列化为 JSON 兼容 dict。
+
+    委托给 portfolio.render.render_portfolio_analysis_json()。
+
+    Args:
+        portfolio_findings: PortfolioFinding 列表。
+        improvement_briefs: ToolImprovementBrief 列表。
+
+    Returns:
+        {"portfolio_review": [...], "improvement_briefs": [...]}。
+    """
+    from agent_tool_harness.portfolio.render import render_portfolio_analysis_json
+
+    return render_portfolio_analysis_json(portfolio_findings, improvement_briefs)

@@ -20,6 +20,14 @@ from agent_tool_harness.portfolio.portfolio_review import (
     PortfolioFinding,
     ToolPortfolioReview,
 )
+from agent_tool_harness.portfolio.render import (
+    render_improvement_brief_json,
+    render_improvement_brief_markdown,
+    render_portfolio_analysis_json,
+    render_portfolio_analysis_markdown,
+    render_portfolio_review_json,
+    render_portfolio_review_markdown,
+)
 
 __all__ = [
     "PortfolioFinding",
@@ -28,4 +36,10 @@ __all__ = [
     "ToolImprovementBrief",
     "EvidenceCollector",
     "ToolImprovementBriefGenerator",
+    "render_portfolio_review_markdown",
+    "render_improvement_brief_markdown",
+    "render_portfolio_analysis_markdown",
+    "render_portfolio_review_json",
+    "render_improvement_brief_json",
+    "render_portfolio_analysis_json",
 ]

@@ -1444,3 +1444,28 @@ class MarkdownReport:
         from agent_tool_harness.analysis.render import render_analysis_markdown
 
         return render_analysis_markdown(findings)
+
+    @staticmethod
+    def render_portfolio_section(
+        portfolio_findings: list,
+        improvement_briefs: list | None = None,
+    ) -> str:
+        """渲染 v3.6 Tool Portfolio Review & Improvement Brief Markdown 节。
+
+        将 ToolPortfolioReview 和 ToolImprovementBriefGenerator 产出的
+        结果渲染为 Markdown，可直接插入主报告。
+
+        Args:
+            portfolio_findings: PortfolioFinding 列表。
+            improvement_briefs: ToolImprovementBrief 列表（可选）。
+
+        Returns:
+            Markdown 字符串；无数据时返回空字符串。
+        """
+        from agent_tool_harness.portfolio.render import (
+            render_portfolio_analysis_markdown,
+        )
+
+        return render_portfolio_analysis_markdown(
+            portfolio_findings, improvement_briefs or []
+        )
