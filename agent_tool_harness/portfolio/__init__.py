@@ -10,6 +10,11 @@
 - ToolImprovementBrief: per-tool + cross-tool 改进建议
 """
 
+from agent_tool_harness.portfolio.improvement_brief import (
+    EvidenceCollector,
+    EvidenceRef,
+    ToolImprovementBrief,
+)
 from agent_tool_harness.portfolio.portfolio_review import (
     PortfolioFinding,
     ToolPortfolioReview,
@@ -18,4 +23,7 @@ from agent_tool_harness.portfolio.portfolio_review import (
 __all__ = [
     "PortfolioFinding",
     "ToolPortfolioReview",
+    "EvidenceRef",
+    "ToolImprovementBrief",
+    "EvidenceCollector",
 ]
