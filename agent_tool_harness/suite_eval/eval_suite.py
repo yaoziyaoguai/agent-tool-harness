@@ -83,16 +83,16 @@ def load_eval_suite(yaml_path: str) -> EvalSuite:
 
     YAML 格式示例::
 
-        suite_id: "ks-suite-001"
-        name: "Knowledge Search Eval Suite"
-        description: "验证知识搜索工具在不同难度 case 上的表现"
+        suite_id: "suite-001"
+        name: "Example Eval Suite"
+        description: "验证工具在不同难度 case 上的表现"
         cases:
-          - case_path: "cases/ks-001.yaml"
-            case_id: "ks-001"
+          - case_path: "cases/case-001.yaml"
+            case_id: "case-001"
         trace_inputs:
           - trace_path: "traces/trace_001.json"
-            case_id: "ks-001"
-        tags: ["knowledge_search", "regression"]
+            case_id: "case-001"
+        tags: ["smoke", "regression"]
         metadata:
           agent_version: "2.3.0"
 
