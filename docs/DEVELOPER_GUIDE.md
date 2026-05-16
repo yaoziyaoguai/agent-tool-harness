@@ -104,13 +104,17 @@ v3.1+ 各版本的架构决策记录和设计文档：
 
 - [ROADMAP.md](ROADMAP.md) — 演进路线（Tracks A-D）
 - [BACKLOG.md](BACKLOG.md) — 详细 backlog
-- [roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md](roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md) — 长期能力路线图（v3.1→v3.6）
+- [roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md](roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md) — 长期能力路线图（v3.1→v3.6 全部完成）
 - v3.1: [milestone](roadmap/V3_1_EVALUATION_REPORT_INSIGHT_MILESTONE.md) | [backlog](roadmap/V3_1_IMPLEMENTATION_BACKLOG.md)
 - v3.2: [milestone](roadmap/V3_2_TASK_LEVEL_EVALUATION_MILESTONE.md) | [backlog](roadmap/V3_2_IMPLEMENTATION_BACKLOG.md)
 - v3.3: [milestone](roadmap/V3_3_EVAL_SUITE_AGGREGATION_MILESTONE.md) | [backlog](roadmap/V3_3_IMPLEMENTATION_BACKLOG.md)
 - v3.4: [milestone](roadmap/V3_4_REGRESSION_COMPARISON_MILESTONE.md) | [backlog](roadmap/V3_4_IMPLEMENTATION_BACKLOG.md)
 - v3.5: [milestone](roadmap/V3_5_TRANSCRIPT_AND_CONTEXT_ANALYSIS_MILESTONE.md) | [backlog](roadmap/V3_5_IMPLEMENTATION_BACKLOG.md)
 - v3.6: [milestone](roadmap/V3_6_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF_MILESTONE.md) | [backlog](roadmap/V3_6_IMPLEMENTATION_BACKLOG.md)
+
+## 变更记录
+
+- [../CHANGELOG.md](../CHANGELOG.md) — 版本变更记录
 
 ## 历史归档
 

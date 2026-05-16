@@ -2,21 +2,32 @@
 
 [English](README.en.md)
 
-**Agent Tool Harness 是一个本地 Agent tool-use trace 检查、评测与报告生成工具。**
+**面向 Agent 工具调用质量的离线评测与报告工具。**
 
-它不负责运行你的 Agent。它只处理外部 Agent / 脚本 / CI 产出的 trace JSON 日志，做确定性检查和评测，最后生成可读报告。
+消费已有 trace / JSON log / eval result，做确定性检查和评测，生成可读报告。不运行目标 Agent，不调用真实 LLM（默认），不自动修改工具。
 
-## 它解决什么问题
+## 解决什么问题
 
-用你自己的 Agent runner 跑完 Agent 后，你可能会问：
+| 你的问题 | 对应能力 |
+|---------|---------|
+| 我的 Agent 调工具有没有调对？ | v3.1 确定性检查 + 报告洞察 |
+| 任务真的完成了吗？ | v3.2 任务级评测 |
+| 多条 trace 全局情况怎样？ | v3.3 Eval Suite 聚合 |
+| 改完 tool spec 后有没有引入回归？ | v3.4 Regression Comparison |
+| Agent 为什么反复重试？工具返回是否浪费上下文？ | v3.5 Transcript + Context 分析 |
+| 工具组合设计有没有结构性问题？怎么改进？ | v3.6 Portfolio Review + Improvement Brief |
 
-- 我的 Agent 调工具有没有调对？call_id 是否一一配对？
-- tool spec 写得好不好？会不会让 Agent 容易用错？
-- tool response 有没有足够上下文？错误信息能不能帮助定位问题？
-- 有没有工具名重叠、命名空间混乱的问题？
-- 最后能不能生成一份可读的评测报告，方便 PR review 或 CI 消费？
+## 能力链路
 
-agent-tool-harness 就是回答这些问题的。
+```
+trace / JSON log
+  → v3.1 导入 + 确定性检查 (37+ rules) + 报告洞察 (Scorecard/Metrics/Recommendations)
+    → v3.2 任务级评测 (TaskOutcome: success/failed/inconclusive)
+      → v3.3 Suite 聚合 (task_success_rate + top issues)
+        → v3.4 回归对比 (baseline vs candidate)
+        → v3.5 转录困惑 + 上下文效率分析 (11 种 pattern)
+        → v3.6 工具组合评审 + 改进建议 (5 类检查 + evidence brief)
+```
 
 ## 核心流程
 
@@ -30,71 +41,65 @@ agent-tool-harness 就是回答这些问题的。
 
 ## 主要能力
 
-**Trace 导入：**
-- native trace JSON 直接导入
-- simple_mapping 字段映射，适配不同 Agent 的输出格式
-- trace 诊断：字段覆盖率、类型检查、置信度评估
+### v3.1 报告洞察
 
-**确定性检查（37+ 规则，不需要 LLM）：**
-- 工具使用正确性 — call_id 唯一性、调用/结果配对、参数有效性
-- 工具规格质量 — description 完整度、input_schema、output contract
-- 工具工效学 — 命名清晰度、命名空间重叠、wrapper 检测
-- 工具响应质量 — output 信号强度、错误可行动性、上下文充分性
-
-**CLI 审计工具：**
-- `audit-tools` — 工具契约确定性启发式审计
-- `audit-evals` — eval 质量审计
-- `audit-judge-prompts` — judge prompt 安全审计
-
-**LLM 辅助判断（可选，默认不启用）：**
-- 6 个 advisory 维度
-- RuleFinding 仍然决定 pass/fail，JudgeFinding 仅供参考
-- 需要显式 opt-in：`--live --confirm-i-have-real-key --env-file`
-
-**v3.1 报告洞察：**
-- **Scorecard** — 一眼看懂通过/不通过，error/warning/advisory 分桶
+- **Scorecard** — 一眼看懂通过/不通过
 - **Metrics** — 工具调用次数、成功率/错误率、响应大小
-- **Findings 分组** — 按严重度、类别、工具分组，快速定位问题
+- **Findings 分组** — 按严重度、类别、工具分组
 - **Recommendations** — 去重排序的可行动修复建议
 - Markdown + JSON 双格式输出
 
-**v3.2 任务级评测：**
-- **EvalCase / ExpectedOutcome** — 定义任务预期结果的声明式 schema
+### v3.2 任务级评测
+
+- **EvalCase / ExpectedOutcome** — 声明式任务预期结果定义
 - **6 种 Verifier** — fact、field、pattern、tool_call、no_tool_call、llm（advisory）
-- **TaskOutcome** — success / failed / inconclusive 三态判定，接入主报告路径
+- **TaskOutcome** — success / failed / inconclusive 三态判定
 
-**v3.3 Eval Suite 聚合：**
+### v3.3 Eval Suite 聚合
+
 - **EvalSuite manifest** — YAML 驱动的多 case / 多 trace 编排
-- **SuiteEvaluator** — 逐个 case 评测，聚合为 SuiteResult
-- **SuiteScorecard** — suite 级 pass/fail + task_success_rate + top failing categories/tools
-- **SuiteMetrics** — 跨 case 聚合指标（mean tool calls、error rate、findings per case）
-- **Markdown + JSON suite report** — 聚合报告双格式输出
+- **SuiteScorecard** — suite 级 pass/fail + task_success_rate
+- **SuiteMetrics** — 跨 case 聚合指标
 
-**v3.4 Regression Comparison：**
-- 对比 baseline 与 candidate 的评测结果
-- 查看 metrics / findings / task outcomes / suite results 的变化
-- 自动识别回归信号：新增失败、错误率飙升、finding 暴增、工具错误新增、任务成功率骤降
-- 生成 Markdown / JSON 回归对比报告
-- 只消费已有评测结果，不运行 Agent，不调用 LLM，不自动修复
-- 所有阈值可配置，is_regression 为建议信号，不自动阻止 CI
+### v3.4 回归对比
 
-**v3.5 Transcript + Context Analysis：**
-- **TranscriptPatternAnalyzer** — 识别 6 种 Agent 困惑模式（重复重试、工具切换困惑、参数微调、无恢复、无支撑回答、搜索范围扩大）
-- **ContextEfficiencyAnalyzer** — 识别 5 种上下文浪费信号（响应膨胀、缺少分页、缺少简洁模式、低价值大字段、截断无提示）
-- **确定性 RuleFinding** — 不调 LLM，产出可复现的 transcript/context 发现
-- **Markdown/JSON 分析报告** — 独立分析章节 + recommendation catalog
+- baseline vs candidate 全方位对比（metrics / findings / task outcomes / suite）
+- 5 种自动回归警告，阈值可配置
+- 只消费已有评测结果，不运行 Agent
 
-**v3.6 Tool Portfolio Review + Tool Improvement Brief：**
-- **ToolPortfolioReview** — 5 类工具组合结构检查（命名空间一致性、工具重叠、浅层包装、缺失高层工具、资源分组）
-- **ToolImprovementBrief** — 含 v3.1-v3.5 证据引用的 per-tool + cross-tool 改进建议卡片
-- **确定性** — 不调 LLM、不自动修改 ToolSpec
+### v3.5 Transcript + Context 分析
+
+- **6 种 Agent 困惑模式** — 重复重试、工具切换、参数微调、无恢复、无支撑回答、搜索范围扩大
+- **5 种上下文浪费信号** — 响应膨胀、缺少分页、低价值大字段、截断无提示等
+- 所有分析 deterministic，不调 LLM
+
+### v3.6 工具组合评审 + 改进建议
+
+- **5 类结构检查** — 命名空间一致性、工具重叠、浅层包装、缺失高层工具、资源分组
+- **Improvement Brief** — 含 evidence 引用的 per-tool + cross-tool 改进建议卡片
+- 不自动修改 ToolSpec
+
+### 基础设施
+
+- **Trace 导入** — native JSON + simple_mapping 字段映射 + 诊断
+- **确定性检查** — 37+ 规则，零网络依赖，决定 pass/fail
+- **CLI 审计** — `audit-tools`、`audit-evals`、`audit-judge-prompts`
+- **LLM judge（可选）** — 6 advisory 维度，默认不启用，需显式三重 opt-in
 
 ## 它不是什么
 
-- 它不运行你的 Agent — 你需要用自己的 runner 产出 trace
-- 它默认不调真实 LLM — 确定性规则足够决定 pass/fail
-- 它不会自动改你的工具 — 不做 optimizer，不修 prompt
-- 它不会自动生成 Review 结论 — 人工 Review 是显式且必须的
+- **不运行你的 Agent** — 你需要用自己的 runner 产出 trace
+- **默认不调真实 LLM** — 确定性规则足够决定 pass/fail
+- **不自动改你的工具** — recommendations / improvement brief 是建议，不是自动修复
+- **不是 LLM eval benchmark** — 不替代人工判断
+
+## 安全边界
+
+- 不运行目标 Agent
+- 不调用真实 LLM by default
+- 不读取 .env（除非显式 opt-in）
+- 不自动修改 tool spec
+- Signal quality 明确声明（mock replay = `tautological_replay`，不是真实 Agent 信号）
 
 ## 快速开始
 
@@ -229,13 +234,15 @@ python -m agent_tool_harness.cli run \
 
 | 我想... | 看这里 |
 |---------|--------|
-| 快速上手 | [QUICKSTART](docs/QUICKSTART.md) |
+| 5 分钟上手 | [QUICKSTART](docs/QUICKSTART.md) |
 | 了解完整使用流程 | [USER_GUIDE](docs/USER_GUIDE.md) |
-| 看懂 v3.1 报告 | [REPORT_GUIDE](docs/REPORT_GUIDE.md) |
-| 配置真实 LLM judge | [PROVIDER_CONFIG](docs/PROVIDER_CONFIG.md) |
-| 查看当前实现状态和限制 | [CURRENT_IMPLEMENTATION](docs/CURRENT_IMPLEMENTATION.md) |
+| 看懂报告 | [REPORT_GUIDE](docs/REPORT_GUIDE.md) |
+| 浏览所有示例 | [examples/README.md](examples/README.md) |
+| 配置 LLM judge（可选） | [PROVIDER_CONFIG](docs/PROVIDER_CONFIG.md) |
 | 了解架构或参与开发 | [DEVELOPER_GUIDE](docs/DEVELOPER_GUIDE.md) |
-| 查看全部文档 | [INDEX](docs/INDEX.md) |
+| 查看当前实现状态 | [CURRENT_IMPLEMENTATION](docs/CURRENT_IMPLEMENTATION.md) |
+| 全部文档索引 | [INDEX](docs/INDEX.md) |
+| 英文文档 | [README.en.md](README.en.md) |
 
 ## 设计渊源
 

@@ -1,30 +1,37 @@
 # Agent Tool Harness — Post-v3.1 Capability Roadmap
 
+> **状态：v3.1-v3.6 全部完成（2026-05-17）。v3.6.0 已发布。**
+
 ## TLDR
 
-v3.1.1 已覆盖 tool-use trace 的确定性检查和报告洞察。post-v3.1 路线图分 5 个版本（v3.2-v3.6），从"单条 trace 是否健康"升级到"任务是否完成 + 跨 trace 聚合 + 改前改后对比 + Agent 困惑分析 + 工具组合设计评审"。所有版本保持 harness 主线：外部 runner → trace 导入 → 检查/评测 → 报告。不内置 Agent runner，不自动修改工具。
+v3.1.1 起步，经历 5 个版本（v3.2-v3.6），从"单条 trace 是否健康"升级到"任务是否完成 + 跨 trace 聚合 + 改前改后对比 + Agent 困惑分析 + 工具组合设计评审"。所有版本保持 harness 主线：外部 runner → trace 导入 → 检查/评测 → 报告。不内置 Agent runner，不自动修改工具。
 
 ---
 
-## 1. 当前 v3.1.1 能力基线
+## 1. v3.6.0 能力基线（全部完成）
 
 | 层 | 能力 | 输入 → 输出 | 状态 |
 |---|------|------------|------|
-| Trace 导入 | native + simple_mapping | 外部 trace JSON → ExecutionTrace | done |
-| Trace 诊断 (D1) | 字段覆盖率、类型检查、置信度 | ExecutionTrace → TraceDiagnostics | done |
-| 工具调用正确性 (D2) | 9 条确定性规则 | ExecutionTrace → RuleFinding[] | done |
-| 工具规格质量 (D6) | 10 条确定性规则 | ToolSpec[] → RuleFinding[] | done |
-| 工具工效学 (D4) | 6 条确定 + 4 LLM advisory | ExecutionTrace + ToolSpec[] → RuleFinding[] + JudgeFinding[] | done |
-| 工具响应质量 (D5) | 6 条确定 + 2 LLM advisory | ExecutionTrace → RuleFinding[] + JudgeFinding[] | done |
-| LLM 辅助判断 | opt-in, advisory only | findings → JudgeFinding[] | done |
-| 报告洞察 (v3.1) | Scorecard + Metrics + Grouped + Recommendations | EvaluationResult + ExecutionTrace → ReportInsight | done |
-| Markdown/JSON report | 双格式输出 | ReportInsight → report.md / report.json | done |
-| CLI 工具 | 14 个子命令 | — | done |
-| 中文文档体系 | README + QUICKSTART + USER_GUIDE + REPORT_GUIDE + DEVELOPER_GUIDE | — | done |
+| Trace 导入 | native + simple_mapping | 外部 trace JSON → ExecutionTrace | ✅ |
+| Trace 诊断 | 字段覆盖率、类型检查、置信度 | ExecutionTrace → TraceDiagnostics | ✅ |
+| 工具调用正确性 | 9 条确定性规则 | ExecutionTrace → RuleFinding[] | ✅ |
+| 工具规格质量 | 10 条确定性规则 | ToolSpec[] → RuleFinding[] | ✅ |
+| 工具工效学 | 6 条确定 + 4 LLM advisory | ExecutionTrace + ToolSpec[] → RuleFinding[] + JudgeFinding[] | ✅ |
+| 工具响应质量 | 6 条确定 + 2 LLM advisory | ExecutionTrace → RuleFinding[] + JudgeFinding[] | ✅ |
+| LLM 辅助判断 | opt-in, advisory only | findings → JudgeFinding[] | ✅ |
+| 报告洞察 (v3.1) | Scorecard + Metrics + Grouped + Recommendations | EvaluationResult + ExecutionTrace → ReportInsight | ✅ |
+| 任务级评测 (v3.2) | EvalCase + 6 Verifiers + TaskOutcome | EvalCase + ExecutionTrace → TaskOutcome | ✅ |
+| Suite 聚合 (v3.3) | EvalSuite + SuiteEvaluator + SuiteResult | EvalSuite + N traces → SuiteResult | ✅ |
+| 回归对比 (v3.4) | baseline vs candidate 全维度 | ReportInsight ×2 → RegressionReport | ✅ |
+| 转录分析 (v3.5) | 6 困惑模式 + 5 上下文浪费 | ExecutionTrace → RuleFinding[] | ✅ |
+| 组合评审 (v3.6) | 5 类结构检查 + ImprovementBrief | ToolSpec[] + findings → PortfolioFinding[] + ToolImprovementBrief[] | ✅ |
+| Markdown/JSON report | 双格式输出 | 各层结果 → report.md / report.json | ✅ |
+| CLI 工具 | 14 个子命令 | — | ✅ |
+| 中文文档体系 | README + QUICKSTART + USER_GUIDE + REPORT_GUIDE + DEVELOPER_GUIDE + CHANGELOG | — | ✅ |
 
 ---
 
-## 2. 对照 Anthropic 工具评测闭环的能力差距
+## 2. 对照 Anthropic 工具评测闭环（全部覆盖）
 
 Anthropic《Writing effective tools for agents — with agents》描述的完整工具评测闭环：
 
@@ -34,33 +41,33 @@ Anthropic《Writing effective tools for agents — with agents》描述的完整
 → 分析 Agent 困惑 → 评审工具组合 → 产出改进建议 → 迭代
 ```
 
-当前 v3.1.1 覆盖了其中"检查 tool-use 正确性"和"报告洞察"两步。剩余 8 个缺口：
+v3.6.0 已覆盖全部环节：
 
-| # | 缺口 | 当前状态 | 进入版本 |
-|---|------|---------|---------|
-| 1 | eval task set / held-out test set | 无结构化 task 定义 | v3.2 |
-| 2 | top-level task success / ground truth verifier | 只有 trace-level passed | v3.2 |
-| 3 | multi-trace / eval suite aggregation | 仅单 trace | v3.3 |
-| 4 | before/after regression comparison | 无对比能力 | v3.4 |
-| 5 | transcript-level agent confusion analysis | 无 | v3.5 |
-| 6 | context efficiency 深度分析 | 无 | v3.5 |
-| 7 | tool portfolio / tool selection planning | ToolDesignAuditor 只看单个工具 | v3.6 |
-| 8 | tool improvement brief | RecommendationCatalog 是单 rule_id 级别 | v3.6 |
+| # | 环节 | 覆盖版本 | 状态 |
+|---|------|---------|------|
+| 1 | eval task set / held-out test set | v3.2 EvalCase | ✅ |
+| 2 | top-level task success / ground truth verifier | v3.2 TaskOutcome + 6 Verifiers | ✅ |
+| 3 | multi-trace / eval suite aggregation | v3.3 EvalSuite + SuiteResult | ✅ |
+| 4 | before/after regression comparison | v3.4 RegressionReport | ✅ |
+| 5 | transcript-level agent confusion analysis | v3.5 TranscriptPatternAnalyzer | ✅ |
+| 6 | context efficiency 深度分析 | v3.5 ContextEfficiencyAnalyzer | ✅ |
+| 7 | tool portfolio / tool selection planning | v3.6 ToolPortfolioReview | ✅ |
+| 8 | tool improvement brief | v3.6 ToolImprovementBrief | ✅ |
 
 ---
 
-## 3. Post-v3.1 版本路线
+## 3. 版本路线（全部完成）
 
 ```
-v3.2 Task-level Evaluation
-  └── v3.3 Eval Suite / Multi-trace Aggregation
-        ├── v3.4 Regression Comparison
-        │     └── v3.6 Tool Portfolio + Improvement Brief
-        └── v3.5 Transcript Confusion + Context Efficiency
-              └── v3.6 Tool Portfolio + Improvement Brief
+v3.2 Task-level Evaluation ✅
+  └── v3.3 Eval Suite / Multi-trace Aggregation ✅
+        ├── v3.4 Regression Comparison ✅
+        │     └── v3.6 Tool Portfolio + Improvement Brief ✅
+        └── v3.5 Transcript Confusion + Context Efficiency ✅
+              └── v3.6 Tool Portfolio + Improvement Brief ✅
 ```
 
-### 3.1 v3.2 Task-level Evaluation
+### 3.1 v3.2 Task-level Evaluation ✅
 
 **用户问题**："我的 Agent 调工具没报错，但任务真的完成了吗？"
 
@@ -75,7 +82,7 @@ v3.2 Task-level Evaluation
 
 **关键约束**：Harness 不运行 Agent。TaskOutcome 基于 trace 中的 final answer 或 tool output 验证。
 
-### 3.2 v3.3 Eval Suite / Multi-trace Aggregation
+### 3.2 v3.3 Eval Suite / Multi-trace Aggregation ✅
 
 **用户问题**："我有很多条 trace 和 eval case，能不能一次跑完看全局？"
 
@@ -84,7 +91,7 @@ v3.2 Task-level Evaluation
 
 **依赖**：v3.2 TaskOutcome
 
-### 3.3 v3.4 Regression Comparison
+### 3.3 v3.4 Regression Comparison ✅
 
 **用户问题**："我改了 tool spec / prompt，有没有引入回归？"
 
@@ -93,7 +100,7 @@ v3.2 Task-level Evaluation
 
 **依赖**：v3.2 TaskOutcome（推荐 v3.3 suite aggregation）
 
-### 3.4 v3.5 Transcript Confusion + Context Efficiency Analysis
+### 3.4 v3.5 Transcript Confusion + Context Efficiency Analysis ✅
 
 **用户问题**："Agent 为什么会在这里反复重试同一个工具？工具返回是不是太啰嗦了？"
 
@@ -102,7 +109,7 @@ v3.2 Task-level Evaluation
 
 **依赖**：v3.1 report insight（v3.2 TaskOutcome 可增强失败解释）
 
-### 3.5 v3.6 Tool Portfolio Review + Tool Improvement Brief
+### 3.5 v3.6 Tool Portfolio Review + Tool Improvement Brief ✅
 
 **用户问题**："我的工具组合设计有没有结构性问题？怎么系统性地改进？"
 

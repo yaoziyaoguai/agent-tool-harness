@@ -2,33 +2,104 @@
 
 [中文文档](README.md)
 
-A local harness for importing, inspecting, evaluating, and reporting on Agent tool-use traces.
+**An offline evaluation and reporting tool for Agent tool-use quality.**
 
-**agent-tool-harness does not run your agent.**
-It evaluates tool-use traces produced by your own agent runner, script, CI, or logs.
+It consumes existing traces, JSON logs, and eval results. It does not run your agent, does not call real LLMs by default, and does not auto-modify tools.
 
-## What it does
+## What problems it solves
 
-- **Import** native Agent2Harness trace JSON or custom JSON via simple field mapping
-- **Diagnose** trace quality — field coverage, type checks, confidence assessment, mapping dry-run
-- **Inspect** tool-use correctness — call_id uniqueness, call/result pairing, argument validity, orphan detection (9 rules)
-- **Inspect** tool spec quality — description completeness, input_schema presence, parameter docs, output contract (10 rules)
-- **Inspect** tool ergonomics — naming clarity, namespace overlap, wrapper detection, action-resource patterns (6 rules)
-- **Inspect** tool response quality — output presence, error actionability, signal strength, context sufficiency (6 rules)
-- **Evaluate** with deterministic RuleFinding that decides pass/fail — no LLM required
-- **Advise** with optional LLM judge rubric — 6 advisory dimensions, never affects pass/fail
-- **Report** with structured Markdown + JSON artifacts
-- **Report Insight (v3.1)** — Scorecard, Metrics, Grouped Findings, Recommendations
+| Your question | Capability |
+|---------------|------------|
+| Is my agent using tools correctly? | v3.1 Deterministic checks + report insight |
+| Did the task actually succeed? | v3.2 Task-level evaluation |
+| How does the full eval suite look? | v3.3 Suite aggregation |
+| Did my tool spec change cause regressions? | v3.4 Regression comparison |
+| Why does my agent retry endlessly? Is tool output bloated? | v3.5 Transcript + context analysis |
+| Are there structural issues in my tool portfolio? | v3.6 Portfolio review + improvement brief |
 
-All features are local, offline, zero-network by default.
+## Capability chain
+
+```
+trace / JSON log
+  → v3.1 import + deterministic checks (37+ rules) + report insight
+    → v3.2 task-level evaluation (TaskOutcome: success/failed/inconclusive)
+      → v3.3 suite aggregation (task_success_rate + top issues)
+        → v3.4 regression comparison (baseline vs candidate)
+        → v3.5 transcript confusion + context efficiency (11 patterns)
+        → v3.6 portfolio review + improvement brief (5 checks + evidence brief)
+```
+
+## Core flow
+
+```
+Your agent / script / CI
+  → produces tool-use trace / JSON log
+    → agent-tool-harness imports
+      → deterministic checks + evaluation
+        → Markdown / JSON report
+```
+
+## Capabilities
+
+### v3.1 Report Insight
+
+- **Scorecard** — pass/fail at a glance
+- **Metrics** — tool calls, success/error rates, response sizes
+- **Grouped Findings** — by severity, category, and tool
+- **Recommendations** — deduplicated, ranked, actionable suggestions
+- Markdown + JSON output
+
+### v3.2 Task-Level Evaluation
+
+- **EvalCase / ExpectedOutcome** — declarative expected task outcomes
+- **6 verifiers** — fact, field, pattern, tool_call, no_tool_call, llm (advisory)
+- **TaskOutcome** — success / failed / inconclusive verdict
+
+### v3.3 Eval Suite Aggregation
+
+- **EvalSuite manifest** — YAML-driven multi-case, multi-trace orchestration
+- **SuiteScorecard** — suite-level pass/fail + task success rate
+- **SuiteMetrics** — cross-case aggregated metrics
+
+### v3.4 Regression Comparison
+
+- baseline vs candidate comparison across metrics, findings, task outcomes, and suites
+- 5 auto-detected regression warnings, configurable thresholds
+- consumes existing eval results only, never re-runs agents
+
+### v3.5 Transcript + Context Analysis
+
+- **6 agent confusion patterns** — repeated retries, tool switching, arg micro-tuning, no recovery, unsupported answers, broad search escalation
+- **5 context waste signals** — response bloat, missing pagination, low-value large fields, truncation without hint, etc.
+- All analysis deterministic, no LLM required
+
+### v3.6 Portfolio Review + Improvement Brief
+
+- **5 structural checks** — namespacing consistency, overlapping tools, shallow wrappers, missing higher-level tools, resource grouping
+- **Improvement Brief** — per-tool + cross-tool improvement cards with evidence from v3.1-v3.5
+- Does not auto-modify ToolSpec
+
+### Infrastructure
+
+- **Trace import** — native JSON + simple_mapping field mapping + diagnostics
+- **Deterministic checks** — 37+ rules, zero network dependency, decides pass/fail
+- **CLI audit** — `audit-tools`, `audit-evals`, `audit-judge-prompts`
+- **LLM judge (optional)** — 6 advisory dimensions, disabled by default, requires explicit triple opt-in
 
 ## What it does not do
 
-- **Does not run target agents** — you run your agent; harness imports and evaluates traces
-- **Does not manage your API keys** — no .env loading by default
-- **Does not call real LLMs by default** — real LLM judge requires explicit opt-in
-- **Does not auto-fix tools** — no optimizer, no prompt repair
-- **Does not auto-generate ReviewDecision** — human review is explicit and required
+- **Does not run your agent** — you run your agent; harness imports and evaluates traces
+- **Does not call real LLMs by default** — deterministic rules decide pass/fail
+- **Does not auto-fix tools** — recommendations and improvement briefs are suggestions, not automatic patches
+- **Is not an LLM eval benchmark** — does not replace human judgment
+
+## Safety boundaries
+
+- Does not run target agents
+- Does not call real LLMs by default
+- Does not read .env (unless explicitly opted in)
+- Does not auto-modify tool specs
+- Signal quality is explicitly declared (mock replay = `tautological_replay`, not a real agent signal)
 
 ## Quickstart
 
@@ -43,6 +114,8 @@ python -m pytest tests/ -q
 ```
 
 ### Import a trace and evaluate
+
+No .env, no API key, no network required:
 
 ```bash
 python -c "
@@ -69,118 +142,56 @@ for f in result.findings:
 "
 ```
 
-## Input model
+### Mock replay demo
 
+```bash
+# 1) Audit tool contracts
+python -m agent_tool_harness.cli audit-tools \
+  --tools examples/runtime_debug/tools.yaml \
+  --out /tmp/harness-demo/audit
+
+# 2) Mock replay — good path
+python -m agent_tool_harness.cli run \
+  --project examples/runtime_debug/project.yaml \
+  --tools examples/runtime_debug/tools.yaml \
+  --evals examples/runtime_debug/evals.yaml \
+  --out /tmp/harness-demo/good --mock-path good
+
+# 3) View report
+cat /tmp/harness-demo/good/report.md
 ```
-Your agent runner / script / CI
-  → produces tool-use trace/log (JSON)
-    → TraceImportAdapter imports trace
-      → CoreEvaluation evaluates tool use
-        → Report (Markdown + JSON artifacts)
-          → Human Review
+
+## When to use the real LLM judge
+
+Not required by default. Deterministic RuleFinding is sufficient to decide pass/fail. The real LLM judge is optional and advisory-only.
+
+```bash
+# Enable real LLM judge (requires explicit triple opt-in)
+python -m agent_tool_harness.cli run \
+  --project examples/runtime_debug/project.yaml \
+  --tools examples/runtime_debug/tools.yaml \
+  --evals examples/runtime_debug/evals.yaml \
+  --out /tmp/harness-demo/llm-judge \
+  --core-flow --judge-provider llm \
+  --llm-config examples/llm_providers.example.yaml \
+  --llm-provider openai-compatible \
+  --env-file .env --live --confirm-i-have-real-key
 ```
-
-Two import modes:
-
-| Mode | When to use |
-|------|-------------|
-| `native` | Your trace already matches the native Agent2Harness schema |
-| `simple_mapping` | Your trace uses different field names — map them with `SimpleMappingConfig` |
-
-## Evaluation model
-
-| Layer | Decides `passed`? | Source | Description |
-|-------|-------------------|--------|-------------|
-| **RuleFinding** | **Yes** | Deterministic rules | 37+ rules across 5 inspectors |
-| **JudgeFinding** | **No** (advisory) | LLM judge rubric (opt-in) | 6 advisory dimensions |
-| **ReviewDecision** | **No** (human) | Human reviewer | Final accept/reject |
-
-## Report Insight (v3.1)
-
-v3.1 adds a report-level insight layer:
-
-| Component | What it tells you |
-|-----------|-------------------|
-| **Scorecard** | Pass/fail at a glance, error/warning/advisory breakdown |
-| **Metrics** | Tool call counts, success/error rates, response sizes |
-| **Grouped Findings** | Findings bucketed by severity, category, and tool |
-| **Recommendations** | Deduplicated, ranked, actionable fix suggestions |
-
-All components are deterministic, zero-network, no LLM required.
-
-## Task-Level Evaluation (v3.2)
-
-v3.2 adds task-outcome evaluation on top of trace-level inspection:
-
-| Component | What it tells you |
-|-----------|-------------------|
-| **EvalCase** | Declarative schema for expected task outcomes |
-| **6 Verifiers** | fact, field, pattern, tool_call, no_tool_call, llm (advisory) |
-| **TaskOutcome** | success / failed / inconclusive per-task verdict |
-| **Report Integration** | Task Outcome section optionally rendered in main report |
-
-All verifiers except `llm` are deterministic, zero-network.
-
-## Eval Suite Aggregation (v3.3)
-
-v3.3 adds multi-case, multi-trace suite-level aggregation:
-
-| Component | What it tells you |
-|-----------|-------------------|
-| **EvalSuite manifest** | YAML-driven multi-case/multi-trace orchestration |
-| **SuiteEvaluator** | Per-case evaluation orchestration |
-| **SuiteResult** | task_success_rate, deterministic_pass_rate, aggregated metrics |
-| **SuiteScorecard** | Suite-level pass/fail + top failing categories/tools |
-| **SuiteMetrics** | Cross-case metrics (mean tool calls, error rate, findings/case) |
-| **Suite Report** | Markdown + JSON dual-format aggregated output |
-
-All components deterministic, zero-network.
-
-## Regression Comparison (v3.4)
-
-v3.4 adds baseline-vs-candidate regression detection:
-
-| Component | What it tells you |
-|-----------|-------------------|
-| **MetricDiff** | Per-metric before/after comparison with direction (better/worse/neutral) |
-| **FindingDiff** | Finding count changes by category, tracking new and resolved rule_ids |
-| **TaskOutcomeDiff** | Per-case status transitions (new_failure, new_success, etc.) |
-| **SuiteDiff** | Suite-level task success rate and deterministic pass rate deltas |
-| **RegressionWarning** | 5 auto-detected warning types: new_task_failures, error_rate_spike, finding_explosion, new_tool_errors, task_success_drop |
-| **RegressionReport** | Complete Markdown/JSON regression comparison output |
-
-All thresholds configurable. `is_regression` is advisory — does not auto-block CI (RFC Decision 1).
-All components deterministic, zero-network.
-
-## Transcript + Context Analysis (v3.5)
-
-| Component | What it tells you |
-|-----------|-------------------|
-| **TranscriptPatternAnalyzer** | 6 Agent confusion patterns: repeated retry loops, tool switching, arg micro-tuning, error without recovery, unsupported final answers, broad search escalation |
-| **ContextEfficiencyAnalyzer** | 5 context waste signals: response bloat, missing pagination, no concise mode, low-value large fields, truncation without continuation hint |
-| **Analysis Report** | Standalone Markdown section + JSON output with recommendation catalog |
-
-All analysis deterministic, zero-network. Produces `RuleFinding` (category="transcript" | "context").
-
-## Tool Portfolio Review + Improvement Brief (v3.6)
-
-| Component | What it tells you |
-|-----------|-------------------|
-| **ToolPortfolioReview** | 5 structural checks: namespacing consistency, overlapping tools, shallow wrappers, missing higher-level tools, resource grouping |
-| **ToolImprovementBrief** | Per-tool + cross-tool improvement cards with evidence from v3.1-v3.5 |
-| **Portfolio Report** | Markdown section + JSON output with portfolio review and improvement briefs |
-
-All analysis deterministic, zero-network. Does not auto-modify ToolSpec.
 
 ## Documentation
 
-- [QUICKSTART](docs/QUICKSTART.md) — shortest path to first run
-- [USER_GUIDE](docs/USER_GUIDE.md) — full usage guide
-- [REPORT_GUIDE](docs/REPORT_GUIDE.md) — how to read v3.1 reports
-- [PROVIDER_CONFIG](docs/PROVIDER_CONFIG.md) — real LLM judge opt-in config
-- [DEVELOPER_GUIDE](docs/DEVELOPER_GUIDE.md) — architecture, RFCs, contributing
-- [INDEX](docs/INDEX.md) — complete doc index
+| I want to... | Read |
+|-------------|------|
+| Get started in 5 minutes | [QUICKSTART](docs/QUICKSTART.md) |
+| Full usage guide | [USER_GUIDE](docs/USER_GUIDE.md) |
+| Understand reports | [REPORT_GUIDE](docs/REPORT_GUIDE.md) |
+| Browse all examples | [examples/README.md](examples/README.md) |
+| Configure LLM judge (optional) | [PROVIDER_CONFIG](docs/PROVIDER_CONFIG.md) |
+| Architecture / contributing | [DEVELOPER_GUIDE](docs/DEVELOPER_GUIDE.md) |
+| Current implementation status | [CURRENT_IMPLEMENTATION](docs/CURRENT_IMPLEMENTATION.md) |
+| Complete doc index | [INDEX](docs/INDEX.md) |
+| Chinese docs | [README.md](README.md) |
 
 ## Design lineage
 
-This project aligns with Anthropic Engineering's [Writing effective tools for agents — with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) methodology.
+This project aligns with Anthropic Engineering's [Writing effective tools for agents — with agents](https://www.anthropic.com/engineering/writing-tools-for-agents) methodology, focusing on tool-use inspection — checking, evaluating, and reporting on agent tool-use logs and tool design quality.

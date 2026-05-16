@@ -203,6 +203,7 @@ print(diag.summary())
 
 ## 相关文档
 
-- [QUICKSTART](QUICKSTART.md) — 30 秒上手
+- [QUICKSTART](QUICKSTART.md) — 5 分钟上手
 - [REPORT_GUIDE](REPORT_GUIDE.md) — 报告解读
+- [examples/README.md](../examples/README.md) — 所有示例
 - [architecture/TRACE_IMPORT_ADAPTER_SPEC.md](architecture/TRACE_IMPORT_ADAPTER_SPEC.md) — trace import 技术规范

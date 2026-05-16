@@ -4,8 +4,19 @@
 
 ## 新用户
 
-- [QUICKSTART](QUICKSTART.md) — 30 秒上手，最短路径
+- [QUICKSTART](QUICKSTART.md) — 5 分钟上手
 - [USER_GUIDE](USER_GUIDE.md) — 完整使用流程
+- [REPORT_GUIDE](REPORT_GUIDE.md) — 报告解读（v3.1-v3.6）
+
+## 示例
+
+- [examples/README.md](../examples/README.md) — 所有示例入口
+  - [trace_import](../examples/trace_import/README.md) — trace 导入示例
+  - [runtime_debug](../examples/runtime_debug/) — mock replay demo
+  - [eval_suites](../examples/eval_suites/) — suite 聚合示例
+  - [regression_comparison_demo.py](../examples/regression_comparison_demo.py) — 回归对比 demo
+  - [transcript_analysis](../examples/transcript_analysis/) — 转录/上下文分析 demo
+  - [portfolio_review](../examples/portfolio_review/) — 工具组合评审 demo
 
 ## 我想接入自己的 trace
 
@@ -24,10 +35,11 @@
 
 ## 我想了解项目现状和能力边界
 
-- [CURRENT_IMPLEMENTATION.md](CURRENT_IMPLEMENTATION.md) — 诚实的能力矩阵
+- [CURRENT_IMPLEMENTATION.md](CURRENT_IMPLEMENTATION.md) — 当前能力矩阵和限制
+- [../CHANGELOG.md](../CHANGELOG.md) — 版本变更记录
 - [ROADMAP.md](ROADMAP.md) — 演进路线
 - [BACKLOG.md](BACKLOG.md) — 详细 backlog
-- [roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md](roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md) — 长期能力路线图（v3.2-v3.6）
+- [roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md](roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md) — 长期能力路线图（v3.1-v3.6 全部完成）
 
 ## 我想了解架构设计
 

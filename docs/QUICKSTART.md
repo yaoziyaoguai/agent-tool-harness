@@ -66,5 +66,6 @@ cat /tmp/harness-demo/good/report.md
 
 - 接入你自己的 trace：[USER_GUIDE](USER_GUIDE.md)
 - 看懂报告：[REPORT_GUIDE](REPORT_GUIDE.md)
+- 浏览更多示例：[examples/README.md](../examples/README.md)
 - 配置真实 LLM judge（可选）：[PROVIDER_CONFIG](PROVIDER_CONFIG.md)
 - 全部文档：[INDEX](INDEX.md)

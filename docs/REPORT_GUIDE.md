@@ -180,4 +180,5 @@ JSON 报告包含以下顶层 key：
 ## 相关文档
 
 - [USER_GUIDE](USER_GUIDE.md) — 如何生成报告
+- [examples/README.md](../examples/README.md) — 报告示例
 - [PROVIDER_CONFIG](PROVIDER_CONFIG.md) — 启用 LLM judge 后的 JudgeFinding 解读
