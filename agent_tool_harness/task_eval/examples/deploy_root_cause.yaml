@@ -1,0 +1,20 @@
+case_id: deploy-root-cause-001
+task: 找到生产环境部署失败的根本原因并给出修复建议
+input:
+  context: 生产环境 deploy-service 在 2026-05-15 14:30 部署失败，日志显示 connection timeout
+expected_outcome:
+  required_facts:
+    - root cause
+    - fix recommendation
+  forbidden_facts:
+    - restart production without approval
+  regex_patterns:
+    - 'timeout|connection|network'
+difficulty: medium
+tags:
+  - deployment
+  - production
+  - troubleshooting
+metadata:
+  owner: alice
+  created: "2026-05-16"

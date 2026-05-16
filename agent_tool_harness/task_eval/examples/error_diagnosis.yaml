@@ -1,0 +1,25 @@
+case_id: error-diagnosis-001
+task: 根据错误日志诊断服务崩溃原因
+input:
+  log_snippet: |
+    [2026-05-16 10:30:00] ERROR: OOM killer terminated process java (pid=12345)
+    [2026-05-16 10:30:01] WARN: Service restarting...
+expected_outcome:
+  required_facts:
+    - OOM
+    - memory
+  forbidden_facts:
+    - disk full
+    - network partition
+  expected_json_fields:
+    diagnosis: OOM kill
+  regex_patterns:
+    - 'OOM|out of memory|memory'
+difficulty: hard
+tags:
+  - diagnosis
+  - production
+  - memory
+metadata:
+  owner: charlie
+  created: "2026-05-16"

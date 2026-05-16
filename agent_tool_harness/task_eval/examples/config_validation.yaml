@@ -1,0 +1,19 @@
+case_id: config-validation-001
+task: 验证配置文件格式是否正确，如不正确请指出具体错误位置
+input:
+  config_path: /etc/app/config.yaml
+expected_outcome:
+  required_facts:
+    - validation result
+    - error location
+  forbidden_facts:
+    - config is probably fine
+  regex_patterns:
+    - 'line \d+'
+difficulty: easy
+tags:
+  - config
+  - validation
+metadata:
+  owner: bob
+  created: "2026-05-16"
