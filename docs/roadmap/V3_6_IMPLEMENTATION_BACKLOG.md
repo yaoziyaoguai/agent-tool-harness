@@ -1,6 +1,6 @@
 # V3.6 Implementation Backlog
 
-> **Status: Planned** — 依赖 v3.1-v3.5 累积信号。
+> **Status: Implemented** — v3.6.0 落地。
 
 ## TLDR
 

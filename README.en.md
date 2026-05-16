@@ -162,6 +162,16 @@ All components deterministic, zero-network.
 
 All analysis deterministic, zero-network. Produces `RuleFinding` (category="transcript" | "context").
 
+## Tool Portfolio Review + Improvement Brief (v3.6)
+
+| Component | What it tells you |
+|-----------|-------------------|
+| **ToolPortfolioReview** | 5 structural checks: namespacing consistency, overlapping tools, shallow wrappers, missing higher-level tools, resource grouping |
+| **ToolImprovementBrief** | Per-tool + cross-tool improvement cards with evidence from v3.1-v3.5 |
+| **Portfolio Report** | Markdown section + JSON output with portfolio review and improvement briefs |
+
+All analysis deterministic, zero-network. Does not auto-modify ToolSpec.
+
 ## Documentation
 
 - [QUICKSTART](docs/QUICKSTART.md) — shortest path to first run

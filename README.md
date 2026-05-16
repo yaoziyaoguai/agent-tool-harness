@@ -84,6 +84,11 @@ agent-tool-harness 就是回答这些问题的。
 - **确定性 RuleFinding** — 不调 LLM，产出可复现的 transcript/context 发现
 - **Markdown/JSON 分析报告** — 独立分析章节 + recommendation catalog
 
+**v3.6 Tool Portfolio Review + Tool Improvement Brief：**
+- **ToolPortfolioReview** — 5 类工具组合结构检查（命名空间一致性、工具重叠、浅层包装、缺失高层工具、资源分组）
+- **ToolImprovementBrief** — 含 v3.1-v3.5 证据引用的 per-tool + cross-tool 改进建议卡片
+- **确定性** — 不调 LLM、不自动修改 ToolSpec
+
 ## 它不是什么
 
 - 它不运行你的 Agent — 你需要用自己的 runner 产出 trace

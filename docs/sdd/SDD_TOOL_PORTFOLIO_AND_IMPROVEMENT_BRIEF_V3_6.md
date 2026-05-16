@@ -1,6 +1,6 @@
 # SDD: Tool Portfolio Review + Tool Improvement Brief V3.6
 
-> **Implementation Status: Planned** — 依赖 v3.1-v3.5。
+> **Implementation Status: Implemented** — v3.6.0 落地。
 
 ## TLDR
 

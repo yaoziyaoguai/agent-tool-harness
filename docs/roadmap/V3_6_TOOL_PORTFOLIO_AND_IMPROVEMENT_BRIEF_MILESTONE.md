@@ -1,6 +1,6 @@
 # V3.6 Milestone: Tool Portfolio Review + Tool Improvement Brief
 
-> **Status: Planned** — 设计已完成，实现未开始。依赖 v3.1-v3.5 的累积信号。
+> **Status: Implemented in v3.6.0** — 设计已落地。依赖 v3.1-v3.5 的累积信号。
 
 ## TLDR
 
