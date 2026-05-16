@@ -35,13 +35,13 @@
 - [x] 6 个可运行 example
 - [x] **v3.1.0 Report Insight** — MetricsCollector (P1), FindingGrouper (P2), ReportScorecard (P3), RecommendationCatalog (P4), ReportInsight Integration (P5) — 全部落地（2026-05-15）
 - [x] **v3.2.0 Task-level Evaluation** — EvalCase/ExpectedOutcome schema (P1), Deterministic Verifiers (P2), TaskOutcome/TaskEvaluator (P3), Report Integration (P4), Examples (P5) — 全部落地（2026-05-16）
-- [x] **v3.3.0 Eval Suite Aggregation** — EvalSuite manifest (P1), SuiteResult/SuiteMetrics/SuiteScorecard+SuiteEvaluator (P2), Suite Report (P3), Examples (P4), Tests (P5) — 全部落地（2026-05-16）
+- [x] **v3.3.1 Eval Suite Aggregation** — EvalSuite manifest (P1), SuiteResult/SuiteMetrics/SuiteScorecard+SuiteEvaluator (P2), Suite Report (P3), Examples (P4), Tests (P5); P1/P2/P3 audit 修复（2026-05-16）
 
 **当前 signal_quality 上限：** `tautological_replay`（mock replay）和
 `recorded_trajectory`（transcript replay）。这些不是真实 Agent 能力信号。
 
-**当前阶段：v3.3.0 Eval Suite Aggregation（2026-05-16）**
-v3.3.0 在 v3.2.0 的 task-level evaluation 之上新增 suite 级多 case / 多 trace 聚合。
+**当前阶段：v3.3.1 Eval Suite Aggregation（2026-05-16）**
+v3.3.1 在 v3.2.0 的 task-level evaluation 之上新增 suite 级多 case / 多 trace 聚合，并修复了 v3.2/v3.3 统一审计发现的 P1/P2/P3 问题。
 EvalSuite manifest + SuiteEvaluator + SuiteResult（task_success_rate / deterministic_pass_rate /
 top failing categories / top affected tools / suite-level metrics）+
 Markdown/JSON suite report 全部落地。所有组件 deterministic、零网络依赖。

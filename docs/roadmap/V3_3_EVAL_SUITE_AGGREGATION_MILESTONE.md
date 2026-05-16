@@ -105,5 +105,5 @@ SuiteResult
 - [x] Markdown suite report 可用
 - [x] JSON suite report 可用
 - [x] ≥ 4 个 example eval suites
-- [x] ≥ 20 个新增单测（56 个）
-- [x] 现有 1498 tests 无 regression
+- [x] ≥ 20 个新增单测
+- [x] 现有测试无 regression

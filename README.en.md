@@ -108,6 +108,34 @@ v3.1 adds a report-level insight layer:
 
 All components are deterministic, zero-network, no LLM required.
 
+## Task-Level Evaluation (v3.2)
+
+v3.2 adds task-outcome evaluation on top of trace-level inspection:
+
+| Component | What it tells you |
+|-----------|-------------------|
+| **EvalCase** | Declarative schema for expected task outcomes |
+| **6 Verifiers** | fact, field, pattern, tool_call, no_tool_call, llm (advisory) |
+| **TaskOutcome** | success / failed / inconclusive per-task verdict |
+| **Report Integration** | Task Outcome section optionally rendered in main report |
+
+All verifiers except `llm` are deterministic, zero-network.
+
+## Eval Suite Aggregation (v3.3)
+
+v3.3 adds multi-case, multi-trace suite-level aggregation:
+
+| Component | What it tells you |
+|-----------|-------------------|
+| **EvalSuite manifest** | YAML-driven multi-case/multi-trace orchestration |
+| **SuiteEvaluator** | Per-case evaluation orchestration |
+| **SuiteResult** | task_success_rate, deterministic_pass_rate, aggregated metrics |
+| **SuiteScorecard** | Suite-level pass/fail + top failing categories/tools |
+| **SuiteMetrics** | Cross-case metrics (mean tool calls, error rate, findings/case) |
+| **Suite Report** | Markdown + JSON dual-format aggregated output |
+
+All components deterministic, zero-network.
+
 ## Documentation
 
 - [QUICKSTART](docs/QUICKSTART.md) — shortest path to first run

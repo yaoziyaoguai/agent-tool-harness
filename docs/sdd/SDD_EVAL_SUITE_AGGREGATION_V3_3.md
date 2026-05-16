@@ -1,6 +1,6 @@
 # SDD: Eval Suite / Multi-trace Aggregation V3.3
 
-> **Implementation Status: Planned** — 依赖 v3.2。
+> **Implementation Status: Implemented** — 全部落地（2026-05-16）。
 
 ## TLDR
 

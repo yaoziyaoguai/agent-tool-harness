@@ -260,6 +260,8 @@ class MarkdownReport:
         signal_quality: str,
         judge_provider_kind: str = "none",
         insight: Any = None,
+        task_outcome: Any = None,
+        suite_result: Any = None,
     ) -> str:
         """从 Core Contract 对象渲染 Markdown 报告。
 
@@ -288,7 +290,9 @@ class MarkdownReport:
             signal_quality: str，来自 adapter 的 SIGNAL_QUALITY 声明
             judge_provider_kind: "none"（默认，纯 RuleJudge）| "fake"（FakeJudgeProvider）
                                  | "llm"（opt-in 真实 LLM judge）
-            signal_quality: str，来自 adapter 的 SIGNAL_QUALITY 声明
+            insight: 可选 ReportInsight，渲染聚合 insight 段（v3.1）。
+            task_outcome: 可选 TaskOutcome，渲染 task-level 评测结果段（v3.2）。
+            suite_result: 可选 SuiteResult，渲染 suite-level 聚合报告段（v3.3）。
         """
         from agent_tool_harness.signal_quality import describe as describe_sq
 
@@ -443,6 +447,20 @@ class MarkdownReport:
                 lines.append("")
             lines.append(f"**Summary:** {result.get('summary', '')}")
             lines.append("")
+
+        # v3.2: Task Outcome 段（task-level evaluation）
+        if task_outcome is not None:
+            from agent_tool_harness.task_eval.render import render_task_outcome_markdown
+
+            task_md = render_task_outcome_markdown(task_outcome)
+            if task_md:
+                lines.extend(["", "## Task Outcome", "", task_md])
+
+        # v3.3: Suite Result 段（suite-level aggregation）
+        if suite_result is not None:
+            suite_lines = self.render_suite_section(suite_result)
+            if suite_lines:
+                lines.extend(suite_lines)
 
         # 显式声明 ReviewDecision 未生成
         lines.extend([

@@ -586,6 +586,214 @@ def test_report_dict_does_not_contain_api_key():
 
 
 # ---------------------------------------------------------------------------
+# render_from_core — task_outcome / suite_result (v3.2 / v3.3)
+# ---------------------------------------------------------------------------
+
+
+def test_render_from_core_with_task_outcome():
+    """render_from_core() 正确渲染 TaskOutcome 段。"""
+    from agent_tool_harness.task_eval.task_evaluator import TaskOutcome
+
+    outcome = TaskOutcome(
+        case_id="case-001",
+        status="success",
+        verifier_results=[],
+        matched=["tool_a"],
+        missing=[],
+        final_answer="答案是 42。",
+        details="一切正常。",
+    )
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="recorded_trajectory",
+        task_outcome=outcome,
+    )
+    assert "## Task Outcome" in report
+    assert "case-001" in report
+    assert "PASS" in report
+    assert "答案是 42。" in report
+
+
+def test_render_from_core_with_task_outcome_failed():
+    """render_from_core() 正确渲染失败的 TaskOutcome。"""
+    from agent_tool_harness.task_eval.task_evaluator import TaskOutcome
+
+    outcome = TaskOutcome(
+        case_id="case-fail",
+        status="failed",
+        verifier_results=[],
+        matched=[],
+        missing=["tool_x"],
+        final_answer="",
+        details="未找到所需工具。",
+    )
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="recorded_trajectory",
+        task_outcome=outcome,
+    )
+    assert "## Task Outcome" in report
+    assert "case-fail" in report
+    assert "FAIL" in report
+
+
+def test_render_from_core_with_suite_result():
+    """render_from_core() 正确渲染 SuiteResult 段。"""
+    from agent_tool_harness.suite_eval.suite_result import (
+        CaseResult,
+        SuiteMetrics,
+        SuiteResult,
+        SuiteScorecard,
+    )
+
+    suite = SuiteResult(
+        suite_id="suite-001",
+        total_cases=2,
+        task_success_count=2,
+        task_success_rate=1.0,
+        deterministic_pass_rate=1.0,
+        per_case_results=[
+            CaseResult(
+                case_id="c1",
+                trace_ref="t1.json",
+                task_status="success",
+                deterministic_passed=True,
+                finding_count=0,
+                metrics_summary={"tool_call_count": 3},
+            ),
+        ],
+        suite_metrics=SuiteMetrics(
+            mean_tool_call_count=3.0,
+            mean_tool_error_rate=0.0,
+            mean_findings_per_case=0.0,
+            total_findings=0,
+            total_tool_calls=3,
+            finding_count_by_category={},
+            finding_count_by_tool={},
+        ),
+        suite_scorecard=SuiteScorecard(
+            suite_passed=True,
+            task_success_rate=1.0,
+            deterministic_pass_rate=1.0,
+            total_cases=2,
+            passed_cases=2,
+            failed_cases=0,
+        ),
+    )
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="recorded_trajectory",
+        suite_result=suite,
+    )
+    assert "## Suite Scorecard" in report
+    assert "## Suite Metrics" in report
+    assert "## Per-Case Summary" in report
+    assert "suite-001" not in report  # suite_id 不在 markdown 中直接出现
+    assert "PASS" in report
+
+
+def test_render_from_core_with_both_task_and_suite():
+    """render_from_core() 同时渲染 TaskOutcome 和 SuiteResult。"""
+    from agent_tool_harness.suite_eval.suite_result import (
+        CaseResult,
+        SuiteMetrics,
+        SuiteResult,
+        SuiteScorecard,
+    )
+    from agent_tool_harness.task_eval.task_evaluator import TaskOutcome
+
+    outcome = TaskOutcome(
+        case_id="case-001",
+        status="success",
+        verifier_results=[],
+        matched=[],
+        missing=[],
+        final_answer="ok",
+        details="",
+    )
+    suite = SuiteResult(
+        suite_id="s1",
+        total_cases=1,
+        task_success_count=1,
+        task_success_rate=1.0,
+        deterministic_pass_rate=1.0,
+        per_case_results=[
+            CaseResult(
+                case_id="case-001",
+                trace_ref="t.json",
+                task_status="success",
+                deterministic_passed=True,
+                finding_count=0,
+                metrics_summary={"tool_call_count": 1},
+            ),
+        ],
+        suite_metrics=SuiteMetrics(
+            mean_tool_call_count=1.0,
+            mean_tool_error_rate=0.0,
+            mean_findings_per_case=0.0,
+            total_findings=0,
+            total_tool_calls=1,
+            finding_count_by_category={},
+            finding_count_by_tool={},
+        ),
+        suite_scorecard=SuiteScorecard(
+            suite_passed=True,
+            task_success_rate=1.0,
+            deterministic_pass_rate=1.0,
+            total_cases=1,
+            passed_cases=1,
+            failed_cases=0,
+        ),
+    )
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="recorded_trajectory",
+        task_outcome=outcome,
+        suite_result=suite,
+    )
+    assert "## Task Outcome" in report
+    assert "## Suite Scorecard" in report
+
+
+def test_render_from_core_backward_compatible():
+    """render_from_core() 不传 task_outcome/suite_result 时行为不变。"""
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+    )
+    assert "## Task Outcome" not in report
+    assert "## Suite Scorecard" not in report
+    assert "## Review Decision" in report
+
+
+def test_render_from_core_task_outcome_none_skips():
+    """显式传 task_outcome=None 时跳过 Task Outcome 段。"""
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+        task_outcome=None,
+    )
+    assert "## Task Outcome" not in report
+
+
+def test_render_from_core_suite_result_none_skips():
+    """显式传 suite_result=None 时跳过 Suite 段。"""
+    report = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=_empty_summary(),
+        signal_quality="tautological_replay",
+        suite_result=None,
+    )
+    assert "## Suite Scorecard" not in report
+
+
+# ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
 

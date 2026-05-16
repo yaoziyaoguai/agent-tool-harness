@@ -1,6 +1,6 @@
 # 报告解读指南
 
-v3.1 的报告在 v3.0 的 finding 列表之上，新增了报告级洞察层：Scorecard、Metrics、Findings 分组、Recommendations。你打开报告 30 秒内就能看懂整体结论和下一步该改什么。
+v3.3 的报告在 v3.0 的 finding 列表之上，新增了三层聚合洞察：v3.1 Report Insight（Scorecard/Metrics/Findings 分组/Recommendations）、v3.2 Task Outcome（任务级评测）、v3.3 Suite Result（suite 级聚合）。你打开报告 30 秒内就能看懂整体结论和下一步该改什么。
 
 ## 报告结构
 
@@ -15,6 +15,10 @@ Markdown 报告（`report.md`）的段落顺序：
 ## Recommendations        ← v3.1 新增：修复建议
 ## Agent Tool-Use Eval    ← 原有详细 findings
 ## Per-Eval Details       ← 原有逐条详情
+## Task Outcome           ← v3.2 新增：任务级评测结果（可选）
+## Suite Scorecard        ← v3.3 新增：suite 级 pass/fail（可选）
+## Suite Metrics          ← v3.3 新增：跨 case 聚合指标（可选）
+## Per-Case Summary       ← v3.3 新增：逐 case 汇总表（可选）
 ## Review Decision        ← 人工 Review 区
 ```
 
@@ -100,6 +104,45 @@ JSON 报告包含以下顶层 key：
 - `metadata` — schema_version / generated_at / signal_quality
 
 适合 CI pipeline 消费：`summary.passed` 决定 CI pass/fail，`metrics.tool_error_rate` 做阈值告警。
+
+## Task Outcome（v3.2，可选段）
+
+当 `render_from_core()` 传入 `task_outcome` 参数时，报告会渲染 Task Outcome 段：
+
+```
+### Task Outcome: case-001 → PASS
+
+| Verifier | Status | Details | Matched | Missing |
+|----------|--------|---------|---------|---------|
+| fact_v    | PASS   | ...     | ...     | ...     |
+
+**Final Answer:**
+> 答案是 42。
+```
+
+- **Status**：PASS（所有 verifier 通过）、FAIL（任一 verifier 失败）、INCONCLUSIVE（无 verifier）
+- **Verifier 表**：每个子 verifier 的独立结果、matched/missing 详情
+- **Final Answer**：从 trace 提取的 Agent 最终答案
+
+## Suite Result（v3.3，可选段）
+
+当 `render_from_core()` 传入 `suite_result` 参数时，报告会渲染 4 个子段：
+
+**Suite Scorecard** — suite 级 pass/fail 概览：
+
+| 字段 | 含义 |
+|------|------|
+| Suite Passed | PASS 或 FAIL |
+| Task Success Rate | 所有 case 的 task 成功率 |
+| Deterministic Pass Rate | 所有 case 的确定性规则通过率 |
+| Top Failing Categories | 跨 case 最常出问题的类别 |
+| Top Affected Tools | 跨 case 最常出问题的工具 |
+
+**Suite Metrics** — 跨 case 聚合指标（mean_tool_call_count、mean_tool_error_rate、mean_findings_per_case 等）。
+
+**Top Failing Categories / Tools** — 排名列表，方便快速识别跨 case 的系统性问题。
+
+**Per-Case Summary** — 逐 case 汇总表（case_id / trace / task_status / deterministic / findings）。
 
 ## 相关文档
 

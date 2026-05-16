@@ -58,6 +58,18 @@ agent-tool-harness 就是回答这些问题的。
 - **Recommendations** — 去重排序的可行动修复建议
 - Markdown + JSON 双格式输出
 
+**v3.2 任务级评测：**
+- **EvalCase / ExpectedOutcome** — 定义任务预期结果的声明式 schema
+- **6 种 Verifier** — fact、field、pattern、tool_call、no_tool_call、llm（advisory）
+- **TaskOutcome** — success / failed / inconclusive 三态判定，接入主报告路径
+
+**v3.3 Eval Suite 聚合：**
+- **EvalSuite manifest** — YAML 驱动的多 case / 多 trace 编排
+- **SuiteEvaluator** — 逐个 case 评测，聚合为 SuiteResult
+- **SuiteScorecard** — suite 级 pass/fail + task_success_rate + top failing categories/tools
+- **SuiteMetrics** — 跨 case 聚合指标（mean tool calls、error rate、findings per case）
+- **Markdown + JSON suite report** — 聚合报告双格式输出
+
 ## 它不是什么
 
 - 它不运行你的 Agent — 你需要用自己的 runner 产出 trace

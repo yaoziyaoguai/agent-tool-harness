@@ -82,7 +82,45 @@ print(f"发现项: {len(result.findings)}")
 
 v3.1 的 Report Insight 会自动聚合这些数据，产出结构化报告。详见 [REPORT_GUIDE](REPORT_GUIDE.md)。
 
-## 5. CLI 命令速查
+## 5. 任务级评测（v3.2）
+
+对单条 trace 做 task-level 评测——验证 Agent 是否完成了任务目标：
+
+```python
+from agent_tool_harness.task_eval.eval_case import load_eval_case_from_yaml
+from agent_tool_harness.task_eval.task_evaluator import TaskEvaluator
+
+eval_case = load_eval_case_from_yaml("path/to/eval_case.yaml")
+evaluator = TaskEvaluator()
+outcome = evaluator.evaluate(eval_case, trace)
+
+print(f"任务状态: {outcome.status}")  # success / failed / inconclusive
+for vr in outcome.verifier_results:
+    print(f"  {vr.verifier_name}: {'PASS' if vr.passed else 'FAIL'}")
+```
+
+EvalCase YAML 示例见 `agent_tool_harness/task_eval/examples/`。
+
+## 6. Suite 级聚合评测（v3.3）
+
+将多个 eval case + 多条 trace 组成 eval suite，一次评测产出聚合报告：
+
+```python
+from agent_tool_harness.suite_eval.eval_suite import load_eval_suite
+from agent_tool_harness.suite_eval.suite_evaluator import SuiteEvaluator
+from agent_tool_harness.task_eval.task_evaluator import TaskEvaluator
+
+suite = load_eval_suite("examples/eval_suites/minimal_suite.yaml")
+evaluator = SuiteEvaluator()
+result = evaluator.evaluate(suite, TaskEvaluator(), trace_loader)
+
+print(f"Task Success Rate: {result.task_success_rate:.1%}")
+print(f"Suite Passed: {result.suite_scorecard.suite_passed}")
+```
+
+EvalSuite manifest 示例见 `examples/eval_suites/`。
+
+## 7. CLI 命令速查
 
 | 命令 | 用途 |
 |------|------|

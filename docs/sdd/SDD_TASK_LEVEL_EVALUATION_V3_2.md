@@ -1,6 +1,6 @@
 # SDD: Task-level Evaluation V3.2
 
-> **Implementation Status: Planned** — 设计完成，实现未开始。
+> **Implementation Status: Implemented** — 全部落地（2026-05-16）。
 
 ## TLDR
 

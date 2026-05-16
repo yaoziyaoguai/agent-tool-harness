@@ -2,7 +2,7 @@
 
 ## 当前是什么
 
-agent-tool-harness v3.3.0 是一个 **tool-use inspection platform**，包含结构化报告洞察层、任务级评测和 suite 级聚合。
+agent-tool-harness v3.3.1 是一个 **tool-use inspection platform**，包含结构化报告洞察层、任务级评测和 suite 级聚合。
 Primary path: external runner → trace/log import → inspect/evaluate/report。
 所有功能纯本地、离线、不联网、不需要 API 密钥。
 
@@ -178,9 +178,9 @@ v3.2.0 在 v3.1.0 之上新增 **task-level evaluation**，5 个 Phase 全部落
 
 详见 [`sdd/SDD_TASK_LEVEL_EVALUATION_V3_2.md`](sdd/SDD_TASK_LEVEL_EVALUATION_V3_2.md)。
 
-## v3.3.0 新增：Eval Suite / Multi-trace Aggregation
+## v3.3.1 新增：Eval Suite / Multi-trace Aggregation
 
-v3.3.0 在 v3.2.0 之上新增 **suite 级评测聚合**，5 个 Phase 全部落地：
+v3.3.1 在 v3.2.0 之上新增 **suite 级评测聚合**，5 个 Phase 全部落地，并修复了 v3.2/v3.3 统一审计的 P1/P2/P3 问题：
 
 | Phase | 组件 | 说明 |
 |-------|------|------|

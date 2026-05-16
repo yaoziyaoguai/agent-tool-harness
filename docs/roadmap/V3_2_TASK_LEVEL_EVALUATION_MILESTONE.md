@@ -109,7 +109,7 @@ TaskOutcome
 
 ### 3.6 examples/eval_cases
 
-- 至少规划 3 个 sample eval cases
+- 至少规划 3 个 sample eval cases（实际位于 `agent_tool_harness/task_eval/examples/`）
 - 不依赖真实 LLM
 - 不运行真实 Agent
 

@@ -106,11 +106,8 @@ class SuiteEvaluator:
                 error_count += 1
 
         finding_count = error_count + warning_count
-        # 从 trace 层面获取 deterministic_passed——如果 trace
-        # 有 evaluation_result 则使用，否则默认为 task 级别 passed
-        deterministic_passed = getattr(trace, "_evaluation_passed", None)
-        if deterministic_passed is None:
-            deterministic_passed = outcome.status == "success"
+        # deterministic_passed 基于 TaskOutcome.status 判定
+        deterministic_passed = outcome.status == "success"
 
         return CaseResult(
             case_id=trace_ref.case_id,
