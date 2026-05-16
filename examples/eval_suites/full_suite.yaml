@@ -1,0 +1,23 @@
+suite_id: "full-suite"
+name: "Full Featured Eval Suite"
+description: "展示所有可选字段的完整 suite manifest"
+cases:
+  - case_path: "cases/case-001.yaml"
+    case_id: "case-001"
+  - case_path: "cases/case-002.yaml"
+    case_id: "case-002"
+  - case_path: "cases/case-003.yaml"
+    case_id: "case-003"
+trace_inputs:
+  - trace_path: "traces/trace_001.json"
+    case_id: "case-001"
+  - trace_path: "traces/trace_002.json"
+    case_id: "case-002"
+  - trace_path: "traces/trace_003.json"
+    case_id: "case-003"
+tags:
+  - "full"
+  - "demonstration"
+metadata:
+  agent_version: "2.3.0"
+  harness_version: "3.3.0"

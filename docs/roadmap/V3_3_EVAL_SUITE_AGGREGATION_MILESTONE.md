@@ -1,6 +1,6 @@
 # V3.3 Milestone: Eval Suite / Multi-trace Aggregation
 
-> **Status: Planned** — 设计已完成，实现未开始。依赖 v3.2 TaskOutcome。
+> **Status: Implemented** — 5 Phase 全部完成。
 
 ## TLDR
 
@@ -99,11 +99,11 @@ SuiteResult
 
 ## 5. 完成定义
 
-- [ ] EvalSuite manifest 可从 YAML 加载
-- [ ] SuiteResult 正确聚合
-- [ ] suite-level metrics 与单 case metrics 自洽
-- [ ] Markdown suite report 可用
-- [ ] JSON suite report 可用
-- [ ] ≥ 4 个 example eval suites
-- [ ] ≥ 20 个新增单测
-- [ ] 现有 1300+ tests 无 regression
+- [x] EvalSuite manifest 可从 YAML 加载
+- [x] SuiteResult 正确聚合
+- [x] suite-level metrics 与单 case metrics 自洽
+- [x] Markdown suite report 可用
+- [x] JSON suite report 可用
+- [x] ≥ 4 个 example eval suites
+- [x] ≥ 20 个新增单测（56 个）
+- [x] 现有 1498 tests 无 regression

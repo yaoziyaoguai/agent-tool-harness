@@ -1,0 +1,8 @@
+suite_id: "minimal-suite"
+name: "Minimal Eval Suite"
+cases:
+  - case_path: "cases/case-001.yaml"
+    case_id: "case-001"
+trace_inputs:
+  - trace_path: "traces/trace_001.json"
+    case_id: "case-001"

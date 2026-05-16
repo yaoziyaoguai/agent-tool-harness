@@ -35,15 +35,17 @@
 - [x] 6 个可运行 example
 - [x] **v3.1.0 Report Insight** — MetricsCollector (P1), FindingGrouper (P2), ReportScorecard (P3), RecommendationCatalog (P4), ReportInsight Integration (P5) — 全部落地（2026-05-15）
 - [x] **v3.2.0 Task-level Evaluation** — EvalCase/ExpectedOutcome schema (P1), Deterministic Verifiers (P2), TaskOutcome/TaskEvaluator (P3), Report Integration (P4), Examples (P5) — 全部落地（2026-05-16）
+- [x] **v3.3.0 Eval Suite Aggregation** — EvalSuite manifest (P1), SuiteResult/SuiteMetrics/SuiteScorecard+SuiteEvaluator (P2), Suite Report (P3), Examples (P4), Tests (P5) — 全部落地（2026-05-16）
 
 **当前 signal_quality 上限：** `tautological_replay`（mock replay）和
 `recorded_trajectory`（transcript replay）。这些不是真实 Agent 能力信号。
 
-**当前阶段：v3.2.0 Task-level Evaluation（2026-05-16）**
-v3.2.0 在 v3.1.0 的 trace-level inspection + report insight 之上新增 task-level verification 层。
-EvalCase/ExpectedOutcome schema、5 种确定性 Verifier + CompositeVerifier、TaskOutcome 聚合、
-Markdown/JSON report 集成全部落地。所有组件 deterministic、零网络依赖。
-TaskOutcome.status 不影响 EvaluationResult.passed——两者回答不同层级的问题。
+**当前阶段：v3.3.0 Eval Suite Aggregation（2026-05-16）**
+v3.3.0 在 v3.2.0 的 task-level evaluation 之上新增 suite 级多 case / 多 trace 聚合。
+EvalSuite manifest + SuiteEvaluator + SuiteResult（task_success_rate / deterministic_pass_rate /
+top failing categories / top affected tools / suite-level metrics）+
+Markdown/JSON suite report 全部落地。所有组件 deterministic、零网络依赖。
+SuiteResult 不影响 EvaluationResult.passed 或 TaskOutcome.status——三者回答不同层级的问题。
 
 **历史阶段：TraceImportAdapter（唯一接入路径）**（2026-05-12）
 用户可通过 `trace JSON → TraceImportAdapter → ExecutionTrace → Evidence → CoreEvaluation → Report` 导入已有 trace。

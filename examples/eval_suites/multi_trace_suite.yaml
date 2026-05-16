@@ -1,0 +1,23 @@
+suite_id: "multi-trace-suite"
+name: "Multi-Trace Comparison Suite"
+description: "同一 case 对应多条 trace，用于对比不同 Agent 版本或配置"
+cases:
+  - case_path: "cases/case-001.yaml"
+    case_id: "case-001"
+  - case_path: "cases/case-002.yaml"
+    case_id: "case-002"
+trace_inputs:
+  - trace_path: "traces/trace_v2.3_case_001.json"
+    case_id: "case-001"
+  - trace_path: "traces/trace_v2.4_case_001.json"
+    case_id: "case-001"
+  - trace_path: "traces/trace_v2.3_case_002.json"
+    case_id: "case-002"
+  - trace_path: "traces/trace_v2.4_case_002.json"
+    case_id: "case-002"
+tags:
+  - "comparison"
+  - "multi-version"
+metadata:
+  harness_version: "3.3.0"
+  notes: "用于对比 agent v2.3 和 v2.4 在同一 case 上的表现差异"

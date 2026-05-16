@@ -1,0 +1,22 @@
+suite_id: "regression-suite"
+name: "Regression Eval Suite"
+description: "回归测试 suite——覆盖关键路径 case"
+cases:
+  - case_path: "cases/case-core-001.yaml"
+    case_id: "core-001"
+  - case_path: "cases/case-core-002.yaml"
+    case_id: "core-002"
+trace_inputs:
+  - trace_path: "traces/trace_v1_core_001.json"
+    case_id: "core-001"
+  - trace_path: "traces/trace_v2_core_001.json"
+    case_id: "core-001"
+  - trace_path: "traces/trace_v1_core_002.json"
+    case_id: "core-002"
+tags:
+  - "regression"
+  - "critical-path"
+metadata:
+  agent_version: "2.4.0"
+  harness_version: "3.3.0"
+  description: "before/after tool spec change regression check"

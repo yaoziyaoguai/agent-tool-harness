@@ -14,4 +14,4 @@ Import (trace JSON) → Inspect (deterministic rules) → Evaluate (pass/fail)
 
 __all__ = ["__version__"]
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"
