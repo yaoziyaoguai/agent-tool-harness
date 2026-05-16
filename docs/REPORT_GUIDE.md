@@ -144,6 +144,39 @@ JSON 报告包含以下顶层 key：
 
 **Per-Case Summary** — 逐 case 汇总表（case_id / trace / task_status / deterministic / findings）。
 
+## Regression Report（v3.4，可选段）
+
+当运行 `compare` 对比 baseline 和 candidate 时，报告含：
+
+- **baseline vs candidate overview** — 两份结果的概览对比
+- **Metric Diff** — 每个指标的 before/after 变化（better/worse/neutral）
+- **Finding Diff** — 按 category 的 finding 数量变化（新增/解决）
+- **Task Outcome Diff** — 逐 case 状态变化（new_failure / new_success 等）
+- **Suite Diff** — suite 级 task_success_rate / deterministic_pass_rate 变化
+- **Regression Warnings** — 自动检测的 5 种回归风险
+- **Markdown / JSON 双格式输出**
+
+## Transcript + Context Analysis Section（v3.5）
+
+当 main report 含 transcript/context analysis 数据时：
+
+- **Transcript Analysis** — 6 种困惑模式检测结果，含 evidence refs
+- **Context Efficiency** — 5 种上下文浪费模式检测结果
+- **Recommendations** — 按 rule_type 分组的修复建议目录
+- 所有发现为 deterministic RuleFinding（category="transcript" | "context"）
+- **Markdown / JSON 输出**
+
+## Portfolio Review + Improvement Brief（v3.6）
+
+当 main report 含 portfolio analysis 数据时：
+
+- **Tool Portfolio Review** — 5 类结构检查结果，按 check_name 分组
+- **Tool Improvement Brief** — per-tool + cross-tool 改进建议卡片，按 priority 排序
+- 每条 brief 含 evidence 引用（finding_id / metric / task_outcome_ids / signal types）
+- 包含 effort_estimate（small / medium / large）
+- 不自动修改工具
+- **Markdown / JSON 输出**
+
 ## 相关文档
 
 - [USER_GUIDE](USER_GUIDE.md) — 如何生成报告

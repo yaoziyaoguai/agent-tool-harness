@@ -40,13 +40,18 @@ agent_tool_harness/
 ├── core_report_bridge.py   # 报告数据转换桥接
 ├── trace_import.py         # TraceImportAdapter（native + simple_mapping）
 ├── cli.py                  # CLI 入口（14 个子命令）
-├── config/                 # YAML 配置解析
+├── config/                 # YAML 配置解析（ToolSpec, EvalSpec, loader）
 ├── judges/                 # JudgeProvider（RuleJudge, FakeJudgeProvider, LLMJudgeProvider）
 ├── reports/                # 报告渲染（MarkdownReport, ReportInsight, CostTracker）
 ├── audit/                  # 审计工具（ToolDesignAuditor, EvalQualityAuditor）
 ├── scaffold/               # AST 扫描生成 draft 配置
 ├── diagnose/               # trace 诊断分析
-└── runner/                 # EvalRunner 编排
+├── runner/                 # EvalRunner 编排
+├── task_eval/              # v3.2 task-level evaluation（EvalCase, Verifier, TaskOutcome）
+├── suite_eval/             # v3.3 suite aggregation（SuiteResult, SuiteScorecard, SuiteMetrics）
+├── regression/             # v3.4 baseline/candidate comparison（RegressionReport）
+├── analysis/               # v3.5 transcript/context deterministic analysis
+└── portfolio/              # v3.6 portfolio review + improvement brief
 ```
 
 ## 如何新增 Inspector

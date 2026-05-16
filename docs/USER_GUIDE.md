@@ -120,7 +120,54 @@ print(f"Suite Passed: {result.suite_scorecard.suite_passed}")
 
 EvalSuite manifest 示例见 `examples/eval_suites/`。
 
-## 7. CLI 命令速查
+## 7. 回归对比（v3.4）
+
+对比 baseline 与 candidate 的评测结果，查看 metrics / findings / task outcomes / suite results 的变化。识别回归风险（新增失败、错误率飙升、finding 暴增等）。
+
+只消费已有评测结果，不重新运行 Agent，不调用 LLM。
+
+```bash
+python -m agent_tool_harness.cli compare \
+  --baseline /tmp/baseline \
+  --candidate /tmp/candidate \
+  --out /tmp/regression
+```
+
+生成 Markdown + JSON 回归对比报告。
+
+## 8. Transcript + Context 分析（v3.5）
+
+分析已有 trace 中的 Agent 困惑模式和上下文浪费信号：
+
+**困惑模式（6 种）**：重复重试、工具切换、参数微调、错误后无恢复、final answer 缺少工具支撑、搜索范围扩大。
+
+**上下文浪费信号（5 种）**：响应膨胀、缺少分页、缺少简洁模式、低价值大字段、截断无提示。
+
+所有分析 deterministic，不调用 LLM。产出 `RuleFinding`（category="transcript" | "context"）。
+
+```python
+from agent_tool_harness.analysis import (
+    TranscriptPatternAnalyzer,
+    ContextEfficiencyAnalyzer,
+)
+```
+
+## 9. 工具组合评审 + 改进建议（v3.6）
+
+从工具组合角度检查结构问题并生成改进建议：
+
+**组合评审（5 类检查）**：命名空间一致性、工具重叠、浅层包装、缺失高层工具、资源分组。
+
+**改进建议**：聚合 v3.1-v3.5 的 findings/metrics/task outcomes/transcript signals 作为 evidence，生成 per-tool 和 cross-tool 的改进建议卡片。不自动修改工具，不调用 LLM。
+
+```python
+from agent_tool_harness.portfolio import (
+    ToolPortfolioReview,
+    ToolImprovementBriefGenerator,
+)
+```
+
+## 10. CLI 命令速查
 
 | 命令 | 用途 |
 |------|------|

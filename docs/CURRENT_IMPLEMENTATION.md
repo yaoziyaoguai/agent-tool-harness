@@ -239,10 +239,6 @@ v3.5.0 在 v3.4.0 之上新增 **转录困惑与上下文效率分析**，5 个 
 - **零网络依赖**：所有检测纯函数、不调 LLM
 - **96 个新增测试**：覆盖全部 11 种 pattern
 
-测试覆盖：104 个测试（schema: 25, diff/comparator: 71, report: 8）。全量回归 1609 passed, 1 xfailed。
-
-模块位置：`agent_tool_harness/regression/`，详见 [`sdd/SDD_REGRESSION_COMPARISON_V3_4.md`](sdd/SDD_REGRESSION_COMPARISON_V3_4.md)。
-
 ## v3.6.0 新增：Tool Portfolio Review + Tool Improvement Brief
 
 v3.6.0 在 v3.5.0 之上新增 **工具组合评审与改进建议**，5 个 Phase 全部落地：

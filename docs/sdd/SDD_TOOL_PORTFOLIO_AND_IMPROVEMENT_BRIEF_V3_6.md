@@ -132,4 +132,4 @@ class ToolImprovementBriefGenerator:
 | `tests/test_improvement_brief.py` | ~8 | brief 生成、evidence 引用完整 |
 | `tests/test_portfolio_report.py` | ~3 | Markdown/JSON |
 
-**总计：≥ 23 个新增单测。**
+**总计：59 个新增单测。**

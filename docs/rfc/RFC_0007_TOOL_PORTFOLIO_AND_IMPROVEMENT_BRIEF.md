@@ -80,4 +80,4 @@ ToolImprovementBrief.evidence 从以下来源收集：
 3. Per-tool brief 和 cross-tool brief 均可生成
 4. 不自动修改任何文件
 5. Markdown/JSON 输出可用
-6. 现有 1300+ tests 无 regression
+6. 现有全量测试套件无 regression

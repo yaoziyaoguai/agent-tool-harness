@@ -12,14 +12,12 @@
 from agent_tool_harness.config.tool_spec import ToolSpec
 from agent_tool_harness.core_contract import RuleFinding
 from agent_tool_harness.portfolio import (
-    EvidenceCollector,
     ToolImprovementBriefGenerator,
     ToolPortfolioReview,
 )
 from agent_tool_harness.portfolio.render import (
     render_improvement_brief_markdown,
     render_portfolio_analysis_json,
-    render_portfolio_analysis_markdown,
     render_portfolio_review_markdown,
 )
 

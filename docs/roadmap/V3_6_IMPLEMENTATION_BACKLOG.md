@@ -24,7 +24,7 @@ P1: Portfolio static review (5 checks)
 
 **目标**：ToolPortfolioReview 5 类检查。
 
-**测试数**：~12
+**测试数**：21
 
 ---
 
@@ -32,7 +32,7 @@ P1: Portfolio static review (5 checks)
 
 **目标**：从 findings、metrics、task outcomes、transcript signals 中收集引用。
 
-**测试数**：~8
+**测试数**：15
 
 ---
 
@@ -40,7 +40,7 @@ P1: Portfolio static review (5 checks)
 
 **目标**：ToolImprovementBrief + EvidenceRef 数据结构 + per-tool/cross-tool generator。
 
-**测试数**：~8
+**测试数**：9
 
 ---
 
@@ -48,7 +48,7 @@ P1: Portfolio static review (5 checks)
 
 **目标**：Markdown portfolio review section + improvement brief section。JSON 序列化。
 
-**测试数**：~5
+**测试数**：14
 
 ---
 
@@ -62,8 +62,8 @@ P1: Portfolio static review (5 checks)
 
 | Phase | 新增测试 |
 |-------|---------|
-| P1 | ~12 |
-| P2 | ~8 |
-| P3 | ~8 |
-| P4 | ~5 |
-| **合计** | **~33 tests** |
+| P1 | 21 |
+| P2 | 15 |
+| P3 | 9 |
+| P4 | 14 |
+| **合计** | **59 tests** |
