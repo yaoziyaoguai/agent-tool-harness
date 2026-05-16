@@ -1,6 +1,6 @@
 # V3.4 Milestone: Regression Comparison
 
-> **Status: Planned** — 设计已完成，实现未开始。依赖 v3.2 TaskOutcome，推荐 v3.3 suite aggregation。
+> **Status: Implemented in v3.4.0** — 5 phases complete. P1 diff schemas, P2/P3 comparator + diffs, P4 report renderer, P5 examples + docs.
 
 ## TLDR
 

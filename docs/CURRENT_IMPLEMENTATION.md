@@ -217,7 +217,7 @@ v3.4.0 在 v3.3.1 之上新增 **基线对比回归检测**，5 个 Phase 全部
 - **is_regression 是建议信号**（RFC Decision 1），不自动阻止 CI
 - **所有计算 deterministic、零网络依赖**
 
-测试覆盖：79 个测试（P1: 25, P2: 71, P4: 8）。全量回归 1609 passed, 1 xfailed。
+测试覆盖：104 个测试（schema: 25, diff/comparator: 71, report: 8）。全量回归 1609 passed, 1 xfailed。
 
 模块位置：`agent_tool_harness/regression/`，详见 [`sdd/SDD_REGRESSION_COMPARISON_V3_4.md`](sdd/SDD_REGRESSION_COMPARISON_V3_4.md)。
 

@@ -1,6 +1,6 @@
 # V3.4 Implementation Backlog
 
-> **Status: Planned** — 依赖 v3.2，推荐 v3.3。
+> **Status: Implemented in v3.4.0** — 5 个 Phase 全部完成。
 
 ## TLDR
 

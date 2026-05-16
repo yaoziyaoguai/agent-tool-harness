@@ -70,6 +70,14 @@ agent-tool-harness 就是回答这些问题的。
 - **SuiteMetrics** — 跨 case 聚合指标（mean tool calls、error rate、findings per case）
 - **Markdown + JSON suite report** — 聚合报告双格式输出
 
+**v3.4 Regression Comparison：**
+- 对比 baseline 与 candidate 的评测结果
+- 查看 metrics / findings / task outcomes / suite results 的变化
+- 自动识别回归信号：新增失败、错误率飙升、finding 暴增、工具错误新增、任务成功率骤降
+- 生成 Markdown / JSON 回归对比报告
+- 只消费已有评测结果，不运行 Agent，不调用 LLM，不自动修复
+- 所有阈值可配置，is_regression 为建议信号，不自动阻止 CI
+
 ## 它不是什么
 
 - 它不运行你的 Agent — 你需要用自己的 runner 产出 trace

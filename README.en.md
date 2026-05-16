@@ -136,6 +136,22 @@ v3.3 adds multi-case, multi-trace suite-level aggregation:
 
 All components deterministic, zero-network.
 
+## Regression Comparison (v3.4)
+
+v3.4 adds baseline-vs-candidate regression detection:
+
+| Component | What it tells you |
+|-----------|-------------------|
+| **MetricDiff** | Per-metric before/after comparison with direction (better/worse/neutral) |
+| **FindingDiff** | Finding count changes by category, tracking new and resolved rule_ids |
+| **TaskOutcomeDiff** | Per-case status transitions (new_failure, new_success, etc.) |
+| **SuiteDiff** | Suite-level task success rate and deterministic pass rate deltas |
+| **RegressionWarning** | 5 auto-detected warning types: new_task_failures, error_rate_spike, finding_explosion, new_tool_errors, task_success_drop |
+| **RegressionReport** | Complete Markdown/JSON regression comparison output |
+
+All thresholds configurable. `is_regression` is advisory — does not auto-block CI (RFC Decision 1).
+All components deterministic, zero-network.
+
 ## Documentation
 
 - [QUICKSTART](docs/QUICKSTART.md) — shortest path to first run

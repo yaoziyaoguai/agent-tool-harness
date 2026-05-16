@@ -1,6 +1,6 @@
 # SDD: Regression Comparison V3.4
 
-> **Implementation Status: Planned** — 依赖 v3.2，推荐 v3.3。
+> **Implementation Status: Implemented in v3.4.0** — P1-P5 全部完成。本文档保留作为历史设计依据。
 
 ## TLDR
 
@@ -112,11 +112,14 @@ class RegressionThresholds:
 
 ## 4. 测试策略
 
+实际测试组织（v3.4.0）：
+
 | 测试文件 | 测试数 | 覆盖 |
 |---------|--------|------|
-| `tests/test_metric_diff.py` | ~8 | diff 计算、direction 判定 |
-| `tests/test_regression_warnings.py` | ~8 | 5 种 warning 触发/不触发 |
-| `tests/test_regression_comparator.py` | ~5 | 端到端对比 |
-| `tests/test_regression_report.py` | ~3 | Markdown/JSON |
+| `tests/test_regression_schema.py` | 25 | frozen dataclass 不可变性、JSON 序列化、direction/change 态 |
+| `tests/test_regression_comparator.py` | 71 | _direction、compute_metric_diffs、compute_finding_diffs、_determine_change、compute_task_outcome_diffs、compute_suite_diff、compute_regression_warnings、RegressionComparator.compare |
+| `tests/test_regression_report.py` | 8 | Markdown 渲染、所有 section、空报告、完整报告 |
 
-**总计：≥ 24 个新增单测。**
+**合计：104 deterministic tests。** 全量回归 1609 passed, 1 xfailed。
+
+> 原始计划估计 ≥24 个测试，实际实现远超预期——comparator/diff 模块需要覆盖 5 种 warning 检测、9 个核心指标对比、五态 change 判定、边界条件和编排集成。
