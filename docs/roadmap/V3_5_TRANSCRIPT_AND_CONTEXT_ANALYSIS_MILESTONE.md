@@ -1,6 +1,6 @@
 # V3.5 Milestone: Transcript Confusion + Context Efficiency Analysis
 
-> **Status: Planned** — 设计已完成，实现未开始。可独立于 v3.3/v3.4，但 v3.2 TaskOutcome 可增强失败解释。
+> **Status: Implemented in v3.5.0** — 5 个 Phase 全部完成。
 
 ## TLDR
 
@@ -80,9 +80,9 @@ v3.1 的工具检查（D2/D4/D5/D6）能发现 surface-level 问题。v3.5 做 t
 
 ## 5. 完成定义
 
-- [ ] TranscriptPatternAnalyzer 识别 6 种 confusion signal
-- [ ] ContextEfficiencyAnalyzer 识别 5 种 inefficiency signal
-- [ ] report 包含 transcript/context analysis section
-- [ ] recommendations 集成（根据 signal 类型生成对应修复建议）
-- [ ] ≥ 25 个新增单测
-- [ ] 现有 1300+ tests 无 regression
+- [x] TranscriptPatternAnalyzer 识别 6 种 confusion signal
+- [x] ContextEfficiencyAnalyzer 识别 5 种 inefficiency signal
+- [x] report 包含 transcript/context analysis section
+- [x] recommendations 集成（根据 signal 类型生成对应修复建议）
+- [x] ≥ 25 个新增单测 (实际 96 个)
+- [x] 现有 1300+ tests 无 regression (1705 passed)

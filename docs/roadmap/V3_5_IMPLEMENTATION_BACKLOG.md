@@ -1,6 +1,6 @@
 # V3.5 Implementation Backlog
 
-> **Status: Planned** — 可独立于 v3.3/v3.4。
+> **Status: Implemented in v3.5.0** — 5 个 Phase 全部完成。
 
 ## TLDR
 
@@ -62,8 +62,8 @@ P1: Transcript pattern primitives (序列窗口、args 比较)
 
 | Phase | 新增测试 |
 |-------|---------|
-| P1 | ~8 |
-| P2 | ~15 |
-| P3 | ~12 |
-| P4 | ~5 |
-| **合计** | **~40 tests** |
+| P1 | 40 |
+| P2 | 24 |
+| P3 | 17 |
+| P4 | 15 |
+| **合计** | **96 tests** |

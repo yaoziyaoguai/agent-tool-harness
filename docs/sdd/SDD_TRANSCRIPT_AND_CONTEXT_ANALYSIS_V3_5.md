@@ -1,6 +1,6 @@
 # SDD: Transcript Confusion + Context Efficiency Analysis V3.5
 
-> **Implementation Status: Planned** — 可独立于 v3.3/v3.4。
+> **Implementation Status: Implemented in v3.5.0** — P1-P5 全部完成。
 
 ## TLDR
 
@@ -91,8 +91,9 @@ def _get_median_size(self, trace: ExecutionTrace, tool_name: str) -> float:
 
 | 测试文件 | 测试数 | 覆盖 |
 |---------|--------|------|
-| `tests/test_transcript_pattern_analyzer.py` | ~15 | 6 种 pattern × 各 2-3 scenario |
-| `tests/test_context_efficiency_analyzer.py` | ~12 | 5 种 pattern × 各 2-3 scenario |
-| `tests/test_transcript_context_report.py` | ~3 | Markdown/JSON |
+| `tests/test_transcript_primitives.py` | 40 | 7 种原语 × 各 3-5 scenario |
+| `tests/test_transcript_pattern_analyzer.py` | 24 | 6 种 pattern × 各 2-4 scenario |
+| `tests/test_context_efficiency_analyzer.py` | 17 | 5 种 pattern × 各 2-4 scenario |
+| `tests/test_transcript_context_report.py` | 15 | Markdown/JSON/Recommendation 覆盖 |
 
-**总计：≥ 30 个新增单测。**
+**总计：96 个新增单测。**

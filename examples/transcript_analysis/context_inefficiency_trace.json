@@ -1,0 +1,27 @@
+{
+  "scenario_id": "example_context_inefficiency",
+  "tool_calls": [
+    {"tool_name": "list_documents", "arguments": {"filter": "recent"}, "call_id": "c1"},
+    {"tool_name": "get_document", "arguments": {"doc_id": "1"}, "call_id": "c2"},
+    {"tool_name": "list_documents", "arguments": {"filter": "all"}, "call_id": "c3"},
+    {"tool_name": "get_document", "arguments": {"doc_id": "2"}, "call_id": "c4"},
+    {"tool_name": "list_documents", "arguments": {"filter": "all"}, "call_id": "c5"},
+    {"tool_name": "get_document", "arguments": {"doc_id": "3"}, "call_id": "c6"}
+  ],
+  "tool_results": [
+    {"call_id": "c1", "tool_name": "list_documents", "status": "success",
+     "output": {"documents": {"items": ["doc1", "doc2", "doc3"]}, "total": 3}},
+    {"call_id": "c2", "tool_name": "get_document", "status": "success",
+     "output": {"title": "Doc 1", "full_body": "Long body content here", "raw_html": "<html>...</html>", "author": "Alice", "created": "2026-01-01", "updated": "2026-05-01"}},
+    {"call_id": "c3", "tool_name": "list_documents", "status": "success",
+     "output": {"documents": {"items": ["doc4", "doc5", "doc6", "doc7", "doc8", "doc9", "doc10", "doc11", "doc12", "doc13", "doc14", "doc15", "doc16", "doc17", "doc18", "doc19", "doc20", "doc21", "doc22", "doc23"]}, "total": 200}},
+    {"call_id": "c4", "tool_name": "get_document", "status": "success",
+     "output": {"title": "Doc 2", "summary": "Brief summary", "content": "Medium content"}},
+    {"call_id": "c5", "tool_name": "list_documents", "status": "error",
+     "output": {}, "error": "request timeout..."},
+    {"call_id": "c6", "tool_name": "get_document", "status": "success",
+     "output": {"title": "Doc 3", "body": "Short"}}
+  ],
+  "messages": [],
+  "final_answer": "Found 3 relevant documents: Doc 1 discusses the architecture, Doc 2 covers authentication, and Doc 3 describes the deployment process."
+}
