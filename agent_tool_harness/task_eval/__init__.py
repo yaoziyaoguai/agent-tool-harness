@@ -18,13 +18,27 @@ from agent_tool_harness.task_eval.eval_case import (
     load_eval_case_from_yaml,
 )
 from agent_tool_harness.task_eval.verifiers import (
+    CompositeVerifier,
+    ContainsRequiredFacts,
+    ExactMatch,
+    ForbiddenFactsAbsent,
+    JsonFieldMatch,
+    RegexMatch,
     VerifierResult,
+    build_verifiers_from_outcome,
 )
 
 __all__ = [
+    "CompositeVerifier",
+    "ContainsRequiredFacts",
     "EvalCase",
+    "ExactMatch",
     "ExpectedOutcome",
+    "ForbiddenFactsAbsent",
+    "JsonFieldMatch",
+    "RegexMatch",
     "VerifierResult",
+    "build_verifiers_from_outcome",
     "load_eval_case_from_dict",
     "load_eval_case_from_yaml",
 ]
