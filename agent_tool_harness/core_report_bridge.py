@@ -235,3 +235,49 @@ def report_insight_to_json_dict(insight: Any) -> dict[str, Any]:
             "signal_quality": insight.metadata.signal_quality,
         },
     }
+
+
+def task_outcome_to_json_dict(outcome: Any) -> dict[str, Any]:
+    """把 TaskOutcome 序列化为 JSON 兼容 dict。
+
+    JSON shape（v3.2 task outcome section）：
+    - case_id: 对应 EvalCase.case_id
+    - status: success / failed / inconclusive
+    - final_answer: 提取的最终答案文本
+    - verifier_results: 各 verifier 的独立结果 [{verifier_name, passed, matched, missing, details}]
+    - matched: 聚合的匹配事实列表
+    - missing: 聚合的缺失事实列表
+    - details: 人类可读摘要
+
+    与 ReportInsight JSON 兼容——task_outcome 节可独立嵌入已有 JSON report。
+
+    Args:
+        outcome: TaskOutcome 实例。
+
+    Returns:
+        JSON-serializable dict。非 TaskOutcome 输入返回空 dict。
+    """
+    from agent_tool_harness.task_eval.task_evaluator import TaskOutcome
+
+    if not isinstance(outcome, TaskOutcome):
+        return {}
+
+    vr_list: list[dict[str, Any]] = []
+    for vr in outcome.verifier_results:
+        vr_list.append({
+            "verifier_name": vr.verifier_name,
+            "passed": vr.passed,
+            "matched": list(vr.matched),
+            "missing": list(vr.missing),
+            "details": vr.details,
+        })
+
+    return {
+        "case_id": outcome.case_id,
+        "status": outcome.status,
+        "final_answer": outcome.final_answer,
+        "verifier_results": vr_list,
+        "matched": list(outcome.matched),
+        "missing": list(outcome.missing),
+        "details": outcome.details,
+    }

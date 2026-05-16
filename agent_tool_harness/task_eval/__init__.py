@@ -17,6 +17,10 @@ from agent_tool_harness.task_eval.eval_case import (
     load_eval_case_from_dict,
     load_eval_case_from_yaml,
 )
+from agent_tool_harness.task_eval.render import (
+    render_task_outcome_markdown,
+    render_task_outcome_text,
+)
 from agent_tool_harness.task_eval.task_evaluator import TaskEvaluator, TaskOutcome
 from agent_tool_harness.task_eval.verifiers import (
     CompositeVerifier,
@@ -44,4 +48,6 @@ __all__ = [
     "build_verifiers_from_outcome",
     "load_eval_case_from_dict",
     "load_eval_case_from_yaml",
+    "render_task_outcome_markdown",
+    "render_task_outcome_text",
 ]
