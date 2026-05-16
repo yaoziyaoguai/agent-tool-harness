@@ -27,6 +27,7 @@
 - [CURRENT_IMPLEMENTATION.md](CURRENT_IMPLEMENTATION.md) — 诚实的能力矩阵
 - [ROADMAP.md](ROADMAP.md) — 演进路线
 - [BACKLOG.md](BACKLOG.md) — 详细 backlog
+- [roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md](roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md) — 长期能力路线图（v3.2-v3.6）
 
 ## 我想了解架构设计
 
@@ -37,12 +38,31 @@
   - [TOOL_USE_INSPECTION_SDD.md](architecture/TOOL_USE_INSPECTION_SDD.md) — 工具检查设计
   - [TRACE_IMPORT_ADAPTER_SPEC.md](architecture/TRACE_IMPORT_ADAPTER_SPEC.md) — trace 导入规范
 - [rfc/](rfc/) — 架构决策记录
+  - [RFC 0002](rfc/RFC_0002_EVALUATION_REPORT_INSIGHT.md) — v3.1 Report Insight
+  - [RFC 0003](rfc/RFC_0003_TASK_LEVEL_EVALUATION.md) — v3.2 Task-level Evaluation
+  - [RFC 0004](rfc/RFC_0004_EVAL_SUITE_AGGREGATION.md) — v3.3 Suite Aggregation
+  - [RFC 0005](rfc/RFC_0005_REGRESSION_COMPARISON.md) — v3.4 Regression Comparison
+  - [RFC 0006](rfc/RFC_0006_TRANSCRIPT_AND_CONTEXT_ANALYSIS.md) — v3.5 Transcript + Context
+  - [RFC 0007](rfc/RFC_0007_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF.md) — v3.6 Portfolio + Brief
 - [sdd/](sdd/) — 设计文档
+  - [SDD v3.1](sdd/SDD_EVALUATION_REPORT_INSIGHT_V3_1.md) — Report Insight
+  - [SDD v3.2](sdd/SDD_TASK_LEVEL_EVALUATION_V3_2.md) — Task-level Evaluation
+  - [SDD v3.3](sdd/SDD_EVAL_SUITE_AGGREGATION_V3_3.md) — Suite Aggregation
+  - [SDD v3.4](sdd/SDD_REGRESSION_COMPARISON_V3_4.md) — Regression Comparison
+  - [SDD v3.5](sdd/SDD_TRANSCRIPT_AND_CONTEXT_ANALYSIS_V3_5.md) — Transcript + Context
+  - [SDD v3.6](sdd/SDD_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF_V3_6.md) — Portfolio + Brief
 
 ## 我想参与开发
 
 - [DEVELOPER_GUIDE](DEVELOPER_GUIDE.md) — 开发环境、测试、代码风格
 - [roadmap/](roadmap/) — 版本规划和实现 backlog
+  - [能力路线图总览](roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md)
+  - v3.1: [milestone](roadmap/V3_1_EVALUATION_REPORT_INSIGHT_MILESTONE.md) | [backlog](roadmap/V3_1_IMPLEMENTATION_BACKLOG.md)
+  - v3.2: [milestone](roadmap/V3_2_TASK_LEVEL_EVALUATION_MILESTONE.md) | [RFC](../docs/rfc/RFC_0003_TASK_LEVEL_EVALUATION.md) | [SDD](../docs/sdd/SDD_TASK_LEVEL_EVALUATION_V3_2.md) | [backlog](roadmap/V3_2_IMPLEMENTATION_BACKLOG.md)
+  - v3.3: [milestone](roadmap/V3_3_EVAL_SUITE_AGGREGATION_MILESTONE.md) | [RFC](../docs/rfc/RFC_0004_EVAL_SUITE_AGGREGATION.md) | [SDD](../docs/sdd/SDD_EVAL_SUITE_AGGREGATION_V3_3.md) | [backlog](roadmap/V3_3_IMPLEMENTATION_BACKLOG.md)
+  - v3.4: [milestone](roadmap/V3_4_REGRESSION_COMPARISON_MILESTONE.md) | [RFC](../docs/rfc/RFC_0005_REGRESSION_COMPARISON.md) | [SDD](../docs/sdd/SDD_REGRESSION_COMPARISON_V3_4.md) | [backlog](roadmap/V3_4_IMPLEMENTATION_BACKLOG.md)
+  - v3.5: [milestone](roadmap/V3_5_TRANSCRIPT_AND_CONTEXT_ANALYSIS_MILESTONE.md) | [RFC](../docs/rfc/RFC_0006_TRANSCRIPT_AND_CONTEXT_ANALYSIS.md) | [SDD](../docs/sdd/SDD_TRANSCRIPT_AND_CONTEXT_ANALYSIS_V3_5.md) | [backlog](roadmap/V3_5_IMPLEMENTATION_BACKLOG.md)
+  - v3.6: [milestone](roadmap/V3_6_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF_MILESTONE.md) | [RFC](../docs/rfc/RFC_0007_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF.md) | [SDD](../docs/sdd/SDD_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF_V3_6.md) | [backlog](roadmap/V3_6_IMPLEMENTATION_BACKLOG.md)
 - [archive/REVIEW_CHECKLIST.md](archive/REVIEW_CHECKLIST.md) — PR review 自检清单
 
 ## 历史记录

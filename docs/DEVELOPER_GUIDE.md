@@ -80,15 +80,32 @@ v3.1 的 Report Insight 组件在 `agent_tool_harness/reports/report_insight.py`
 
 ## RFC / SDD
 
+v3.1+ 各版本的架构决策记录和设计文档：
+
 - [rfc/RFC_0002_EVALUATION_REPORT_INSIGHT.md](rfc/RFC_0002_EVALUATION_REPORT_INSIGHT.md) — v3.1 Report Insight RFC
 - [sdd/SDD_EVALUATION_REPORT_INSIGHT_V3_1.md](sdd/SDD_EVALUATION_REPORT_INSIGHT_V3_1.md) — v3.1 Report Insight SDD
+- [rfc/RFC_0003_TASK_LEVEL_EVALUATION.md](rfc/RFC_0003_TASK_LEVEL_EVALUATION.md) — v3.2 Task-level Evaluation RFC
+- [sdd/SDD_TASK_LEVEL_EVALUATION_V3_2.md](sdd/SDD_TASK_LEVEL_EVALUATION_V3_2.md) — v3.2 Task-level Evaluation SDD
+- [rfc/RFC_0004_EVAL_SUITE_AGGREGATION.md](rfc/RFC_0004_EVAL_SUITE_AGGREGATION.md) — v3.3 Suite Aggregation RFC
+- [sdd/SDD_EVAL_SUITE_AGGREGATION_V3_3.md](sdd/SDD_EVAL_SUITE_AGGREGATION_V3_3.md) — v3.3 Suite Aggregation SDD
+- [rfc/RFC_0005_REGRESSION_COMPARISON.md](rfc/RFC_0005_REGRESSION_COMPARISON.md) — v3.4 Regression Comparison RFC
+- [sdd/SDD_REGRESSION_COMPARISON_V3_4.md](sdd/SDD_REGRESSION_COMPARISON_V3_4.md) — v3.4 Regression Comparison SDD
+- [rfc/RFC_0006_TRANSCRIPT_AND_CONTEXT_ANALYSIS.md](rfc/RFC_0006_TRANSCRIPT_AND_CONTEXT_ANALYSIS.md) — v3.5 Transcript + Context Analysis RFC
+- [sdd/SDD_TRANSCRIPT_AND_CONTEXT_ANALYSIS_V3_5.md](sdd/SDD_TRANSCRIPT_AND_CONTEXT_ANALYSIS_V3_5.md) — v3.5 Transcript + Context Analysis SDD
+- [rfc/RFC_0007_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF.md](rfc/RFC_0007_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF.md) — v3.6 Tool Portfolio + Improvement Brief RFC
+- [sdd/SDD_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF_V3_6.md](sdd/SDD_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF_V3_6.md) — v3.6 Tool Portfolio + Improvement Brief SDD
 
 ## 路线图
 
 - [ROADMAP.md](ROADMAP.md) — 演进路线（Tracks A-D）
 - [BACKLOG.md](BACKLOG.md) — 详细 backlog
-- [roadmap/V3_1_EVALUATION_REPORT_INSIGHT_MILESTONE.md](roadmap/V3_1_EVALUATION_REPORT_INSIGHT_MILESTONE.md) — v3.1 milestone
-- [roadmap/V3_1_IMPLEMENTATION_BACKLOG.md](roadmap/V3_1_IMPLEMENTATION_BACKLOG.md) — v3.1 实现 backlog
+- [roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md](roadmap/AGENT_TOOL_HARNESS_CAPABILITY_ROADMAP.md) — 长期能力路线图（v3.1→v3.6）
+- v3.1: [milestone](roadmap/V3_1_EVALUATION_REPORT_INSIGHT_MILESTONE.md) | [backlog](roadmap/V3_1_IMPLEMENTATION_BACKLOG.md)
+- v3.2: [milestone](roadmap/V3_2_TASK_LEVEL_EVALUATION_MILESTONE.md) | [backlog](roadmap/V3_2_IMPLEMENTATION_BACKLOG.md)
+- v3.3: [milestone](roadmap/V3_3_EVAL_SUITE_AGGREGATION_MILESTONE.md) | [backlog](roadmap/V3_3_IMPLEMENTATION_BACKLOG.md)
+- v3.4: [milestone](roadmap/V3_4_REGRESSION_COMPARISON_MILESTONE.md) | [backlog](roadmap/V3_4_IMPLEMENTATION_BACKLOG.md)
+- v3.5: [milestone](roadmap/V3_5_TRANSCRIPT_AND_CONTEXT_ANALYSIS_MILESTONE.md) | [backlog](roadmap/V3_5_IMPLEMENTATION_BACKLOG.md)
+- v3.6: [milestone](roadmap/V3_6_TOOL_PORTFOLIO_AND_IMPROVEMENT_BRIEF_MILESTONE.md) | [backlog](roadmap/V3_6_IMPLEMENTATION_BACKLOG.md)
 
 ## 历史归档
 
