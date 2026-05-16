@@ -193,6 +193,44 @@ class TestFinalAnswerExtraction:
         answer = evaluator._extract_final_answer(trace)
         assert answer == "second"
 
+    def test_final_answer_none_defense(self):
+        """trace.final_answer=None → 不 crash，回落 P2/P3。"""
+        trace = ExecutionTrace(
+            scenario_id="s1",
+            final_answer=None,  # 防御：类型注解不强制，外部数据可能为 None
+            tool_results=[
+                ToolResult(call_id="c1", output={"answer": "fallback answer"}),
+            ],
+        )
+        evaluator = TaskEvaluator()
+        answer = evaluator._extract_final_answer(trace)
+        assert answer == "fallback answer"
+
+    def test_empty_dict_output_json_fallback(self):
+        """空 dict output {} → P3 序列化为 "{}"，不短路返回 ""。"""
+        trace = ExecutionTrace(
+            scenario_id="s1",
+            tool_results=[
+                ToolResult(call_id="c1", output={}),
+            ],
+        )
+        evaluator = TaskEvaluator()
+        answer = evaluator._extract_final_answer(trace)
+        assert answer == "{}"
+
+    def test_empty_dict_output_no_answer_key(self):
+        """空 dict output {} 无 answer/content 键 → P3 兜底。"""
+        trace = ExecutionTrace(
+            scenario_id="s1",
+            tool_results=[
+                ToolResult(call_id="c1", output={}),
+            ],
+        )
+        evaluator = TaskEvaluator()
+        answer = evaluator._extract_final_answer(trace)
+        # P2 在空 dict 上找不到 answer/content，P3 json.dumps({}) → "{}"
+        assert answer == "{}"
+
 
 # ============================================================================
 # TaskEvaluator.evaluate

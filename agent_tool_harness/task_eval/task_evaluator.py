@@ -133,7 +133,7 @@ class TaskEvaluator:
         Priority 3: 最后一个 tool_result.output 的 JSON 字符串表示。
         """
         # Priority 1
-        if trace.final_answer.strip():
+        if isinstance(trace.final_answer, str) and trace.final_answer.strip():
             return trace.final_answer
 
         # Priority 2 & 3: 从最后一个 tool_result 取
@@ -141,16 +141,17 @@ class TaskEvaluator:
             return ""
 
         last_output = trace.tool_results[-1].output
-        if not isinstance(last_output, dict) or not last_output:
+        if not isinstance(last_output, dict):
             return ""
 
-        # Priority 2
-        for key in ("answer", "content"):
-            val = last_output.get(key)
-            if isinstance(val, str) and val.strip():
-                return val
+        # Priority 2（空 dict 此处也能安全跳过，走 P3）
+        if last_output:
+            for key in ("answer", "content"):
+                val = last_output.get(key)
+                if isinstance(val, str) and val.strip():
+                    return val
 
-        # Priority 3
+        # Priority 3（空 dict {} 序列化为 "{}"，不丢失信息）
         return json.dumps(last_output, ensure_ascii=False)
 
     @staticmethod

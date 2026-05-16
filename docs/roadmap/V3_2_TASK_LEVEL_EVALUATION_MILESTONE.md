@@ -1,6 +1,6 @@
 # V3.2 Milestone: Task-level Evaluation
 
-> **Status: Planned** — 设计文档已完成，实现未开始。
+> **Status: Implemented** — P1-P5 全部完成，98 新增单测，1436 全量测试通过。
 
 ## TLDR
 
@@ -93,11 +93,13 @@ TaskOutcome
   ├── case_id
   ├── status: "success" | "failed" | "inconclusive"
   ├── verifier_results: list[VerifierResult]
-  ├── missing_facts: list[str]
-  ├── matched_facts: list[str]
-  ├── reason: str
-  └── evidence_refs: list[str]
+  ├── final_answer: str
+  ├── details: str
+  ├── matched: list[str]
+  └── missing: list[str]
 ```
+
+注：实现中 `matched/missing` 替代了规划中的 `matched_facts/missing_facts`，`details` 替代了 `reason`，新增 `final_answer` 用于追溯提取的答案原文。`evidence_refs` 通过 `verifier_results[].evidence_ref` 可在后续版本补充。
 
 ### 3.5 Report integration
 
@@ -152,9 +154,19 @@ python -m agent_tool_harness.cli run \
   "task_outcome": {
     "case_id": "ks-001",
     "status": "failed",
-    "missing_facts": ["fix recommendation"],
-    "matched_facts": ["root cause"],
-    "reason": "Agent identified root cause but did not provide actionable fix"
+    "final_answer": "Root cause is network timeout.",
+    "verifier_results": [
+      {
+        "verifier_name": "composite",
+        "passed": false,
+        "matched": ["root cause"],
+        "missing": ["fix recommendation"],
+        "details": "mode=all; contains_required_facts: FAIL"
+      }
+    ],
+    "matched": ["root cause"],
+    "missing": ["fix recommendation"],
+    "details": "mode=all; contains_required_facts: FAIL"
   }
 }
 ```
@@ -165,16 +177,16 @@ python -m agent_tool_harness.cli run \
 
 用户可以用 EvalCase 定义任务期望，用 Verifier 验证 Agent 产出：
 
-- [ ] `EvalCase` + `ExpectedOutcome` schema defined
-- [ ] 5 种确定性 verifier + CompositeVerifier 可用
-- [ ] `CompositeVerifier` 可组合
-- [ ] `TaskOutcome` 正确判定 success/failed/inconclusive
-- [ ] Markdown report 包含 task-level section
-- [ ] JSON report 包含 task_outcome key
-- [ ] 可选 LLM verifier（opt-in, advisory only）
-- [ ] ≥ 46 个新增单测
-- [ ] 现有 1300+ tests 无 regression
-- [ ] examples/eval_cases/ 含 ≥ 3 个 sample
+- [x] `EvalCase` + `ExpectedOutcome` schema defined
+- [x] 5 种确定性 verifier + CompositeVerifier 可用
+- [x] `CompositeVerifier` 可组合
+- [x] `TaskOutcome` 正确判定 success/failed/inconclusive
+- [x] Markdown report 包含 task-level section（render_task_outcome_markdown）
+- [x] JSON report 包含 task_outcome key（task_outcome_to_json_dict）
+- [ ] 可选 LLM verifier（opt-in, advisory only）— v3.3 deferred
+- [x] ≥ 46 个新增单测（实际 98 个）
+- [x] 现有 1300+ tests 无 regression（1436 passed）
+- [x] task_eval/examples/ 含 ≥ 3 个 sample
 
 ### 可验证标准
 

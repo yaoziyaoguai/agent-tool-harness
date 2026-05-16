@@ -253,6 +253,33 @@ class TestJsonFieldMatch:
         result = v.verify("", ["not a dict", 123, {"key": "val"}])
         assert result.passed is True
 
+    def test_list_of_dicts_subset_match(self):
+        """list 嵌套 dict 时递归子集匹配——expected dict 是 actual dict 的子集。"""
+        v = JsonFieldMatch({"items": [{"name": "foo"}]})
+        result = v.verify(
+            "",
+            [{"items": [{"name": "foo", "extra": "bar"}, {"other": "x"}]}],
+        )
+        assert result.passed is True
+
+    def test_list_of_dicts_not_subset(self):
+        """list 嵌套 dict 时 expected dict 不是任何 actual dict 的子集 → failed。"""
+        v = JsonFieldMatch({"items": [{"name": "missing"}]})
+        result = v.verify(
+            "",
+            [{"items": [{"name": "foo"}, {"name": "bar"}]}],
+        )
+        assert result.passed is False
+
+    def test_nested_list_recursive_subset(self):
+        """递归 list 嵌套——[[{"a": 1}]] 是 [[{"a": 1, "b": 2}]] 的子集。"""
+        v = JsonFieldMatch({"data": [[{"a": 1}]]})
+        result = v.verify(
+            "",
+            [{"data": [[{"a": 1, "b": 2}, {"c": 3}]]}],
+        )
+        assert result.passed is True
+
 
 # ============================================================================
 # CompositeVerifier

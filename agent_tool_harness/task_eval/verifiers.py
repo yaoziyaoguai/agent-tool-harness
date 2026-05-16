@@ -200,7 +200,7 @@ class JsonFieldMatch:
     def _is_subset(expected: dict[str, Any], actual: dict[str, Any]) -> bool:
         """递归检查 expected 是否为 actual 的 dict 子集。
 
-        非递归值用 == 比较；列表按值成员比较（顺序无关）。
+        dict 递归子集匹配；list 逐元素递归匹配（顺序无关）；其他类型 == 比较。
         """
         for key, expected_val in expected.items():
             if key not in actual:
@@ -210,9 +210,34 @@ class JsonFieldMatch:
                 if not JsonFieldMatch._is_subset(expected_val, actual_val):
                     return False
             elif isinstance(expected_val, list) and isinstance(actual_val, list):
-                if not all(item in actual_val for item in expected_val):
+                if not JsonFieldMatch._list_is_subset(expected_val, actual_val):
                     return False
             elif expected_val != actual_val:
+                return False
+        return True
+
+    @staticmethod
+    def _list_is_subset(expected_list: list, actual_list: list) -> bool:
+        """检查 expected_list 每个元素是否为 actual_list 某元素的子集。
+
+        dict 元素递归子集匹配；list 元素递归列表子集匹配；
+        其他类型用 == 比较。
+        """
+        for expected_item in expected_list:
+            found = False
+            for actual_item in actual_list:
+                if isinstance(expected_item, dict) and isinstance(actual_item, dict):
+                    if JsonFieldMatch._is_subset(expected_item, actual_item):
+                        found = True
+                        break
+                elif isinstance(expected_item, list) and isinstance(actual_item, list):
+                    if JsonFieldMatch._list_is_subset(expected_item, actual_item):
+                        found = True
+                        break
+                elif expected_item == actual_item:
+                    found = True
+                    break
+            if not found:
                 return False
         return True
 
