@@ -85,6 +85,21 @@ Verifier 是 Protocol，支持 5 种具体实现 + 1 种组合器：
 | `RegexMatch` | answer_text + regex_patterns | 所有 pattern 都在 answer 中匹配 |
 | `CompositeVerifier` | verifiers[] | 所有子 verifier 通过才通过（AND 语义） |
 
+### CompositeVerifier 组合语义
+
+CompositeVerifier 支持两种组合模式：
+
+| mode | 语义 | 适用场景 |
+|------|------|---------|
+| `all` (默认) | 所有子 verifier 必须通过 | required_facts + json_field_match 严格组合 |
+| `any` | 任一子 verifier 通过即可 | 多种可接受答案路径或多种等价表达 |
+
+设计要点：
+- `all` 是默认模式 — 不显式配置即为 AND 语义，符合"定义越多越严格"的直觉
+- `any` 必须显式配置 `mode="any"` — 避免误用
+- `any` 不等于降低标准 — 它表达的是"多种可接受成功路径"，例如答案可以是英文或中文，匹配任一即算通过
+- 无论哪种模式，composite result 保留所有子 verifier 的独立结果 — 方便报告展示每个子项的通过/失败详情
+
 ### 为什么用 Protocol 而非 ABC
 
 Verifier 是一个简单接口（`verify(answer_text, tool_outputs) -> VerifierResult`），不需要状态，不需要 lifecycle。Protocol 足够灵活，不需要继承约束。
@@ -195,7 +210,7 @@ Final answer 提取策略（按优先级）：
 ## Acceptance Criteria
 
 1. **EvalCase** — 可从 YAML/JSON 加载，包含 ExpectedOutcome
-2. **Verifier** — 4 种确定性 verifier + CompositeVerifier 可用
+2. **Verifier** — 5 种确定性 verifier + CompositeVerifier 可用
 3. **TaskOutcome** — status 正确反映 verifier 结果
 4. **Final answer 提取** — 支持 3 种 fallback 策略
 5. **Report** — Markdown/JSON 包含 task outcome section

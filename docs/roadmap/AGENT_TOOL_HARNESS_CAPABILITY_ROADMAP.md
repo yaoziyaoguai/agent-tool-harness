@@ -171,7 +171,7 @@ v3.1.1 (基线)
 
 | 版本 | 验收标准 |
 |------|---------|
-| v3.2 | 4 种 verifier 可用 + TaskOutcome 正确判定 + report 包含 task-level section |
+| v3.2 | 5 种确定性 verifier + CompositeVerifier 可用 + TaskOutcome 正确判定 + report 包含 task-level section |
 | v3.3 | suite manifest 加载 + suite 聚合正确 + suite-level metrics 与单 trace metrics 自洽 |
 | v3.4 | metric diff 正确 + finding diff 正确 + 回归警告触发条件明确 |
 | v3.5 | 6 种 confusion signal 可识别 + 5 种 context inefficiency signal 可识别 |

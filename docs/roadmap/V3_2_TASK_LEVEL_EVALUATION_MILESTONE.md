@@ -166,13 +166,13 @@ python -m agent_tool_harness.cli run \
 用户可以用 EvalCase 定义任务期望，用 Verifier 验证 Agent 产出：
 
 - [ ] `EvalCase` + `ExpectedOutcome` schema defined
-- [ ] 4 种 deterministic verifier 可用
+- [ ] 5 种确定性 verifier + CompositeVerifier 可用
 - [ ] `CompositeVerifier` 可组合
 - [ ] `TaskOutcome` 正确判定 success/failed/inconclusive
 - [ ] Markdown report 包含 task-level section
 - [ ] JSON report 包含 task_outcome key
 - [ ] 可选 LLM verifier（opt-in, advisory only）
-- [ ] ≥ 20 个新增单测
+- [ ] ≥ 46 个新增单测
 - [ ] 现有 1300+ tests 无 regression
 - [ ] examples/eval_cases/ 含 ≥ 3 个 sample
 
