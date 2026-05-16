@@ -281,3 +281,74 @@ def task_outcome_to_json_dict(outcome: Any) -> dict[str, Any]:
         "missing": list(outcome.missing),
         "details": outcome.details,
     }
+
+
+def suite_result_to_json_dict(result: Any) -> dict[str, Any]:
+    """把 SuiteResult 序列化为 JSON 兼容 dict。
+
+    JSON shape（v3.3 suite result section）：
+    - suite_id: suite 标识
+    - total_cases: case 总数
+    - task_success_rate / deterministic_pass_rate: rate 指标
+    - task_success_count / task_failed_count / task_inconclusive_count: 分桶计数
+    - suite_scorecard: 评分卡（passed, rates, top lists）
+    - suite_metrics: 聚合指标（means, totals, counts by category/tool）
+    - per_case_results: 每个 case 的摘要列表
+
+    Args:
+        result: SuiteResult 实例。
+
+    Returns:
+        JSON-serializable dict。非 SuiteResult 输入返回空 dict。
+    """
+    from agent_tool_harness.suite_eval.suite_result import SuiteResult
+
+    if not isinstance(result, SuiteResult):
+        return {}
+
+    sc = result.suite_scorecard
+    m = result.suite_metrics
+
+    per_case: list[dict[str, Any]] = []
+    for cr in result.per_case_results:
+        per_case.append({
+            "case_id": cr.case_id,
+            "trace_ref": cr.trace_ref,
+            "task_status": cr.task_status,
+            "deterministic_passed": cr.deterministic_passed,
+            "finding_count": cr.finding_count,
+            "error_count": cr.error_count,
+            "warning_count": cr.warning_count,
+            "metrics_summary": cr.metrics_summary,
+        })
+
+    return {
+        "suite_id": result.suite_id,
+        "total_cases": result.total_cases,
+        "task_success_rate": result.task_success_rate,
+        "deterministic_pass_rate": result.deterministic_pass_rate,
+        "task_success_count": result.task_success_count,
+        "task_failed_count": result.task_failed_count,
+        "task_inconclusive_count": result.task_inconclusive_count,
+        "suite_scorecard": {
+            "suite_passed": sc.suite_passed,
+            "task_success_rate": sc.task_success_rate,
+            "deterministic_pass_rate": sc.deterministic_pass_rate,
+            "top_failing_categories": sc.top_failing_categories,
+            "top_affected_tools": sc.top_affected_tools,
+            "total_cases": sc.total_cases,
+            "passed_cases": sc.passed_cases,
+            "failed_cases": sc.failed_cases,
+        },
+        "suite_metrics": {
+            "mean_tool_call_count": m.mean_tool_call_count,
+            "mean_tool_error_rate": m.mean_tool_error_rate,
+            "mean_findings_per_case": m.mean_findings_per_case,
+            "total_findings": m.total_findings,
+            "total_tool_calls": m.total_tool_calls,
+            "total_tool_errors": m.total_tool_errors,
+            "finding_count_by_category": m.finding_count_by_category,
+            "finding_count_by_tool": m.finding_count_by_tool,
+        },
+        "per_case_results": per_case,
+    }
