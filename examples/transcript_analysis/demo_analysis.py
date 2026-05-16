@@ -39,7 +39,11 @@ def build_demo_trace() -> ExecutionTrace:
         ToolCall(tool_name="grep", arguments={"pattern": "Error 500"}, call_id="c9"),
         ToolCall(tool_name="grep", arguments={"pattern": "Error 500."}, call_id="c10"),
         # 搜索范围越来越大
-        ToolCall(tool_name="search", arguments={"query": "null pointer exception in auth"}, call_id="c11"),
+        ToolCall(
+            tool_name="search",
+            arguments={"query": "null pointer exception in auth"},
+            call_id="c11",
+        ),
         ToolCall(tool_name="search", arguments={"query": "null pointer"}, call_id="c12"),
         ToolCall(tool_name="search", arguments={"query": "error"}, call_id="c13"),
     ]

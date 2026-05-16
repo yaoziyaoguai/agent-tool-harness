@@ -152,6 +152,16 @@ v3.4 adds baseline-vs-candidate regression detection:
 All thresholds configurable. `is_regression` is advisory — does not auto-block CI (RFC Decision 1).
 All components deterministic, zero-network.
 
+## Transcript + Context Analysis (v3.5)
+
+| Component | What it tells you |
+|-----------|-------------------|
+| **TranscriptPatternAnalyzer** | 6 Agent confusion patterns: repeated retry loops, tool switching, arg micro-tuning, error without recovery, unsupported final answers, broad search escalation |
+| **ContextEfficiencyAnalyzer** | 5 context waste signals: response bloat, missing pagination, no concise mode, low-value large fields, truncation without continuation hint |
+| **Analysis Report** | Standalone Markdown section + JSON output with recommendation catalog |
+
+All analysis deterministic, zero-network. Produces `RuleFinding` (category="transcript" | "context").
+
 ## Documentation
 
 - [QUICKSTART](docs/QUICKSTART.md) — shortest path to first run

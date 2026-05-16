@@ -352,3 +352,20 @@ def suite_result_to_json_dict(result: Any) -> dict[str, Any]:
         },
         "per_case_results": per_case,
     }
+
+
+def analysis_findings_to_json_dict(findings: list) -> dict[str, Any]:
+    """将 v3.5 Transcript/Context analysis findings 序列化为 JSON 兼容 dict。
+
+    委托给 analysis.render.render_analysis_json()。
+
+    Args:
+        findings: TranscriptPatternAnalyzer / ContextEfficiencyAnalyzer 产出的
+                  RuleFinding 列表。
+
+    Returns:
+        {"transcript": [...], "context": [...], "recommendations": [...]}。
+    """
+    from agent_tool_harness.analysis.render import render_analysis_json
+
+    return render_analysis_json(findings)

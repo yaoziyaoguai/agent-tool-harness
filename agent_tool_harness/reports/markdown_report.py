@@ -1427,3 +1427,20 @@ class MarkdownReport:
                 "再回到 transcript / tool_calls / tool_responses 三件套定位证据缺口。"
             )
         return hints
+
+    @staticmethod
+    def render_analysis_section(findings: list) -> str:
+        """渲染 v3.5 Transcript & Context Analysis Markdown 节。
+
+        将 TranscriptPatternAnalyzer / ContextEfficiencyAnalyzer 产出的
+        RuleFinding 列表渲染为 Markdown 表格，可直接插入主报告。
+
+        Args:
+            findings: RuleFinding 列表（category="transcript" | "context"）。
+
+        Returns:
+            Markdown 字符串；无 analysis finding 时返回空字符串。
+        """
+        from agent_tool_harness.analysis.render import render_analysis_markdown
+
+        return render_analysis_markdown(findings)

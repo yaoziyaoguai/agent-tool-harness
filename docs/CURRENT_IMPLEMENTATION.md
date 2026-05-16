@@ -227,7 +227,7 @@ v3.5.0 在 v3.4.0 之上新增 **转录困惑与上下文效率分析**，5 个 
 
 | Phase | 组件 | 说明 |
 |-------|------|------|
-| P1 | transcript_primitives | 7 个底层原语：normalize_args、args_similarity、sliding_window、consecutive_groups、count_tool_switches、find_repeated_sequences、is_truncated、extract_fields_usage |
+| P1 | transcript_primitives | 8 个底层原语：normalize_args、args_similarity、sliding_window、consecutive_groups、count_tool_switches、find_repeated_sequences、is_truncated、extract_fields_usage |
 | P2 | TranscriptPatternAnalyzer | 6 种 Agent 困惑模式检测（repeated_tool_retry_loop、tool_switching_confusion、invalid_arg_retry、no_recovery_after_error、final_answer_without_support、broad_search_loop） |
 | P3 | ContextEfficiencyAnalyzer | 5 种上下文效率问题检测（response_bloat、missing_pagination、missing_concise_mode、low_value_large_fields、truncation_without_hint） |
 | P4 | render | Markdown/JSON 报告渲染 + 11 条 recommendation catalog |

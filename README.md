@@ -78,6 +78,12 @@ agent-tool-harness 就是回答这些问题的。
 - 只消费已有评测结果，不运行 Agent，不调用 LLM，不自动修复
 - 所有阈值可配置，is_regression 为建议信号，不自动阻止 CI
 
+**v3.5 Transcript + Context Analysis：**
+- **TranscriptPatternAnalyzer** — 识别 6 种 Agent 困惑模式（重复重试、工具切换困惑、参数微调、无恢复、无支撑回答、搜索范围扩大）
+- **ContextEfficiencyAnalyzer** — 识别 5 种上下文浪费信号（响应膨胀、缺少分页、缺少简洁模式、低价值大字段、截断无提示）
+- **确定性 RuleFinding** — 不调 LLM，产出可复现的 transcript/context 发现
+- **Markdown/JSON 分析报告** — 独立分析章节 + recommendation catalog
+
 ## 它不是什么
 
 - 它不运行你的 Agent — 你需要用自己的 runner 产出 trace
