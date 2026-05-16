@@ -14,6 +14,7 @@ from agent_tool_harness.portfolio.improvement_brief import (
     EvidenceCollector,
     EvidenceRef,
     ToolImprovementBrief,
+    ToolImprovementBriefGenerator,
 )
 from agent_tool_harness.portfolio.portfolio_review import (
     PortfolioFinding,
@@ -26,4 +27,5 @@ __all__ = [
     "EvidenceRef",
     "ToolImprovementBrief",
     "EvidenceCollector",
+    "ToolImprovementBriefGenerator",
 ]

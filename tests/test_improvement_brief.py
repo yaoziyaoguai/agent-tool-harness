@@ -287,3 +287,208 @@ class TestEvidenceCollectorCrossTool:
         result = collector.collect_cross_tool()
         assert result.finding_ids == []
         assert result.metric_values == {}
+
+
+# ---------------------------------------------------------------------------
+# ToolImprovementBriefGenerator - generate_per_tool
+# ---------------------------------------------------------------------------
+
+
+class TestGeneratorPerTool:
+    """per-tool 改进建议生成。"""
+
+    def test_generates_brief_with_findings(self):
+        """有 findings → 生成 brief。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+
+        findings = [
+            _make_finding(
+                "f-1",
+                severity="high",
+                evidence_ref="tool:search",
+                rule_type="tool_response.output_signal_low",
+            ),
+            _make_finding(
+                "f-2",
+                severity="warning",
+                evidence_ref="tool:search:c1",
+                rule_type="tool_response.response_bloat",
+            ),
+        ]
+        generator = ToolImprovementBriefGenerator()
+        brief = generator.generate_per_tool("search", findings=findings)
+
+        assert brief is not None
+        assert brief.tool_name == "search"
+        assert brief.priority == "high"
+        assert brief.evidence.finding_ids == ["f-1", "f-2"]
+        assert len(brief.current_state) > 0
+        assert len(brief.recommended_state) > 0
+        assert len(brief.rationale) > 0
+
+    def test_returns_none_without_evidence(self):
+        """无 evidence → 返回 None。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+
+        generator = ToolImprovementBriefGenerator()
+        brief = generator.generate_per_tool("unknown_tool")
+        assert brief is None
+
+    def test_priority_from_critical_finding(self):
+        """有 critical finding → priority=critical。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+
+        findings = [
+            _make_finding(
+                "f-1",
+                severity="critical",
+                evidence_ref="tool:search",
+            ),
+        ]
+        generator = ToolImprovementBriefGenerator()
+        brief = generator.generate_per_tool("search", findings=findings)
+        assert brief is not None
+        assert brief.priority == "critical"
+
+    def test_priority_from_error_rate(self):
+        """高错误率 → priority=high。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+
+        findings = [
+            _make_finding(
+                "f-1",
+                severity="info",
+                evidence_ref="tool:search",
+            ),
+        ]
+        metrics = _MockMetrics(
+            tool_error_rate=0.6,
+            finding_count_by_tool={"search": 1},
+        )
+        generator = ToolImprovementBriefGenerator()
+        brief = generator.generate_per_tool(
+            "search", findings=findings, metrics=metrics,
+        )
+        assert brief is not None
+        assert brief.priority in ("high", "medium")
+
+    def test_category_from_finding_rule_type(self):
+        """rule_type 正确映射到 brief category。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+
+        findings = [
+            _make_finding(
+                "f-1",
+                severity="warning",
+                evidence_ref="tool:search",
+                rule_type="tool_spec.missing_input_schema",
+            ),
+        ]
+        generator = ToolImprovementBriefGenerator()
+        brief = generator.generate_per_tool("search", findings=findings)
+        assert brief is not None
+        assert brief.category == "spec_quality"
+
+    def test_effort_estimate_small(self):
+        """少量 finding → small。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+
+        findings = [
+            _make_finding(
+                "f-1",
+                severity="low",
+                evidence_ref="tool:search",
+                rule_type="tool_ergonomics.name_too_generic",
+            ),
+        ]
+        generator = ToolImprovementBriefGenerator()
+        brief = generator.generate_per_tool("search", findings=findings)
+        assert brief is not None
+        assert brief.effort_estimate == "small"
+
+
+# ---------------------------------------------------------------------------
+# ToolImprovementBriefGenerator - generate_cross_tool
+# ---------------------------------------------------------------------------
+
+
+class TestGeneratorCrossTool:
+    """cross-tool 改进建议生成。"""
+
+    def test_generates_brief_from_portfolio_finding(self):
+        """单个 PortfolioFinding → 一条 brief。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+        from agent_tool_harness.portfolio.portfolio_review import PortfolioFinding
+
+        pf = [
+            PortfolioFinding(
+                check_name="overlapping_tools",
+                severity="warning",
+                affected_tools=["search_docs", "find_documents"],
+                description="名称和描述高度相似",
+                suggestion="合并或明确区分",
+            ),
+        ]
+        generator = ToolImprovementBriefGenerator()
+        briefs = generator.generate_cross_tool(portfolio_findings=pf)
+
+        assert len(briefs) == 1
+        b = briefs[0]
+        assert b.category == "portfolio"
+        assert b.priority == "medium"
+        assert "search_docs" in b.tool_name
+        assert len(b.current_state) > 0
+
+    def test_generates_multiple_briefs(self):
+        """多个 PortfolioFinding → 多条 brief。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+        from agent_tool_harness.portfolio.portfolio_review import PortfolioFinding
+
+        pf = [
+            PortfolioFinding(
+                check_name="namespacing_consistency",
+                severity="warning",
+                affected_tools=["search", "read"],
+                description="naming issue",
+                suggestion="add namespace",
+            ),
+            PortfolioFinding(
+                check_name="shallow_wrappers",
+                severity="info",
+                affected_tools=["get_data"],
+                description="shallow wrapper",
+                suggestion="add domain words",
+            ),
+        ]
+        generator = ToolImprovementBriefGenerator()
+        briefs = generator.generate_cross_tool(portfolio_findings=pf)
+
+        assert len(briefs) == 2
+        assert briefs[0].priority == "medium"
+        assert briefs[1].priority == "low"
+
+    def test_empty_portfolio_findings(self):
+        """空列表 → 空 briefs。"""
+        from agent_tool_harness.portfolio.improvement_brief import (
+            ToolImprovementBriefGenerator,
+        )
+
+        generator = ToolImprovementBriefGenerator()
+        briefs = generator.generate_cross_tool(portfolio_findings=[])
+        assert len(briefs) == 0
