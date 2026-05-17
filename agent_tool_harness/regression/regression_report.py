@@ -82,6 +82,33 @@ def render_regression_markdown(report: RegressionReport) -> str:
     return "\n".join(lines)
 
 
+def regression_report_section(report: RegressionReport):
+    """把 RegressionReport 暴露为统一 ReportSection。
+
+    regression 模块负责理解 baseline/candidate diff；composer 只消费渲染后的
+    section，避免主报告路径直接耦合 RegressionReport 内部字段。
+    """
+
+    from agent_tool_harness.regression.diff_schema import regression_report_to_dict
+    from agent_tool_harness.reports.section_contract import (
+        RenderedSection,
+        ReportSection,
+    )
+
+    def _render() -> RenderedSection:
+        return RenderedSection(
+            markdown=render_regression_markdown(report),
+            json_data=regression_report_to_dict(report),
+        )
+
+    return ReportSection(
+        section_id="regression",
+        title="Regression Report",
+        render=_render,
+        priority=40,
+    )
+
+
 # ---------------------------------------------------------------------------
 # 各 section 渲染
 # ---------------------------------------------------------------------------

@@ -649,103 +649,11 @@ class MarkdownReport:
     # ------------------------------------------------------------------
 
     def render_suite_section(self, suite_result: Any) -> list[str]:
-        """从 SuiteResult 渲染 Markdown suite 聚合段。
+        """兼容旧 API：实际 suite 渲染职责已收回到 suite_eval 模块。"""
+        from agent_tool_harness.suite_eval.render import render_suite_markdown
 
-        SDD §5 定义了 suite report 的 4 个子段：
-        - Suite Scorecard（一页纸评分表）
-        - Suite Metrics（聚合指标表）
-        - Top Failing Categories / Tools
-        - Per-Case Summary（逐 case 表格）
-
-        Args:
-            suite_result: SuiteResult 实例。
-
-        Returns:
-            Markdown 行列表，可直接 extend 到现有报告。
-        """
-        from agent_tool_harness.suite_eval.suite_result import SuiteResult
-
-        if not isinstance(suite_result, SuiteResult):
-            return []
-
-        sc = suite_result.suite_scorecard
-        m = suite_result.suite_metrics
-
-        lines: list[str] = []
-
-        # -- Suite Scorecard --
-        passed_mark = "PASS" if sc.suite_passed else "FAIL"
-        lines.extend([
-            "## Suite Scorecard",
-            "",
-            "| Metric | Value |",
-            "|--------|-------|",
-            f"| Suite Passed | {passed_mark} |",
-            f"| Total Cases | {sc.total_cases} |",
-            f"| Passed Cases | {sc.passed_cases} |",
-            f"| Failed Cases | {sc.failed_cases} |",
-            f"| Task Success Rate | {sc.task_success_rate:.2%} |",
-            f"| Deterministic Pass Rate | {sc.deterministic_pass_rate:.2%} |",
-        ])
-
-        if sc.top_failing_categories:
-            cats = ", ".join(sc.top_failing_categories)
-            lines.append(f"| Top Failing Categories | {cats} |")
-        if sc.top_affected_tools:
-            tools = ", ".join(sc.top_affected_tools)
-            lines.append(f"| Top Affected Tools | {tools} |")
-        lines.append("")
-
-        # -- Suite Metrics --
-        lines.extend([
-            "## Suite Metrics",
-            "",
-            "| Metric | Value |",
-            "|--------|-------|",
-            f"| Mean Tool Call Count | {m.mean_tool_call_count:.2f} |",
-            f"| Mean Tool Error Rate | {m.mean_tool_error_rate:.4f} |",
-            f"| Mean Findings Per Case | {m.mean_findings_per_case:.2f} |",
-            f"| Total Findings | {m.total_findings} |",
-            f"| Total Tool Calls | {m.total_tool_calls} |",
-            f"| Total Tool Errors | {m.total_tool_errors} |",
-            "",
-        ])
-
-        # -- Top Failing Categories --
-        if sc.top_failing_categories:
-            lines.append("## Top Failing Categories")
-            lines.append("")
-            for i, cat in enumerate(sc.top_failing_categories, 1):
-                count = m.finding_count_by_category.get(cat, 0)
-                lines.append(f"{i}. **{cat}** ({count} findings)")
-            lines.append("")
-
-        # -- Top Affected Tools --
-        if sc.top_affected_tools:
-            lines.append("## Top Affected Tools")
-            lines.append("")
-            for i, tool in enumerate(sc.top_affected_tools, 1):
-                count = m.finding_count_by_tool.get(tool, 0)
-                lines.append(f"{i}. **{tool}** ({count} calls)")
-            lines.append("")
-
-        # -- Per-Case Summary --
-        if suite_result.per_case_results:
-            lines.extend([
-                "## Per-Case Summary",
-                "",
-                "| Case ID | Trace | Task Status | Deterministic | Findings |",
-                "|---------|-------|-------------|---------------|----------|",
-            ])
-            for cr in suite_result.per_case_results:
-                det_status = "PASS" if cr.deterministic_passed else "FAIL"
-                lines.append(
-                    f"| {cr.case_id} | {cr.trace_ref} | {cr.task_status} "
-                    f"| {det_status} | {cr.finding_count} |"
-                )
-            lines.append("")
-
-        return lines
+        markdown = render_suite_markdown(suite_result)
+        return markdown.split("\n") if markdown else []
 
     # ------------------------------------------------------------------
     # 旧 render() 辅助方法

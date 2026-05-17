@@ -152,6 +152,32 @@ def render_analysis_markdown(findings: list[RuleFinding]) -> str:
     return "\n".join(lines)
 
 
+def analysis_report_section(findings: list[RuleFinding]):
+    """把 transcript/context analysis findings 暴露为统一 ReportSection。
+
+    analysis 模块负责识别 category 和 recommendation；composer 只消费 section，
+    不需要知道 ``RuleFinding.category == transcript/context`` 的领域规则。
+    """
+
+    from agent_tool_harness.reports.section_contract import (
+        RenderedSection,
+        ReportSection,
+    )
+
+    def _render() -> RenderedSection:
+        return RenderedSection(
+            markdown=render_analysis_markdown(findings),
+            json_data=render_analysis_json(findings),
+        )
+
+    return ReportSection(
+        section_id="analysis",
+        title="Transcript & Context Analysis",
+        render=_render,
+        priority=50,
+    )
+
+
 # ---------------------------------------------------------------------------
 # JSON 渲染
 # ---------------------------------------------------------------------------

@@ -74,6 +74,36 @@ def render_task_outcome_markdown(outcome) -> str:
     return "\n".join(lines)
 
 
+def task_outcome_report_section(outcome):
+    """把 TaskOutcome 暴露为统一 ReportSection。
+
+    Task 模块负责理解 TaskOutcome；报告 composer 只消费 section contract，
+    不需要知道 verifier_results / matched / missing 的内部 shape。
+    """
+
+    from agent_tool_harness.core_report_bridge import task_outcome_to_json_dict
+    from agent_tool_harness.reports.section_contract import (
+        RenderedSection,
+        ReportSection,
+    )
+
+    def _render() -> RenderedSection:
+        markdown = render_task_outcome_markdown(outcome)
+        if markdown:
+            markdown = f"## Task Outcome\n\n{markdown}"
+        return RenderedSection(
+            markdown=markdown,
+            json_data=task_outcome_to_json_dict(outcome),
+        )
+
+    return ReportSection(
+        section_id="task_outcome",
+        title="Task Outcome",
+        render=_render,
+        priority=20,
+    )
+
+
 def render_task_outcome_text(outcome) -> str:
     """将 TaskOutcome 渲染为纯文本一行摘要。
 

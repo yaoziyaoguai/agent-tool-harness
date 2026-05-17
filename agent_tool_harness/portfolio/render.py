@@ -164,6 +164,37 @@ def render_portfolio_analysis_markdown(
     return "\n\n".join(parts) if parts else ""
 
 
+def portfolio_report_section(
+    portfolio_findings: list,
+    improvement_briefs: list | None = None,
+):
+    """把 portfolio review / improvement brief 暴露为统一 ReportSection。
+
+    portfolio 模块保留“finding + brief 只是建议、不会自动修改 tool spec”的领域
+    边界；composer 只负责展示这个 section。
+    """
+
+    from agent_tool_harness.reports.section_contract import (
+        RenderedSection,
+        ReportSection,
+    )
+
+    briefs = improvement_briefs or []
+
+    def _render() -> RenderedSection:
+        return RenderedSection(
+            markdown=render_portfolio_analysis_markdown(portfolio_findings, briefs),
+            json_data=render_portfolio_analysis_json(portfolio_findings, briefs),
+        )
+
+    return ReportSection(
+        section_id="portfolio",
+        title="Tool Portfolio Review",
+        render=_render,
+        priority=60,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Portfolio Finding → JSON
 # ---------------------------------------------------------------------------
