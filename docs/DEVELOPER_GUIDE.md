@@ -42,7 +42,8 @@ agent_tool_harness/
 ├── cli.py                  # CLI 入口（14 个子命令）
 ├── config/                 # YAML 配置解析（ToolSpec, EvalSpec, loader）
 ├── judges/                 # JudgeProvider（RuleJudge, FakeJudgeProvider, LLMJudgeProvider）
-├── reports/                # 报告渲染（MarkdownReport, ReportInsight, CostTracker）
+├── secrets.py              # SecretSource 抽象（显式 env file / OS env / mapping）
+├── reports/                # 报告 contract / composer / legacy Markdown wrapper
 ├── audit/                  # 审计工具（ToolDesignAuditor, EvalQualityAuditor）
 ├── scaffold/               # AST 扫描生成 draft 配置
 ├── diagnose/               # trace 诊断分析
@@ -74,6 +75,67 @@ v3.1 的 Report Insight 组件在 `agent_tool_harness/reports/report_insight.py`
 - `ReportInsight` + `from_eval()` — 聚合根
 
 所有组件均为 frozen dataclass，通过 `from_eval()` 一站式构造。
+
+## Secret 边界
+
+真实 LLM 相关 secret 的新代码路径必须走 `SecretSource`：
+
+- `EnvFileSecretSource(path)` — 只读取显式传入的 env file，不自动读取当前目录 `.env`
+- `OsEnvSecretSource()` — 只在 CLI / factory 已通过 `--allow-os-env` gate 后使用
+- `MappingSecretSource(mapping)` — 测试用内存 secret
+
+`AnthropicCompatibleConfig.from_secret_source(source)` 是新路径。旧
+`AnthropicCompatibleConfig.from_env()` 仅保留为 deprecated compatibility
+constructor：无参调用不会读取 `os.environ`；只有显式
+`allow_os_environ=True` 才走历史 OS env 兼容路径。
+
+开发规则：
+- 不在 provider / preflight / CLI 内部无参调用 `from_env()`
+- 不读取 `.env` 内容，除非用户显式传 `--env-file PATH`
+- 不打印 `api_key` / `base_url` 原值
+- 不放宽 `--live` + `--confirm-i-have-real-key` + secret source 的 gate
+
+## Report section contract
+
+v3.1-v3.6 的报告段通过 `agent_tool_harness/reports/section_contract.py` 统一：
+
+- `ReportSection` — 稳定 `section_id`、标题、排序优先级和延迟 `render()`
+- `RenderedSection` — 已渲染 Markdown + 可选 JSON shape
+- `render_sections_markdown()` / `sections_to_json_dict()` — composer 只负责排序、拼接、聚合 JSON
+
+架构边界：composer 只认识 `ReportSection`，不读取 `TaskOutcome`、
+`SuiteResult`、`RegressionReport`、analysis finding 或 portfolio brief 的内部字段。
+各业务模块通过 adapter 暴露 section：
+
+- `task_eval.render.task_outcome_report_section()`
+- `suite_eval.render.suite_report_section()`
+- `regression.regression_report.regression_report_section()`
+- `analysis.render.analysis_report_section()`
+- `portfolio.render.portfolio_report_section()`
+
+`MarkdownReport.render_from_core(..., sections=[...])` 是兼容入口，可同时组合
+v3.1 insight、v3.2 task、v3.3 suite、v3.4 regression、v3.5 analysis、
+v3.6 portfolio sections。旧 `task_outcome=` / `suite_result=` 参数仍保留，
+内部会转成 `ReportSection`。
+
+## 如何新增 report section
+
+1. 在所属业务模块内实现 Markdown / JSON 渲染，保持对象知识留在本模块。
+2. 增加一个 `*_report_section(domain_object)` adapter，返回 `ReportSection`。
+3. 选择稳定 `section_id` 和 `priority`，避免 heading 重复。
+4. 在 `tests/test_report_section_composition.py` 或 focused test 中覆盖：
+   多 section 共存、JSON 可序列化、不修改输入对象。
+5. 不把新业务渲染逻辑继续塞进 `reports/markdown_report.py`。
+
+`reports/markdown_report.py` 现在负责 legacy artifact report 和 public API wrapper；
+Core Flow 实际渲染在 `reports/core_report_renderer.py`，suite/task/regression/
+analysis/portfolio 的 section 细节由各自模块负责。
+
+## 版本策略
+
+最新稳定发布是 `v3.6.0`。main 分支当前是 `3.6.1.dev0`，表示 post-v3.6
+maintenance / refactoring 进行中，不代表 `3.6.1` 已发布。不要在文档中把
+`3.6.1.dev0` 写成 release，也不要为架构维护工作创建 `v3.7` 叙述。
 
 ## 架构文档
 

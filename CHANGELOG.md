@@ -3,6 +3,10 @@
 ## Unreleased — 3.6.1.dev0
 
 - **Changed** main branch now identifies as `3.6.1.dev0` for post-v3.6 maintenance and architecture refactoring work.
+- **Changed** real LLM secret config now routes through explicit `SecretSource`; legacy `from_env()` requires explicit OS env opt-in.
+- **Changed** report composition now uses `ReportSection` adapters so v3.1-v3.6 sections can coexist through `render_from_core(..., sections=[...])`.
+- **Changed** Core Flow rendering moved out of `markdown_report.py` into a focused renderer; public compatibility wrappers remain.
+- **Added** multi-section report composition characterization tests.
 - **Note** latest stable release remains `v3.6.0`; `3.6.1` has not been released or tagged.
 
 ## v3.6.0 (2026-05-17)
