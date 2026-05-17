@@ -7,19 +7,24 @@ v3.3 的报告在 v3.0 的 finding 列表之上，新增了三层聚合洞察：
 Markdown 报告（`report.md`）的段落顺序：
 
 ```
-## Scorecard              ← v3.1 新增：一眼结论
-## Metrics                ← v3.1 新增：基础统计
-## Top Issues             ← v3.1 新增：问题排名
-## Findings by Severity   ← v3.1 新增：按严重度分组
-## Findings by Tool       ← v3.1 新增：按工具分组
-## Recommendations        ← v3.1 新增：修复建议
-## Agent Tool-Use Eval    ← 原有详细 findings
-## Per-Eval Details       ← 原有逐条详情
-## Task Outcome           ← v3.2 新增：任务级评测结果（可选）
-## Suite Scorecard        ← v3.3 新增：suite 级 pass/fail（可选）
-## Suite Metrics          ← v3.3 新增：跨 case 聚合指标（可选）
-## Per-Case Summary       ← v3.3 新增：逐 case 汇总表（可选）
-## Review Decision        ← 人工 Review 区
+## Scorecard                    ← v3.1 新增：一眼结论
+## Metrics                      ← v3.1 新增：基础统计
+## Top Issues                   ← v3.1 新增：问题排名
+## Findings by Severity         ← v3.1 新增：按严重度分组
+## Findings by Tool             ← v3.1 新增：按工具分组
+## Recommendations              ← v3.1 新增：修复建议
+## Agent Tool-Use Eval          ← 原有详细 findings
+## Per-Eval Details             ← 原有逐条详情
+## Task Outcome                 ← v3.2 新增：任务级评测结果（可选）
+## Suite Scorecard              ← v3.3 新增：suite 级 pass/fail（可选）
+## Suite Metrics                ← v3.3 新增：跨 case 聚合指标（可选）
+## Per-Case Summary             ← v3.3 新增：逐 case 汇总表（可选）
+## Regression Comparison        ← v3.4 新增：baseline vs candidate（可选）
+## Transcript Analysis          ← v3.5 新增：6 种困惑模式（可选）
+## Context Efficiency           ← v3.5 新增：5 种浪费信号（可选）
+## Portfolio Review             ← v3.6 新增：5 类结构检查（可选）
+## Tool Improvement Brief       ← v3.6 新增：改进建议卡片（可选）
+## Review Decision              ← 人工 Review 区
 ```
 
 JSON 报告包含同样的数据，适合 CI / 下游工具消费。

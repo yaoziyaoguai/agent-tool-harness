@@ -126,14 +126,18 @@ EvalSuite manifest 示例见 `examples/eval_suites/`。
 
 只消费已有评测结果，不重新运行 Agent，不调用 LLM。
 
-```bash
-python -m agent_tool_harness.cli compare \
-  --baseline /tmp/baseline \
-  --candidate /tmp/candidate \
-  --out /tmp/regression
+```python
+from agent_tool_harness.regression import RegressionComparator
+
+# baseline_result 和 candidate_result 来自你已经生成的评测结果
+comparison = RegressionComparator().compare(
+    baseline=baseline_result,
+    candidate=candidate_result,
+)
+print(f"Regression detected: {comparison.is_regression}")
 ```
 
-生成 Markdown + JSON 回归对比报告。
+v3.4 Regression Comparison 当前通过 Python API 使用（非 CLI 子命令）。完整示例见 `examples/regression_comparison_demo.py`。
 
 ## 8. Transcript + Context 分析（v3.5）
 

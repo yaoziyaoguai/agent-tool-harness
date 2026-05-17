@@ -211,6 +211,8 @@ v3.1 报告包含以下段落：
 2. read: 检查工具返回的 output 是否包含足够上下文
 ```
 
+v3.2-v3.6 新增的报告段落（Task Outcome、Suite Result、Regression、Transcript/Context Analysis、Portfolio Review / Improvement Brief）详见 [REPORT_GUIDE](docs/REPORT_GUIDE.md)。
+
 ## 什么时候需要真实 LLM judge
 
 默认不需要。确定性 RuleFinding 已经足够决定 pass/fail。

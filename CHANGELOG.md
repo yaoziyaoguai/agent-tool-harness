@@ -26,19 +26,18 @@
 
 ## v3.3.1 (2026-05-15)
 
+- **Fixed** Integrated TaskOutcome and SuiteResult sections into the standard report path.
+- **Fixed** v3.2/v3.3 audit findings around report rendering, docs, examples, and compatibility.
+- **Fixed** Preserved external-runner boundary — did not add an Agent runner or LLM dependency.
+
+## v3.3.0 (2026-05-14)
+
 - **Added** EvalSuite manifest — YAML-driven multi-case, multi-trace orchestration.
 - **Added** SuiteEvaluator + SuiteResult — per-case evaluation aggregation with task_success_rate, deterministic_pass_rate.
 - **Added** SuiteScorecard + SuiteMetrics — suite-level pass/fail, top failing categories/tools, cross-case metrics.
 - **Added** Suite report Markdown/JSON rendering.
-- **Fixed** v3.2/v3.3 audit findings — TaskOutcome and SuiteResult integration into main report path.
-- **Changed** Tests updated accordingly.
-
-## v3.3.0 (2026-05-14)
-
 - **Added** EvalSuite schema + YAML loader + validation.
 - **Added** CaseResult / SuiteMetrics / SuiteScorecard / SuiteResult data structures.
-- **Added** SuiteEvaluator — per-case TaskEvaluator orchestration with aggregation.
-- **Added** Suite report Markdown rendering.
 
 ## v3.2.0 (2026-05-13)
 
