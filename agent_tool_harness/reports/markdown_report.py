@@ -262,6 +262,7 @@ class MarkdownReport:
         insight: Any = None,
         task_outcome: Any = None,
         suite_result: Any = None,
+        sections: Any = None,
     ) -> str:
         """从 Core Contract 对象渲染 Markdown 报告。
 
@@ -293,6 +294,7 @@ class MarkdownReport:
             insight: 可选 ReportInsight，渲染聚合 insight 段（v3.1）。
             task_outcome: 可选 TaskOutcome，渲染 task-level 评测结果段（v3.2）。
             suite_result: 可选 SuiteResult，渲染 suite-level 聚合报告段（v3.3）。
+            sections: 可选 ReportSection 序列，统一接入 v3.4+ 或未来报告段。
         """
         from agent_tool_harness.signal_quality import describe as describe_sq
 
@@ -448,19 +450,26 @@ class MarkdownReport:
             lines.append(f"**Summary:** {result.get('summary', '')}")
             lines.append("")
 
-        # v3.2: Task Outcome 段（task-level evaluation）
+        report_sections = []
+        # 旧 API 参数转成统一 section contract；调用方无需一次性迁移。
         if task_outcome is not None:
-            from agent_tool_harness.task_eval.render import render_task_outcome_markdown
+            from agent_tool_harness.task_eval.render import task_outcome_report_section
 
-            task_md = render_task_outcome_markdown(task_outcome)
-            if task_md:
-                lines.extend(["", "## Task Outcome", "", task_md])
-
-        # v3.3: Suite Result 段（suite-level aggregation）
+            report_sections.append(task_outcome_report_section(task_outcome))
         if suite_result is not None:
-            suite_lines = self.render_suite_section(suite_result)
-            if suite_lines:
-                lines.extend(suite_lines)
+            from agent_tool_harness.suite_eval.render import suite_report_section
+
+            report_sections.append(suite_report_section(suite_result))
+        if sections:
+            report_sections.extend(sections)
+        if report_sections:
+            from agent_tool_harness.reports.section_contract import (
+                render_sections_markdown,
+            )
+
+            rendered_sections = render_sections_markdown(report_sections).rstrip()
+            if rendered_sections:
+                lines.extend(["", rendered_sections, ""])
 
         # 显式声明 ReviewDecision 未生成
         lines.extend([

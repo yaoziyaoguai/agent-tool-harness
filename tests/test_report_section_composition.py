@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import json
 
-from agent_tool_harness.analysis.render import render_analysis_json
+from agent_tool_harness.analysis.render import (
+    analysis_report_section,
+    render_analysis_json,
+)
 from agent_tool_harness.core_contract import (
     EvaluationResult,
     ExecutionTrace,
@@ -30,7 +33,10 @@ from agent_tool_harness.portfolio.improvement_brief import (
     ToolImprovementBrief,
 )
 from agent_tool_harness.portfolio.portfolio_review import PortfolioFinding
-from agent_tool_harness.portfolio.render import render_portfolio_analysis_json
+from agent_tool_harness.portfolio.render import (
+    portfolio_report_section,
+    render_portfolio_analysis_json,
+)
 from agent_tool_harness.regression.diff_schema import (
     FindingDiff,
     MetricDiff,
@@ -40,9 +46,10 @@ from agent_tool_harness.regression.diff_schema import (
     TaskOutcomeDiff,
     regression_report_to_dict,
 )
-from agent_tool_harness.regression.regression_report import render_regression_markdown
+from agent_tool_harness.regression.regression_report import regression_report_section
 from agent_tool_harness.reports.markdown_report import MarkdownReport
 from agent_tool_harness.reports.report_insight import ReportInsight
+from agent_tool_harness.reports.section_contract import sections_to_json_dict
 from agent_tool_harness.suite_eval.suite_result import (
     CaseResult,
     SuiteMetrics,
@@ -67,21 +74,19 @@ def test_v31_to_v36_sections_can_coexist_in_one_markdown_document():
     improvement_briefs = _improvement_briefs()
 
     report = MarkdownReport()
-    base_markdown = report.render_from_core(
+    composed_markdown = report.render_from_core(
         results=[evaluation_result_to_report_dict(evaluation)],
         report_summary=report_summary_to_report_dict(_summary()),
         signal_quality="recorded_trajectory",
         insight=insight,
         task_outcome=task_outcome,
         suite_result=suite_result,
+        sections=[
+            regression_report_section(regression_report),
+            analysis_report_section(analysis_findings),
+            portfolio_report_section(portfolio_findings, improvement_briefs),
+        ],
     )
-    composed_markdown = "\n".join([
-        base_markdown.rstrip(),
-        render_regression_markdown(regression_report),
-        report.render_analysis_section(analysis_findings),
-        report.render_portfolio_section(portfolio_findings, improvement_briefs),
-        "",
-    ])
 
     expected_headings = [
         "## Scorecard",
@@ -153,6 +158,30 @@ def test_report_sections_json_shapes_are_serializable_without_state_mutation():
     assert task_outcome.status == "success"
     assert regression_report.is_regression is True
     assert improvement_briefs[0].current_state == "一次返回过多结果"
+
+
+def test_render_from_core_sections_json_can_be_built_from_same_contract():
+    """统一 sections 入口使用的 contract 同时提供 JSON 聚合数据。"""
+
+    sections = [
+        regression_report_section(_regression_report()),
+        analysis_report_section(_analysis_findings()),
+        portfolio_report_section(_portfolio_findings(), _improvement_briefs()),
+    ]
+
+    markdown = MarkdownReport().render_from_core(
+        results=[],
+        report_summary=report_summary_to_report_dict(_summary()),
+        signal_quality="recorded_trajectory",
+        sections=sections,
+    )
+    payload = sections_to_json_dict(sections)
+
+    assert "## Regression Warnings" in markdown
+    assert "## Transcript & Context Analysis" in markdown
+    assert "## 工具组合评审 (Tool Portfolio Review)" in markdown
+    assert set(payload) == {"regression", "analysis", "portfolio"}
+    json.dumps(payload, ensure_ascii=False)
 
 
 def test_render_from_core_without_optional_sections_stays_backward_compatible():
