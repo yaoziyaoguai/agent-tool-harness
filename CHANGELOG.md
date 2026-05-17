@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 3.6.1.dev0
+
+- **Changed** main branch now identifies as `3.6.1.dev0` for post-v3.6 maintenance and architecture refactoring work.
+- **Note** latest stable release remains `v3.6.0`; `3.6.1` has not been released or tagged.
+
 ## v3.6.0 (2026-05-17)
 
 - **Added** ToolPortfolioReview — 5 structural checks across tool portfolios (namespacing consistency, overlapping tools, shallow wrappers, missing higher-level tools, resource grouping).
