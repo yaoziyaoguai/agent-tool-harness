@@ -143,6 +143,7 @@ def test_live_only_live_flag_still_disabled(tmp_path, monkeypatch):
             "--out", str(out), "--mock-path", "bad",
             "--judge-provider", "anthropic_compatible_live",
             "--live",
+            "--allow-os-env",
         ],
     )
     assert rc == 0
@@ -200,6 +201,7 @@ def test_fake_transport_fixture_success(tmp_path, monkeypatch):
             "--out", str(out), "--mock-path", "bad",
             "--judge-provider", "anthropic_compatible_live",
             "--judge-fake-transport-fixture", str(fix),
+            "--allow-os-env",
         ],
     )
     assert rc == 0
@@ -235,6 +237,7 @@ def test_fake_transport_fixture_raise_error_sanitized(tmp_path, monkeypatch):
             "--out", str(out), "--mock-path", "bad",
             "--judge-provider", "anthropic_compatible_live",
             "--judge-fake-transport-fixture", str(fix),
+            "--allow-os-env",
         ],
     )
     assert rc == 0

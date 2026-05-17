@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_tool_harness.judges.provider import AnthropicCompatibleConfig
 from agent_tool_harness.secrets import (
     EnvFileSecretSource,
     MappingSecretSource,
@@ -221,3 +222,78 @@ def test_os_env_secret_source_empty_value_is_none(monkeypatch):
     monkeypatch.setenv("TEST_EMPTY", "")
     src = OsEnvSecretSource()
     assert src.get("TEST_EMPTY") is None
+
+
+# ---------------------------------------------------------------------------
+# 11. AnthropicCompatibleConfig secret boundary
+# ---------------------------------------------------------------------------
+
+
+def test_anthropic_config_from_env_default_does_not_read_os_environ(monkeypatch):
+    """旧 from_env 兼容入口默认不再读取 os.environ。
+
+    设计意图：真实 secret 只能经由 SecretSource 或显式 opt-in 进入配置对象，
+    避免测试进程、CI 或用户 shell 中的跨项目环境变量被静默消费。
+    """
+
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_PROVIDER", "anthropic_compatible")
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_BASE_URL", "https://fake.local")
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_API_KEY", "sk-from-os-env")
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_MODEL", "claude-fake")
+
+    cfg = AnthropicCompatibleConfig.from_env()
+
+    assert cfg.provider is None
+    assert cfg.base_url is None
+    assert cfg.api_key is None
+    assert cfg.model is None
+
+
+def test_anthropic_config_from_env_explicit_mapping():
+    """显式 mapping 仍可用于旧测试和 fixture，不触碰真实进程环境。"""
+
+    cfg = AnthropicCompatibleConfig.from_env({
+        "AGENT_TOOL_HARNESS_LLM_PROVIDER": "anthropic_compatible",
+        "AGENT_TOOL_HARNESS_LLM_BASE_URL": "https://fixture.local",
+        "AGENT_TOOL_HARNESS_LLM_API_KEY": "sk-fixture",
+        "AGENT_TOOL_HARNESS_LLM_MODEL": "claude-fixture",
+    })
+
+    assert cfg.provider == "anthropic_compatible"
+    assert cfg.base_url == "https://fixture.local"
+    assert cfg.api_key == "sk-fixture"
+    assert cfg.model == "claude-fixture"
+
+
+def test_anthropic_config_from_env_allow_os_environ(monkeypatch):
+    """只有显式 allow_os_environ=True 时才允许兼容性读取 os.environ。"""
+
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_PROVIDER", "anthropic_compatible")
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_BASE_URL", "https://fake.local")
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_API_KEY", "sk-from-os-env")
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_MODEL", "claude-fake")
+
+    cfg = AnthropicCompatibleConfig.from_env(allow_os_environ=True)
+
+    assert cfg.provider == "anthropic_compatible"
+    assert cfg.base_url == "https://fake.local"
+    assert cfg.api_key == "sk-from-os-env"
+    assert cfg.model == "claude-fake"
+
+
+def test_anthropic_config_from_secret_source():
+    """新路径通过 SecretSource 显式读取，不依赖旧 env dict 形状。"""
+
+    src = MappingSecretSource({
+        "AGENT_TOOL_HARNESS_LLM_PROVIDER": "anthropic_compatible",
+        "AGENT_TOOL_HARNESS_LLM_BASE_URL": "https://source.local",
+        "AGENT_TOOL_HARNESS_LLM_API_KEY": "sk-source",
+        "AGENT_TOOL_HARNESS_LLM_MODEL": "claude-source",
+    })
+
+    cfg = AnthropicCompatibleConfig.from_secret_source(src)
+
+    assert cfg.provider == "anthropic_compatible"
+    assert cfg.base_url == "https://source.local"
+    assert cfg.api_key == "sk-source"
+    assert cfg.model == "claude-source"

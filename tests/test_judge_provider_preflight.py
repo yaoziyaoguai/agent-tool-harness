@@ -192,7 +192,7 @@ def test_cli_judge_provider_preflight_runs_offline_under_socket_ban(
 def test_cli_judge_provider_preflight_with_real_env_does_not_leak(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """env 中含 fake key/base_url/model 时，artifact 必须不泄漏字面值。"""
+    """默认 preflight 不读取 os.environ，避免跨项目 shell secret 泄漏。"""
 
     monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_PROVIDER", "anthropic_compatible")
     monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_BASE_URL", FAKE_BASE_URL)
@@ -220,14 +220,52 @@ def test_cli_judge_provider_preflight_with_real_env_does_not_leak(
         assert FAKE_KEY not in blob
         assert FAKE_BASE_URL not in blob
         assert FAKE_MODEL not in blob
-    # 但是字段齐全 + .gitignore 合规 + .env.example 合规这件事必须能从 json 看出来。
+    # 未显式 opt-in 时，即使宿主 shell 有值，也不能把配置判为齐全。
+    import json as _json
+
+    data = _json.loads(json_text)
+    assert data["summary"]["config_complete"] is False
+    assert data["summary"]["gitignore_safe"] is True
+    assert data["summary"]["env_example_safe"] is True
+    assert data["summary"]["ready_for_live"] is False  # 永远 False，本轮不开 live
+
+
+def test_cli_judge_provider_preflight_allow_os_env_reads_without_leak(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """只有显式 --allow-os-env 时，preflight 才能读取当前进程环境变量。"""
+
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_PROVIDER", "anthropic_compatible")
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_BASE_URL", FAKE_BASE_URL)
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_MODEL", FAKE_MODEL)
+    (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text(
+        "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
+    )
+
+    out = tmp_path / "preflight_out"
+    rc = cli_main(
+        [
+            "judge-provider-preflight",
+            "--out",
+            str(out),
+            "--repo-root",
+            str(tmp_path),
+            "--allow-os-env",
+        ]
+    )
+    assert rc == 0
+    json_text = (out / "preflight.json").read_text(encoding="utf-8")
+    md_text = (out / "preflight.md").read_text(encoding="utf-8")
+    for blob in (json_text, md_text):
+        assert FAKE_KEY not in blob
+        assert FAKE_BASE_URL not in blob
+        assert FAKE_MODEL not in blob
     import json as _json
 
     data = _json.loads(json_text)
     assert data["summary"]["config_complete"] is True
-    assert data["summary"]["gitignore_safe"] is True
-    assert data["summary"]["env_example_safe"] is True
-    assert data["summary"]["ready_for_live"] is False  # 永远 False，本轮不开 live
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +291,7 @@ def test_cli_judge_provider_preflight_with_real_env_does_not_leak(
 def test_preflight_live_optin_default_disabled(tmp_path: Path) -> None:
     """不传 --live / --confirm 时与 v1.x 第三轮完全一致：disabled。"""
 
-    config = AnthropicCompatibleConfig.from_env()
+    config = AnthropicCompatibleConfig()
     (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
     (tmp_path / ".env.example").write_text(
         "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
@@ -268,7 +306,7 @@ def test_preflight_live_optin_default_disabled(tmp_path: Path) -> None:
 def test_preflight_live_alone_is_opt_in_incomplete(tmp_path: Path) -> None:
     """只传 --live 不传 --confirm → opt_in_incomplete + 引导 hint。"""
 
-    config = AnthropicCompatibleConfig.from_env()
+    config = AnthropicCompatibleConfig()
     (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
     (tmp_path / ".env.example").write_text(
         "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
@@ -299,7 +337,7 @@ def test_preflight_full_optin_still_no_transport(tmp_path: Path) -> None:
     - hint 必须包含 "ready_for_live=False" 的可行动解释。
     """
 
-    config = AnthropicCompatibleConfig.from_env()
+    config = AnthropicCompatibleConfig()
     (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
     (tmp_path / ".env.example").write_text(
         "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"
@@ -414,7 +452,7 @@ def test_preflight_v14_live_ready_when_all_safety_green(tmp_path: Path, monkeypa
     )
     monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_API_KEY", "sk-fake")
     monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_MODEL", "claude-fake")
-    config = AnthropicCompatibleConfig.from_env()
+    config = AnthropicCompatibleConfig.from_env(allow_os_environ=True)
     (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
     (tmp_path / ".env.example").write_text(
         "AGENT_TOOL_HARNESS_LLM_API_KEY=\n", encoding="utf-8"

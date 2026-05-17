@@ -46,6 +46,7 @@ artifacts 排查路径
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -517,10 +518,9 @@ class AnthropicCompatibleConfig:
 
     本类负责什么
     ------------
-    把 4 个环境变量（provider/base_url/api_key/model）封装成一个**值对象**，
-    并提供 :meth:`from_env` 工厂；任何想"把 env 读取写在 provider 内部"
-    的诱惑都被这里拦住——provider 只接受已构造好的 config，便于单元测试
-    传入 in-process 假 config 而不污染真实环境变量。
+    把 4 个 provider secret 字段（provider/base_url/api_key/model）封装成
+    一个**值对象**。provider 只接受已构造好的 config，便于单元测试传入
+    in-process 假 config 而不污染真实环境变量。
 
     本类**不**负责什么
     ------------------
@@ -537,15 +537,50 @@ class AnthropicCompatibleConfig:
     model: str | None = None
 
     @classmethod
-    def from_env(cls, env: dict | None = None) -> AnthropicCompatibleConfig:
-        import os as _os
+    def from_env(
+        cls,
+        env: Mapping[str, str] | None = None,
+        *,
+        allow_os_environ: bool = False,
+    ) -> AnthropicCompatibleConfig:
+        """Deprecated compatibility constructor for env-shaped mappings.
 
-        e = env if env is not None else _os.environ
+        安全边界：无参调用**不会**读取 ``os.environ``。历史路径如确实需要
+        兼容宿主环境变量，必须显式传 ``allow_os_environ=True``；新代码应优先
+        使用 :meth:`from_secret_source`，由 CLI gating 创建具体 SecretSource。
+        """
+
+        if env is None:
+            if not allow_os_environ:
+                return cls()
+            import os as _os
+
+            env = _os.environ
+        e = env
         return cls(
             provider=e.get("AGENT_TOOL_HARNESS_LLM_PROVIDER") or None,
             base_url=e.get("AGENT_TOOL_HARNESS_LLM_BASE_URL") or None,
             api_key=e.get("AGENT_TOOL_HARNESS_LLM_API_KEY") or None,
             model=e.get("AGENT_TOOL_HARNESS_LLM_MODEL") or None,
+        )
+
+    @classmethod
+    def from_secret_source(cls, secret_source: Any) -> AnthropicCompatibleConfig:
+        """从显式 SecretSource 构造 provider config。
+
+        这是新代码的首选入口：调用方必须先决定使用 EnvFileSecretSource、
+        OsEnvSecretSource 或 MappingSecretSource。这样 config 值对象不需要知道
+        secret 来源，也不会默认触碰宿主 ``os.environ``。
+        """
+
+        get_secret = getattr(secret_source, "get", None)
+        if not callable(get_secret):
+            return cls()
+        return cls(
+            provider=get_secret("AGENT_TOOL_HARNESS_LLM_PROVIDER") or None,
+            base_url=get_secret("AGENT_TOOL_HARNESS_LLM_BASE_URL") or None,
+            api_key=get_secret("AGENT_TOOL_HARNESS_LLM_API_KEY") or None,
+            model=get_secret("AGENT_TOOL_HARNESS_LLM_MODEL") or None,
         )
 
     def __repr__(self) -> str:

@@ -325,6 +325,26 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="显式指定 .env.example 路径（覆盖 --repo-root 默认）。",
     )
+    preflight.add_argument(
+        "--env-file",
+        default=None,
+        dest="env_file",
+        metavar="PATH",
+        help=(
+            "显式指定用于静态配置齐全度检查的 env 文件。preflight 只在传入本参数时"
+            "读取该文件，不自动读取当前目录 .env。"
+        ),
+    )
+    preflight.add_argument(
+        "--allow-os-env",
+        action="store_true",
+        default=False,
+        dest="allow_os_env",
+        help=(
+            "允许 preflight 从当前进程 os.environ 读取 provider 配置。默认 False，"
+            "避免跨项目 shell secret 被静默消费。"
+        ),
+    )
     # v3.0.0: preflight --live / --confirm-i-have-real-key 为双标志契约。
     # preflight 本身**从不**发网络请求——它只做静态配置校验（provider config
     # 可读性、env file 存在性等）。双标志的作用：preflight 报告中记录用户 opt-in
@@ -600,6 +620,8 @@ def main(argv: list[str] | None = None) -> int:
                 repo_root=args.repo_root,
                 gitignore=args.gitignore,
                 env_example=args.env_example,
+                env_file=args.env_file,
+                allow_os_env=args.allow_os_env,
                 live=args.live,
                 confirm_i_have_real_key=args.confirm_i_have_real_key,
             )
@@ -1133,7 +1155,6 @@ def _run(
     """
 
     from agent_tool_harness.judges.provider import (
-        AnthropicCompatibleConfig,
         AnthropicCompatibleJudgeProvider,
         CompositeJudgeProvider,
         FakeJudgeTransport,
@@ -1230,7 +1251,11 @@ def _run(
         )
         return 2
     if judge_advisory:
-        advisories = _build_judge_advisories(judge_advisory)
+        advisories = _build_judge_advisories(
+            judge_advisory,
+            env_file=env_file,
+            allow_os_env=allow_os_env,
+        )
         if advisories is None:
             return 2
         dry_provider = CompositeJudgeProvider(
@@ -1251,7 +1276,10 @@ def _run(
             return 2
         recordings = _load_judge_recording(judge_recording)
         if judge_provider == "anthropic_compatible_offline":
-            cfg = AnthropicCompatibleConfig.from_env()
+            cfg = _anthropic_config_from_explicit_secret_source(
+                env_file=env_file,
+                allow_os_env=allow_os_env,
+            )
             advisory = AnthropicCompatibleJudgeProvider(config=cfg, offline_fixture=recordings)
             dry_provider = CompositeJudgeProvider(
                 deterministic=RuleJudgeProvider(),
@@ -1276,7 +1304,10 @@ def _run(
         #      在 send 之前就走 missing_config 路径；只有"双标志齐 + env 完整 +
         #      未注入 fake"才有资格调真实 HTTPSConnection（v1.4 仍**不**在 CI
         #      / smoke 中执行这条路径）。
-        cfg = AnthropicCompatibleConfig.from_env()
+        cfg = _anthropic_config_from_explicit_secret_source(
+            env_file=env_file,
+            allow_os_env=allow_os_env,
+        )
         if judge_fake_transport_fixture:
             fake_data = _load_fake_transport_fixture(judge_fake_transport_fixture)
             transport = FakeJudgeTransport(
@@ -1569,7 +1600,12 @@ def _run_core_flow(
     return 0
 
 
-def _build_judge_advisories(specs: list[str]):
+def _build_judge_advisories(
+    specs: list[str],
+    *,
+    env_file: str | None = None,
+    allow_os_env: bool = False,
+):
     """v1.5 第一轮：把 ``--judge-advisory NAME:PATH`` 列表装配成 advisory provider 列表。
 
     本函数负责什么
@@ -1612,7 +1648,6 @@ def _build_judge_advisories(specs: list[str]):
     """
 
     from agent_tool_harness.judges.provider import (
-        AnthropicCompatibleConfig,
         AnthropicCompatibleJudgeProvider,
         FakeJudgeTransport,
         RecordedJudgeProvider,
@@ -1656,19 +1691,48 @@ def _build_judge_advisories(specs: list[str]):
             advisories.append(RecordedJudgeProvider(recordings=recordings))
         elif name == "anthropic_compatible_offline":
             recordings = _load_judge_recording(path_str)
-            cfg = AnthropicCompatibleConfig.from_env()
+            cfg = _anthropic_config_from_explicit_secret_source(
+                env_file=env_file,
+                allow_os_env=allow_os_env,
+            )
             advisories.append(
                 AnthropicCompatibleJudgeProvider(config=cfg, offline_fixture=recordings)
             )
         else:  # anthropic_compatible_fake
             fake_data = _load_fake_transport_fixture(path_str)
-            cfg = AnthropicCompatibleConfig.from_env()
+            cfg = _anthropic_config_from_explicit_secret_source(
+                env_file=env_file,
+                allow_os_env=allow_os_env,
+            )
             transport = FakeJudgeTransport(
                 responses=fake_data.get("responses"),
                 raise_error=fake_data.get("raise_error"),
             )
             advisories.append(AnthropicCompatibleJudgeProvider(config=cfg, transport=transport))
     return advisories
+
+
+def _anthropic_config_from_explicit_secret_source(
+    *,
+    env_file: str | None = None,
+    allow_os_env: bool = False,
+):
+    """通过显式 SecretSource 构造 legacy Anthropic-compatible config。
+
+    这里是旧 ``anthropic_compatible_*`` provider 的安全边界：默认返回空配置，
+    让 provider 走 ``missing_config`` advisory 错误；只有用户显式传
+    ``--env-file`` 或 ``--allow-os-env`` 时才读取 secret source。
+    """
+
+    from agent_tool_harness.judges.provider import AnthropicCompatibleConfig
+
+    if not env_file and not allow_os_env:
+        return AnthropicCompatibleConfig()
+
+    from agent_tool_harness.secrets import EnvFileSecretSource, OsEnvSecretSource
+
+    secret_source = EnvFileSecretSource(env_file) if env_file else OsEnvSecretSource()
+    return AnthropicCompatibleConfig.from_secret_source(secret_source)
 
 
 def _load_fake_transport_fixture(path: str) -> dict:
@@ -1941,6 +2005,8 @@ def _judge_provider_preflight(
     repo_root: str,
     gitignore: str | None,
     env_example: str | None,
+    env_file: str | None = None,
+    allow_os_env: bool = False,
     live: bool = False,
     confirm_i_have_real_key: bool = False,
 ) -> int:
@@ -1968,13 +2034,22 @@ def _judge_provider_preflight(
     """
 
     from .judges.preflight import (
-        AnthropicCompatibleConfig,
         run_preflight,
         write_preflight_artifacts,
     )
 
     out_dir = Path(out)
-    config = AnthropicCompatibleConfig.from_env()
+    try:
+        config = _anthropic_config_from_explicit_secret_source(
+            env_file=env_file,
+            allow_os_env=allow_os_env,
+        )
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(f"error: env file 解析失败 — {exc}", file=sys.stderr)
+        return 2
     report = run_preflight(
         config,
         repo_root=Path(repo_root),

@@ -183,6 +183,7 @@ def test_multi_advisory_with_fake_transport(tmp_path, monkeypatch):
             "--out", str(out), "--mock-path", "good",
             "--judge-advisory", f"recorded:{a1}",
             "--judge-advisory", f"anthropic_compatible_fake:{a2}",
+            "--allow-os-env",
         ]
     )
     assert rc == 0

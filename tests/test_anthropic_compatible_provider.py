@@ -232,6 +232,7 @@ def test_cli_anthropic_compatible_offline_records_disagreement(tmp_path, monkeyp
             "--mock-path", "bad",
             "--judge-provider", "anthropic_compatible_offline",
             "--judge-recording", str(fixture),
+            "--allow-os-env",
         ]
     )
     assert rc == 0
@@ -295,6 +296,7 @@ def test_cli_anthropic_compatible_offline_missing_key_records_error(
             "--mock-path", "bad",
             "--judge-provider", "anthropic_compatible_offline",
             "--judge-recording", str(fixture),
+            "--allow-os-env",
         ]
     )
     assert rc == 0
@@ -354,6 +356,7 @@ def test_cli_anthropic_compatible_offline_does_not_open_socket(
             "--mock-path", "bad",
             "--judge-provider", "anthropic_compatible_offline",
             "--judge-recording", str(fixture),
+            "--allow-os-env",
         ]
     )
     assert rc == 0
