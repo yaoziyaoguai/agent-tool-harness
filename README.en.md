@@ -6,6 +6,8 @@
 
 It consumes existing traces, JSON logs, and eval results. It does not run your agent, does not call real LLMs by default, and does not auto-modify tools.
 
+> Latest stable release: `v3.6.1`. This is a post-v3.6 architecture quality patch, not a new Agent runner, real LLM integration, or v3.7 feature release.
+
 ## What problems it solves
 
 | Your question | Capability |

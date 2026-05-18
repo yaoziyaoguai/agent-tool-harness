@@ -6,7 +6,7 @@
 
 消费已有 trace / JSON log / eval result，做确定性检查和评测，生成可读报告。不运行目标 Agent，不调用真实 LLM（默认），不自动修改工具。
 
-> 最新稳定发布是 `v3.6.0`。main 分支当前标记为 `3.6.1.dev0`，只表示 post-v3.6 维护和架构重构进行中，不代表 `3.6.1` 已发布。
+> 最新稳定发布是 `v3.6.1`。这是 post-v3.6 architecture quality patch，不包含新 Agent runner、真实 LLM 调用或 v3.7 功能。
 
 ## 解决什么问题
 

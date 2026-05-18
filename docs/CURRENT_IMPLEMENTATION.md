@@ -2,7 +2,7 @@
 
 ## 当前是什么
 
-agent-tool-harness main 当前标记为 `3.6.1.dev0`，是 `v3.6.0` 之后的维护/架构重构线；最新稳定发布仍是 `v3.6.0`，`3.6.1` 尚未发布或打 tag。
+agent-tool-harness 当前稳定发布是 `v3.6.1`。这是 `v3.6.0` 之后的 architecture quality patch，包含 SecretSource 边界清理、ReportSection 组合路径、report 渲染职责瘦身和 P3 polish；不包含新 Agent runner、真实 LLM 调用或 v3.7 功能。
 
 agent-tool-harness 是一个 **tool-use inspection platform**，包含结构化报告洞察层、任务级评测、suite 级聚合和 transcript/context 分析。
 Primary path: external runner → trace/log import → inspect/evaluate/report。

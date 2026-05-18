@@ -150,9 +150,8 @@ JSON serialization 也尽量靠近模块边界：task/suite 的 `*_to_json_dict(
 
 ## 版本策略
 
-最新稳定发布是 `v3.6.0`。main 分支当前是 `3.6.1.dev0`，表示 post-v3.6
-maintenance / refactoring 进行中，不代表 `3.6.1` 已发布。不要在文档中把
-`3.6.1.dev0` 写成 release，也不要为架构维护工作创建 `v3.7` 叙述。
+最新稳定发布是 `v3.6.1`。它是 post-v3.6 architecture quality patch，不是新功能线。
+不要为这批维护工作创建 `v3.7` 叙述。
 
 ## 架构文档
 
