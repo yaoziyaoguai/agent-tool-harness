@@ -91,6 +91,7 @@ def regression_report_section(report: RegressionReport):
 
     from agent_tool_harness.regression.diff_schema import regression_report_to_dict
     from agent_tool_harness.reports.section_contract import (
+        PRIORITY_REGRESSION,
         RenderedSection,
         ReportSection,
     )
@@ -105,7 +106,7 @@ def regression_report_section(report: RegressionReport):
         section_id="regression",
         title="Regression Report",
         render=_render,
-        priority=40,
+        priority=PRIORITY_REGRESSION,
     )
 
 

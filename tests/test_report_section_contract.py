@@ -20,8 +20,13 @@ from agent_tool_harness.portfolio.render import portfolio_report_section
 from agent_tool_harness.regression.diff_schema import MetricDiff, RegressionReport
 from agent_tool_harness.regression.regression_report import regression_report_section
 from agent_tool_harness.reports.section_contract import (
+    PRIORITY_ANALYSIS,
+    PRIORITY_REGRESSION,
+    PRIORITY_SUITE_RESULT,
+    PRIORITY_TASK_OUTCOME,
     RenderedSection,
     ReportSection,
+    compose_sections,
     render_sections_markdown,
     sections_to_json_dict,
 )
@@ -39,8 +44,18 @@ from agent_tool_harness.task_eval.task_evaluator import TaskOutcome
 def test_sections_render_in_stable_priority_order():
     """section ordering 由 contract 统一控制，不依赖调用方拼接顺序。"""
 
-    low = ReportSection("later", "Later", lambda: RenderedSection("## Later\n", {}), 20)
-    high = ReportSection("earlier", "Earlier", lambda: RenderedSection("## Earlier\n", {}), 10)
+    low = ReportSection(
+        "later",
+        "Later",
+        lambda: RenderedSection("## Later\n", {}),
+        PRIORITY_SUITE_RESULT,
+    )
+    high = ReportSection(
+        "earlier",
+        "Earlier",
+        lambda: RenderedSection("## Earlier\n", {}),
+        PRIORITY_TASK_OUTCOME,
+    )
 
     markdown = render_sections_markdown([low, high])
     payload = sections_to_json_dict([low, high])
@@ -48,6 +63,36 @@ def test_sections_render_in_stable_priority_order():
     assert markdown.index("## Earlier") < markdown.index("## Later")
     assert list(payload) == ["earlier", "later"]
     json.dumps(payload)
+
+
+def test_section_priority_constants_keep_domain_order_readable():
+    """priority band 用命名常量表达，避免业务 adapter 继续散落魔法数字。"""
+
+    assert PRIORITY_TASK_OUTCOME < PRIORITY_SUITE_RESULT
+    assert PRIORITY_SUITE_RESULT < PRIORITY_REGRESSION
+    assert PRIORITY_REGRESSION < PRIORITY_ANALYSIS
+
+
+def test_compose_sections_renders_once_for_markdown_and_json():
+    """同一次 composition 中 Markdown/JSON 复用同一个 RenderedSection。
+
+    这个测试保护一个很小但重要的边界：section renderer 由业务模块拥有，composer
+    不应该为了两个输出视图重复调用它。
+    """
+
+    calls = 0
+
+    def render() -> RenderedSection:
+        nonlocal calls
+        calls += 1
+        return RenderedSection("## Once\n", {"calls": calls})
+
+    section = ReportSection("once", "Once", render, PRIORITY_TASK_OUTCOME)
+    result = compose_sections([section])
+
+    assert calls == 1
+    assert result.markdown == "## Once\n"
+    assert result.json_data == {"once": {"calls": 1}}
 
 
 def test_domain_adapters_return_serializable_sections_without_mutating_inputs():

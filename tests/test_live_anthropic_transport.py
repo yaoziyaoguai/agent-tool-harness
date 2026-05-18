@@ -196,6 +196,48 @@ def test_live_transport_fake_200_returns_four_fields():
     assert conn.closed is True
 
 
+def test_live_transport_does_not_read_env_timeout_by_default(monkeypatch):
+    """timeout 来源必须显式；构造 transport 不读取 OS env 的 timeout 值。"""
+
+    monkeypatch.setenv("AGENT_TOOL_HARNESS_LLM_REQUEST_TIMEOUT_S", "1")
+    seen: dict[str, float] = {}
+
+    def _factory(host, port, timeout):
+        seen["timeout"] = timeout
+        return _FakeConn(status=200, body=b'{"passed": true}')
+
+    transport = LiveAnthropicTransport(
+        _full_config(),
+        live_enabled=True,
+        live_confirmed=True,
+        http_factory=_factory,
+    )
+
+    transport.send({"eval_id": "x"})
+    assert seen["timeout"] == 30.0
+
+
+def test_live_transport_explicit_timeout_parameter_is_used():
+    """timeout 不是 secret，但仍应由调用方显式传入。"""
+
+    seen: dict[str, float] = {}
+
+    def _factory(host, port, timeout):
+        seen["timeout"] = timeout
+        return _FakeConn(status=200, body=b'{"passed": true}')
+
+    transport = LiveAnthropicTransport(
+        _full_config(),
+        live_enabled=True,
+        live_confirmed=True,
+        http_factory=_factory,
+        timeout_s=7.5,
+    )
+
+    transport.send({"eval_id": "x"})
+    assert seen["timeout"] == 7.5
+
+
 @pytest.mark.parametrize(
     "status,expected_code",
     [

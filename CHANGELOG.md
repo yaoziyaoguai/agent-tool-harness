@@ -5,6 +5,10 @@
 - **Changed** main branch now identifies as `3.6.1.dev0` for post-v3.6 maintenance and architecture refactoring work.
 - **Changed** real LLM secret config now routes through explicit `SecretSource`; legacy `from_env()` requires explicit OS env opt-in.
 - **Changed** report composition now uses `ReportSection` adapters so v3.1-v3.6 sections can coexist through `render_from_core(..., sections=[...])`.
+- **Changed** report section priority bands now use named constants, and section composition renders once for Markdown/JSON reuse.
+- **Changed** legacy analysis/portfolio static helpers now delegate to `ReportSection` adapters.
+- **Changed** `LiveAnthropicTransport` timeout configuration is explicit; the constructor no longer reads OS env by default.
+- **Changed** task/suite JSON serialization moved closer to module boundaries; `core_report_bridge.py` keeps compatibility wrappers.
 - **Changed** Core Flow rendering moved out of `markdown_report.py` into a focused renderer; public compatibility wrappers remain.
 - **Added** multi-section report composition characterization tests.
 - **Note** latest stable release remains `v3.6.0`; `3.6.1` has not been released or tagged.

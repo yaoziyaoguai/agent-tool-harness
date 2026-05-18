@@ -112,9 +112,9 @@ def render_core_report(
         sections=sections,
     )
     if report_sections:
-        from agent_tool_harness.reports.section_contract import render_sections_markdown
+        from agent_tool_harness.reports.section_contract import compose_sections
 
-        rendered_sections = render_sections_markdown(report_sections).rstrip()
+        rendered_sections = compose_sections(report_sections).markdown.rstrip()
         if rendered_sections:
             lines.extend(["", rendered_sections, ""])
 

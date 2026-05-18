@@ -6,6 +6,7 @@ from agent_tool_harness.portfolio.improvement_brief import (
 )
 from agent_tool_harness.portfolio.portfolio_review import PortfolioFinding
 from agent_tool_harness.portfolio.render import (
+    portfolio_report_section,
     render_improvement_brief_json,
     render_improvement_brief_markdown,
     render_portfolio_analysis_json,
@@ -13,6 +14,7 @@ from agent_tool_harness.portfolio.render import (
     render_portfolio_review_json,
     render_portfolio_review_markdown,
 )
+from agent_tool_harness.reports.markdown_report import MarkdownReport
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -127,6 +129,14 @@ class TestCombinedMarkdown:
 
     def test_empty_all_returns_empty(self):
         assert render_portfolio_analysis_markdown([], []) == ""
+
+    def test_legacy_static_helper_matches_section_adapter(self):
+        """旧静态 helper 只是兼容层，新主路径是 ReportSection adapter。"""
+        findings = [_make_portfolio_finding()]
+        briefs = [_make_brief()]
+        legacy = MarkdownReport.render_portfolio_section(findings, briefs)
+        section_markdown = portfolio_report_section(findings, briefs).render().markdown
+        assert legacy == section_markdown
 
 
 # ---------------------------------------------------------------------------

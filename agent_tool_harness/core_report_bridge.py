@@ -1,10 +1,12 @@
-"""Core Report Bridge —— EvaluationResult / ReportSummary → 旧 reporter 可消费格式。
+"""Core Report Bridge —— Core objects → legacy report-compatible dicts.
 
 架构边界
 --------
 - **负责**：把 Core Contract 的 EvaluationResult / ReportSummary 转成 dict，
   让现有 MarkdownReport 或任何 report consumer 可以展示 Core Flow 的结果。
 - **不负责**：不生成报告文本、不做通过/不通过决策、不渲染 Markdown。
+- **post-v3.6 边界**：业务对象自己的 JSON shape 尽量留在所属模块；本 bridge
+  对外保留旧函数名，只做 thin compatibility wrapper，避免继续扩大跨模块耦合。
 - **为什么是 bridge 而非新 reporter**：现有 MarkdownReport 经过多轮验证，结构稳定。
   本轮目标是让 Core Contract 对象能流入这个已有 reporter，而非重写 reporter。
   后续轮次如果 reporter 需要原生理解 Core Contract，可以在 MarkdownReport 中
@@ -238,120 +240,21 @@ def report_insight_to_json_dict(insight: Any) -> dict[str, Any]:
 
 
 def task_outcome_to_json_dict(outcome: Any) -> dict[str, Any]:
-    """把 TaskOutcome 序列化为 JSON 兼容 dict。
+    """兼容旧入口：TaskOutcome JSON shape 由 task_eval 模块拥有。"""
+    from agent_tool_harness.task_eval.render import (
+        task_outcome_to_json_dict as _task_outcome_to_json_dict,
+    )
 
-    JSON shape（v3.2 task outcome section）：
-    - case_id: 对应 EvalCase.case_id
-    - status: success / failed / inconclusive
-    - final_answer: 提取的最终答案文本
-    - verifier_results: 各 verifier 的独立结果 [{verifier_name, passed, matched, missing, details}]
-    - matched: 聚合的匹配事实列表
-    - missing: 聚合的缺失事实列表
-    - details: 人类可读摘要
-
-    与 ReportInsight JSON 兼容——task_outcome 节可独立嵌入已有 JSON report。
-
-    Args:
-        outcome: TaskOutcome 实例。
-
-    Returns:
-        JSON-serializable dict。非 TaskOutcome 输入返回空 dict。
-    """
-    from agent_tool_harness.task_eval.task_evaluator import TaskOutcome
-
-    if not isinstance(outcome, TaskOutcome):
-        return {}
-
-    vr_list: list[dict[str, Any]] = []
-    for vr in outcome.verifier_results:
-        vr_list.append({
-            "verifier_name": vr.verifier_name,
-            "passed": vr.passed,
-            "matched": list(vr.matched),
-            "missing": list(vr.missing),
-            "details": vr.details,
-        })
-
-    return {
-        "case_id": outcome.case_id,
-        "status": outcome.status,
-        "final_answer": outcome.final_answer,
-        "verifier_results": vr_list,
-        "matched": list(outcome.matched),
-        "missing": list(outcome.missing),
-        "details": outcome.details,
-    }
+    return _task_outcome_to_json_dict(outcome)
 
 
 def suite_result_to_json_dict(result: Any) -> dict[str, Any]:
-    """把 SuiteResult 序列化为 JSON 兼容 dict。
+    """兼容旧入口：SuiteResult JSON shape 由 suite_eval 模块拥有。"""
+    from agent_tool_harness.suite_eval.render import (
+        suite_result_to_json_dict as _suite_result_to_json_dict,
+    )
 
-    JSON shape（v3.3 suite result section）：
-    - suite_id: suite 标识
-    - total_cases: case 总数
-    - task_success_rate / deterministic_pass_rate: rate 指标
-    - task_success_count / task_failed_count / task_inconclusive_count: 分桶计数
-    - suite_scorecard: 评分卡（passed, rates, top lists）
-    - suite_metrics: 聚合指标（means, totals, counts by category/tool）
-    - per_case_results: 每个 case 的摘要列表
-
-    Args:
-        result: SuiteResult 实例。
-
-    Returns:
-        JSON-serializable dict。非 SuiteResult 输入返回空 dict。
-    """
-    from agent_tool_harness.suite_eval.suite_result import SuiteResult
-
-    if not isinstance(result, SuiteResult):
-        return {}
-
-    sc = result.suite_scorecard
-    m = result.suite_metrics
-
-    per_case: list[dict[str, Any]] = []
-    for cr in result.per_case_results:
-        per_case.append({
-            "case_id": cr.case_id,
-            "trace_ref": cr.trace_ref,
-            "task_status": cr.task_status,
-            "deterministic_passed": cr.deterministic_passed,
-            "finding_count": cr.finding_count,
-            "error_count": cr.error_count,
-            "warning_count": cr.warning_count,
-            "metrics_summary": cr.metrics_summary,
-        })
-
-    return {
-        "suite_id": result.suite_id,
-        "total_cases": result.total_cases,
-        "task_success_rate": result.task_success_rate,
-        "deterministic_pass_rate": result.deterministic_pass_rate,
-        "task_success_count": result.task_success_count,
-        "task_failed_count": result.task_failed_count,
-        "task_inconclusive_count": result.task_inconclusive_count,
-        "suite_scorecard": {
-            "suite_passed": sc.suite_passed,
-            "task_success_rate": sc.task_success_rate,
-            "deterministic_pass_rate": sc.deterministic_pass_rate,
-            "top_failing_categories": sc.top_failing_categories,
-            "top_affected_tools": sc.top_affected_tools,
-            "total_cases": sc.total_cases,
-            "passed_cases": sc.passed_cases,
-            "failed_cases": sc.failed_cases,
-        },
-        "suite_metrics": {
-            "mean_tool_call_count": m.mean_tool_call_count,
-            "mean_tool_error_rate": m.mean_tool_error_rate,
-            "mean_findings_per_case": m.mean_findings_per_case,
-            "total_findings": m.total_findings,
-            "total_tool_calls": m.total_tool_calls,
-            "total_tool_errors": m.total_tool_errors,
-            "finding_count_by_category": m.finding_count_by_category,
-            "finding_count_by_tool": m.finding_count_by_tool,
-        },
-        "per_case_results": per_case,
-    }
+    return _suite_result_to_json_dict(result)
 
 
 def analysis_findings_to_json_dict(findings: list) -> dict[str, Any]:

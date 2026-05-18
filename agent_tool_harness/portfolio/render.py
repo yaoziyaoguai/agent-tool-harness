@@ -175,6 +175,7 @@ def portfolio_report_section(
     """
 
     from agent_tool_harness.reports.section_contract import (
+        PRIORITY_PORTFOLIO,
         RenderedSection,
         ReportSection,
     )
@@ -191,7 +192,7 @@ def portfolio_report_section(
         section_id="portfolio",
         title="Tool Portfolio Review",
         render=_render,
-        priority=60,
+        priority=PRIORITY_PORTFOLIO,
     )
 
 

@@ -81,8 +81,8 @@ def task_outcome_report_section(outcome):
     不需要知道 verifier_results / matched / missing 的内部 shape。
     """
 
-    from agent_tool_harness.core_report_bridge import task_outcome_to_json_dict
     from agent_tool_harness.reports.section_contract import (
+        PRIORITY_TASK_OUTCOME,
         RenderedSection,
         ReportSection,
     )
@@ -100,8 +100,41 @@ def task_outcome_report_section(outcome):
         section_id="task_outcome",
         title="Task Outcome",
         render=_render,
-        priority=20,
+        priority=PRIORITY_TASK_OUTCOME,
     )
+
+
+def task_outcome_to_json_dict(outcome) -> dict:
+    """把 TaskOutcome 序列化为 JSON 兼容 dict。
+
+    Task 模块拥有 TaskOutcome 的字段知识；bridge 只保留兼容转发入口。这样 JSON
+    shape 离领域对象更近，主 report bridge 不需要展开 verifier_results 等内部细节。
+    """
+
+    from agent_tool_harness.task_eval.task_evaluator import TaskOutcome
+
+    if not isinstance(outcome, TaskOutcome):
+        return {}
+
+    verifier_results: list[dict] = []
+    for result in outcome.verifier_results:
+        verifier_results.append({
+            "verifier_name": result.verifier_name,
+            "passed": result.passed,
+            "matched": list(result.matched),
+            "missing": list(result.missing),
+            "details": result.details,
+        })
+
+    return {
+        "case_id": outcome.case_id,
+        "status": outcome.status,
+        "final_answer": outcome.final_answer,
+        "verifier_results": verifier_results,
+        "matched": list(outcome.matched),
+        "missing": list(outcome.missing),
+        "details": outcome.details,
+    }
 
 
 def render_task_outcome_text(outcome) -> str:

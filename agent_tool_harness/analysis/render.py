@@ -160,6 +160,7 @@ def analysis_report_section(findings: list[RuleFinding]):
     """
 
     from agent_tool_harness.reports.section_contract import (
+        PRIORITY_ANALYSIS,
         RenderedSection,
         ReportSection,
     )
@@ -174,7 +175,7 @@ def analysis_report_section(findings: list[RuleFinding]):
         section_id="analysis",
         title="Transcript & Context Analysis",
         render=_render,
-        priority=50,
+        priority=PRIORITY_ANALYSIS,
     )
 
 

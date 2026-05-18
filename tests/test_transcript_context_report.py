@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from agent_tool_harness.analysis.render import (
     RECOMMENDATION_CATALOG,
+    analysis_report_section,
     render_analysis_json,
     render_analysis_markdown,
     render_context_analysis_markdown,
     render_transcript_analysis_markdown,
 )
 from agent_tool_harness.core_contract import RuleFinding
+from agent_tool_harness.reports.markdown_report import MarkdownReport
 
 # ---------------------------------------------------------------------------
 # fixtures
@@ -118,6 +120,15 @@ class TestRenderAnalysisMarkdown:
         assert "Recommendations" in md
         assert "missing_pagination" in md
         assert "分页参数" in md
+
+    def test_legacy_static_helper_matches_section_adapter(self):
+        """旧静态 helper 只是兼容层，新主路径是 ReportSection adapter。"""
+        findings = [
+            _make_finding("c1", "context", "high", "context.response_bloat"),
+        ]
+        legacy = MarkdownReport.render_analysis_section(findings)
+        section_markdown = analysis_report_section(findings).render().markdown
+        assert legacy == section_markdown
 
 
 # ---------------------------------------------------------------------------

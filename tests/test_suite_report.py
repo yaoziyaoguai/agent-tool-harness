@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from agent_tool_harness.core_report_bridge import suite_result_to_json_dict
 from agent_tool_harness.reports.markdown_report import MarkdownReport
+from agent_tool_harness.suite_eval.render import suite_result_to_json_dict
 from agent_tool_harness.suite_eval.suite_result import (
     CaseResult,
     SuiteMetrics,

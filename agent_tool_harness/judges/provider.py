@@ -776,15 +776,11 @@ class LiveAnthropicTransport:
         # 默认 None 时回落到 ``http.client.HTTPSConnection``——但只有真
         # 实 live 路径会触发，CI / smoke 不会走到这里。
         self._http_factory = http_factory
-        # timeout 来源优先级：显式参数 > env var > 默认 30s；硬上限 120s
-        # 防"无限等"路径让用户体感更安全。
+        # timeout 是非 secret 配置，但来源也应显式。transport 构造函数不再
+        # 默认读取 os.environ；调用方如需兼容 env，应在 factory / CLI gate 层
+        # 显式解析后传进来。这里保持固定默认值，避免隐藏全局状态影响测试。
         if timeout_s is None:
-            try:
-                import os as _os
-                env_v = _os.environ.get("AGENT_TOOL_HARNESS_LLM_REQUEST_TIMEOUT_S")
-                timeout_s = float(env_v) if env_v else 30.0
-            except (ValueError, TypeError):
-                timeout_s = 30.0
+            timeout_s = 30.0
         self._timeout_s = max(1.0, min(120.0, float(timeout_s)))
         # v1.6 第一项：retry/backoff 治理。设计边界：
         # - 默认 ``max_attempts=1`` → 无重试，与 v1.5 字节兼容；

@@ -14,10 +14,10 @@
 
 from __future__ import annotations
 
-from agent_tool_harness.core_report_bridge import task_outcome_to_json_dict
 from agent_tool_harness.task_eval.render import (
     render_task_outcome_markdown,
     render_task_outcome_text,
+    task_outcome_to_json_dict,
 )
 from agent_tool_harness.task_eval.task_evaluator import TaskOutcome
 from agent_tool_harness.task_eval.verifiers import VerifierResult

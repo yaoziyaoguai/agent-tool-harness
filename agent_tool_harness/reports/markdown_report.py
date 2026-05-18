@@ -984,10 +984,11 @@ class MarkdownReport:
 
     @staticmethod
     def render_analysis_section(findings: list) -> str:
-        """渲染 v3.5 Transcript & Context Analysis Markdown 节。
+        """Deprecated compatibility wrapper for v3.5 analysis Markdown.
 
-        将 TranscriptPatternAnalyzer / ContextEfficiencyAnalyzer 产出的
-        RuleFinding 列表渲染为 Markdown 表格，可直接插入主报告。
+        新代码应使用 ``analysis.render.analysis_report_section()`` 并交给
+        ``ReportSection`` composer。保留本静态方法只为旧调用方兼容；内部仍走
+        section adapter，避免形成绕过 contract 的第二条主路径。
 
         Args:
             findings: RuleFinding 列表（category="transcript" | "context"）。
@@ -995,19 +996,20 @@ class MarkdownReport:
         Returns:
             Markdown 字符串；无 analysis finding 时返回空字符串。
         """
-        from agent_tool_harness.analysis.render import render_analysis_markdown
+        from agent_tool_harness.analysis.render import analysis_report_section
 
-        return render_analysis_markdown(findings)
+        return analysis_report_section(findings).render().markdown
 
     @staticmethod
     def render_portfolio_section(
         portfolio_findings: list,
         improvement_briefs: list | None = None,
     ) -> str:
-        """渲染 v3.6 Tool Portfolio Review & Improvement Brief Markdown 节。
+        """Deprecated compatibility wrapper for v3.6 portfolio Markdown.
 
-        将 ToolPortfolioReview 和 ToolImprovementBriefGenerator 产出的
-        结果渲染为 Markdown，可直接插入主报告。
+        新代码应使用 ``portfolio.render.portfolio_report_section()`` 并交给
+        ``ReportSection`` composer。保留本静态方法只为旧调用方兼容；内部仍走
+        section adapter，避免形成绕过 contract 的第二条主路径。
 
         Args:
             portfolio_findings: PortfolioFinding 列表。
@@ -1016,10 +1018,8 @@ class MarkdownReport:
         Returns:
             Markdown 字符串；无数据时返回空字符串。
         """
-        from agent_tool_harness.portfolio.render import (
-            render_portfolio_analysis_markdown,
-        )
+        from agent_tool_harness.portfolio.render import portfolio_report_section
 
-        return render_portfolio_analysis_markdown(
+        return portfolio_report_section(
             portfolio_findings, improvement_briefs or []
-        )
+        ).render().markdown
